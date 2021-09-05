@@ -645,7 +645,7 @@ kmodules.xyz/resource-metrics/batch/v1
 kmodules.xyz/resource-metrics/batch/v1beta1
 kmodules.xyz/resource-metrics/core/v1
 kmodules.xyz/resource-metrics/kubedb.com/v1alpha2
-# kubedb.dev/apimachinery v0.20.1-0.20210905084326-2a901017f244
+# kubedb.dev/apimachinery v0.20.1-0.20210905100118-9d9bc7587c31
 ## explicit; go 1.16
 kubedb.dev/apimachinery/apis
 kubedb.dev/apimachinery/apis/catalog

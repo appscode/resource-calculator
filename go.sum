@@ -1196,8 +1196,8 @@ kmodules.xyz/resource-metrics v0.0.3/go.mod h1:6Dv63HDgp83DhA+lZNB7GIQR6PLjNrYW6
 kmodules.xyz/schema-checker v0.1.2/go.mod h1:JyT3tjizU/gQY9bK56xzAvkjJoAaUPRam7HELx4Nb/o=
 kmodules.xyz/schema-checker v0.1.3/go.mod h1:mp0Y2dChcsE7Ws0BcV4OmpdeD9ZB2NgUrGnqeZdfr4o=
 kmodules.xyz/webhook-runtime v0.0.0-20210804101750-5c602fd5cf06/go.mod h1:MFZFmJk9IXNHwq8JlF/mukwBDbopFQj4swaB2MWHc/U=
-kubedb.dev/apimachinery v0.20.1-0.20210905084326-2a901017f244 h1:TV3JZioFei3+tUTO8AeBGMSqkOLJtf2AAiGAgi9S4/E=
-kubedb.dev/apimachinery v0.20.1-0.20210905084326-2a901017f244/go.mod h1:FbzIcqyzHhTEZIlp2ndAhjr2qw/UcEvZEJKU1xicWPc=
+kubedb.dev/apimachinery v0.20.1-0.20210905100118-9d9bc7587c31 h1:FMWb6TH42tlnCYEeOGCFgIgJMX7v4jr+lGifFOXZIiA=
+kubedb.dev/apimachinery v0.20.1-0.20210905100118-9d9bc7587c31/go.mod h1:FbzIcqyzHhTEZIlp2ndAhjr2qw/UcEvZEJKU1xicWPc=
 kubedb.dev/installer v0.17.2-0.20210905064744-0b2b3de8f115 h1:wgtjHFLiQW792SjGIq5NXFn0ruYV7um3+Rt5hMqNeIs=
 kubedb.dev/installer v0.17.2-0.20210905064744-0b2b3de8f115/go.mod h1:iShxhy53NxKgzp/sIs9QK4m9GE4hGRJ7PUJLGGVAFZQ=
 modernc.org/cc v1.0.0/go.mod h1:1Sk4//wdnYJiUIxnW8ddKpaOJCF37yAdqYnkxUpaYxw=

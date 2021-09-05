@@ -14,7 +14,7 @@ require (
 	k8s.io/kubectl v0.21.1
 	kmodules.xyz/client-go v0.0.0-20210905074110-e514db9cc988
 	kmodules.xyz/resource-metrics v0.0.3
-	kubedb.dev/apimachinery v0.20.1-0.20210905084326-2a901017f244
+	kubedb.dev/apimachinery v0.20.1-0.20210905100118-9d9bc7587c31
 	kubedb.dev/installer v0.17.2-0.20210905064744-0b2b3de8f115
 )
 
