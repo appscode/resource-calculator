@@ -42,6 +42,7 @@ func NewRootCmd() *cobra.Command {
 	matchVersionKubeConfigFlags.AddFlags(flags)
 
 	rootCmd.AddCommand(NewCmdCalculate(matchVersionKubeConfigFlags))
+	rootCmd.AddCommand(NewCmdConvert(matchVersionKubeConfigFlags))
 	rootCmd.AddCommand(NewCmdCompletion())
 	rootCmd.AddCommand(v.NewCmdVersion())
 	return rootCmd

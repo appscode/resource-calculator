@@ -33,6 +33,7 @@ import (
 	core "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -53,7 +54,7 @@ func NewCmdCalculate(clientGetter genericclioptions.RESTClientGetter) *cobra.Com
 		DisableFlagsInUseLine: true,
 		DisableAutoGenTag:     true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return run(clientGetter, sets.NewString(apiGroups...))
+			return calculate(clientGetter, sets.NewString(apiGroups...))
 		},
 	}
 	cmd.Flags().StringSliceVar(&apiGroups, "apiGroups", apiGroups, "api groups for which to calculate resource")
@@ -66,7 +67,7 @@ type KindVersion struct {
 	Version string
 }
 
-func run(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.String) error {
+func calculate(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.String) error {
 	cfg, err := clientGetter.ToRESTConfig()
 	if err != nil {
 		return err
@@ -84,47 +85,9 @@ func run(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.String)
 		return err
 	}
 
-	catalogversions, err := parser.ListFSResources(catalog.FS())
+	catalogmap, err := parseCatalog()
 	if err != nil {
 		return err
-	}
-	catalogmap := map[KindVersion]interface{}{}
-	for _, r := range catalogversions {
-		key := r.GetObjectKind().GroupVersionKind()
-		key.Kind = strings.TrimSuffix(key.Kind, "Version")
-
-		switch key.Kind {
-		case kubedbv1alpha1.ResourceKindElasticsearch:
-			var in catalogv1alpha1.ElasticsearchVersion
-			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(r.UnstructuredContent(), &in); err != nil {
-				return err
-			}
-			catalogmap[KindVersion{
-				Kind:    key.Kind,
-				Version: r.GetName(),
-			}] = &in
-
-		case kubedbv1alpha1.ResourceKindMongoDB:
-			var in catalogv1alpha1.MongoDBVersion
-			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(r.UnstructuredContent(), &in); err != nil {
-				return err
-			}
-			catalogmap[KindVersion{
-				Kind:    key.Kind,
-				Version: r.GetName(),
-			}] = &in
-
-		case kubedbv1alpha1.ResourceKindPostgres:
-			var in catalogv1alpha1.PostgresVersion
-			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(r.UnstructuredContent(), &in); err != nil {
-				return err
-			}
-			catalogmap[KindVersion{
-				Kind:    key.Kind,
-				Version: r.GetName(),
-			}] = &in
-
-		}
 	}
 
 	rsmap := map[schema.GroupVersionKind]core.ResourceList{}
@@ -168,188 +131,9 @@ func run(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.String)
 				content := item.UnstructuredContent()
 
 				if gvk.Group == "kubedb.com" && gvk.Version == "v1alpha1" {
-					switch gvk.Kind {
-					case kubedbv1alpha1.ResourceKindElasticsearch:
-						var in kubedbv1alpha1.Elasticsearch
-						if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &in); err != nil {
-							return err
-						}
-						var out kubedbv1alpha2.Elasticsearch
-						if err := kubedbv1alpha1.Convert_v1alpha1_Elasticsearch_To_v1alpha2_Elasticsearch(&in, &out, nil); err != nil {
-							return err
-						}
-						out.APIVersion = kubedbv1alpha2.SchemeGroupVersion.String()
-						out.Kind = in.Kind
-						if cv, ok := catalogmap[KindVersion{
-							Kind:    gvk.Kind,
-							Version: out.Spec.Version,
-						}]; ok {
-							out.SetDefaults(cv.(*catalogv1alpha1.ElasticsearchVersion), topology)
-						} else {
-							return fmt.Errorf("unknown %v version %s", gvk, out.Spec.Version)
-						}
-
-						content, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
-						if err != nil {
-							return err
-						}
-					case kubedbv1alpha1.ResourceKindEtcd:
-						var in kubedbv1alpha1.Etcd
-						if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &in); err != nil {
-							return err
-						}
-						var out kubedbv1alpha2.Etcd
-						if err := kubedbv1alpha1.Convert_v1alpha1_Etcd_To_v1alpha2_Etcd(&in, &out, nil); err != nil {
-							return err
-						}
-						out.APIVersion = kubedbv1alpha2.SchemeGroupVersion.String()
-						out.Kind = in.Kind
-						out.SetDefaults()
-
-						content, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
-						if err != nil {
-							return err
-						}
-
-					case kubedbv1alpha1.ResourceKindMariaDB:
-						var in kubedbv1alpha1.MariaDB
-						if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &in); err != nil {
-							return err
-						}
-						var out kubedbv1alpha2.MariaDB
-						if err := kubedbv1alpha1.Convert_v1alpha1_MariaDB_To_v1alpha2_MariaDB(&in, &out, nil); err != nil {
-							return err
-						}
-						out.APIVersion = kubedbv1alpha2.SchemeGroupVersion.String()
-						out.Kind = in.Kind
-						out.SetDefaults(topology)
-
-						content, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
-						if err != nil {
-							return err
-						}
-
-					case kubedbv1alpha1.ResourceKindMemcached:
-						var in kubedbv1alpha1.Memcached
-						if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &in); err != nil {
-							return err
-						}
-						var out kubedbv1alpha2.Memcached
-						if err := kubedbv1alpha1.Convert_v1alpha1_Memcached_To_v1alpha2_Memcached(&in, &out, nil); err != nil {
-							return err
-						}
-						out.APIVersion = kubedbv1alpha2.SchemeGroupVersion.String()
-						out.Kind = in.Kind
-						out.SetDefaults()
-
-						content, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
-						if err != nil {
-							return err
-						}
-
-					case kubedbv1alpha1.ResourceKindMongoDB:
-						var in kubedbv1alpha1.MongoDB
-						if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &in); err != nil {
-							return err
-						}
-						var out kubedbv1alpha2.MongoDB
-						if err := kubedbv1alpha1.Convert_v1alpha1_MongoDB_To_v1alpha2_MongoDB(&in, &out, nil); err != nil {
-							return err
-						}
-						out.APIVersion = kubedbv1alpha2.SchemeGroupVersion.String()
-						out.Kind = in.Kind
-						if cv, ok := catalogmap[KindVersion{
-							Kind:    gvk.Kind,
-							Version: out.Spec.Version,
-						}]; ok {
-							out.SetDefaults(cv.(*catalogv1alpha1.MongoDBVersion), topology)
-						} else {
-							return fmt.Errorf("unknown %v version %s", gvk, out.Spec.Version)
-						}
-
-						content, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
-						if err != nil {
-							return err
-						}
-
-					case kubedbv1alpha1.ResourceKindMySQL:
-						var in kubedbv1alpha1.MySQL
-						if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &in); err != nil {
-							return err
-						}
-						var out kubedbv1alpha2.MySQL
-						if err := kubedbv1alpha1.Convert_v1alpha1_MySQL_To_v1alpha2_MySQL(&in, &out, nil); err != nil {
-							return err
-						}
-						out.APIVersion = kubedbv1alpha2.SchemeGroupVersion.String()
-						out.Kind = in.Kind
-						out.SetDefaults(topology)
-
-						content, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
-						if err != nil {
-							return err
-						}
-
-					case kubedbv1alpha1.ResourceKindPerconaXtraDB:
-						var in kubedbv1alpha1.PerconaXtraDB
-						if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &in); err != nil {
-							return err
-						}
-						var out kubedbv1alpha2.PerconaXtraDB
-						if err := kubedbv1alpha1.Convert_v1alpha1_PerconaXtraDB_To_v1alpha2_PerconaXtraDB(&in, &out, nil); err != nil {
-							return err
-						}
-						out.APIVersion = kubedbv1alpha2.SchemeGroupVersion.String()
-						out.Kind = in.Kind
-						out.SetDefaults()
-
-						content, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
-						if err != nil {
-							return err
-						}
-
-					case kubedbv1alpha1.ResourceKindPostgres:
-						var in kubedbv1alpha1.Postgres
-						if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &in); err != nil {
-							return err
-						}
-						var out kubedbv1alpha2.Postgres
-						if err := kubedbv1alpha1.Convert_v1alpha1_Postgres_To_v1alpha2_Postgres(&in, &out, nil); err != nil {
-							return err
-						}
-						out.APIVersion = kubedbv1alpha2.SchemeGroupVersion.String()
-						out.Kind = in.Kind
-						if cv, ok := catalogmap[KindVersion{
-							Kind:    gvk.Kind,
-							Version: out.Spec.Version,
-						}]; ok {
-							out.SetDefaults(cv.(*catalogv1alpha1.PostgresVersion), topology)
-						} else {
-							return fmt.Errorf("unknown %v version %s", gvk, out.Spec.Version)
-						}
-
-						content, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
-						if err != nil {
-							return err
-						}
-
-					case kubedbv1alpha1.ResourceKindRedis:
-						var in kubedbv1alpha1.Redis
-						if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &in); err != nil {
-							return err
-						}
-						var out kubedbv1alpha2.Redis
-						if err := kubedbv1alpha1.Convert_v1alpha1_Redis_To_v1alpha2_Redis(&in, &out, nil); err != nil {
-							return err
-						}
-						out.APIVersion = kubedbv1alpha2.SchemeGroupVersion.String()
-						out.Kind = in.Kind
-						out.SetDefaults(topology)
-
-						content, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
-						if err != nil {
-							return err
-						}
+					content, err = Convert_kubedb_v1alpha1_To_v1alpha2(item, catalogmap, topology)
+					if err != nil {
+						return err
 					}
 				}
 
@@ -388,4 +172,276 @@ func run(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.String)
 	}
 	_, _ = fmt.Fprintf(w, "TOTAL\t=\t%s\t%s\t%s\t\n", rrTotal.Cpu(), rrTotal.Memory(), rrTotal.Storage())
 	return w.Flush()
+}
+
+func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalogmap map[KindVersion]interface{}, topology *core_util.Topology) (map[string]interface{}, error) {
+	gvk := item.GroupVersionKind()
+
+	switch gvk.Kind {
+	case kubedbv1alpha1.ResourceKindElasticsearch:
+		var in kubedbv1alpha1.Elasticsearch
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &in); err != nil {
+			return nil, err
+		}
+		var out kubedbv1alpha2.Elasticsearch
+		if err := kubedbv1alpha1.Convert_v1alpha1_Elasticsearch_To_v1alpha2_Elasticsearch(&in, &out, nil); err != nil {
+			return nil, err
+		}
+		out.APIVersion = kubedbv1alpha2.SchemeGroupVersion.String()
+		out.Kind = in.Kind
+		if cv, ok := catalogmap[KindVersion{
+			Kind:    gvk.Kind,
+			Version: out.Spec.Version,
+		}]; ok {
+			out.SetDefaults(cv.(*catalogv1alpha1.ElasticsearchVersion), topology)
+		} else {
+			return nil, fmt.Errorf("unknown %v version %s", gvk, out.Spec.Version)
+		}
+		out.ObjectMeta = metav1.ObjectMeta{
+			Name:            out.GetName(),
+			Namespace:       out.GetNamespace(),
+			Labels:          out.Labels,
+			Annotations:     out.Annotations,
+			OwnerReferences: out.OwnerReferences,
+		}
+
+		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
+
+	case kubedbv1alpha1.ResourceKindEtcd:
+		var in kubedbv1alpha1.Etcd
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &in); err != nil {
+			return nil, err
+		}
+		var out kubedbv1alpha2.Etcd
+		if err := kubedbv1alpha1.Convert_v1alpha1_Etcd_To_v1alpha2_Etcd(&in, &out, nil); err != nil {
+			return nil, err
+		}
+		out.APIVersion = kubedbv1alpha2.SchemeGroupVersion.String()
+		out.Kind = in.Kind
+		out.SetDefaults()
+		out.ObjectMeta = metav1.ObjectMeta{
+			Name:            out.GetName(),
+			Namespace:       out.GetNamespace(),
+			Labels:          out.Labels,
+			Annotations:     out.Annotations,
+			OwnerReferences: out.OwnerReferences,
+		}
+
+		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
+
+	case kubedbv1alpha1.ResourceKindMariaDB:
+		var in kubedbv1alpha1.MariaDB
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &in); err != nil {
+			return nil, err
+		}
+		var out kubedbv1alpha2.MariaDB
+		if err := kubedbv1alpha1.Convert_v1alpha1_MariaDB_To_v1alpha2_MariaDB(&in, &out, nil); err != nil {
+			return nil, err
+		}
+		out.APIVersion = kubedbv1alpha2.SchemeGroupVersion.String()
+		out.Kind = in.Kind
+		out.SetDefaults(topology)
+		out.ObjectMeta = metav1.ObjectMeta{
+			Name:            out.GetName(),
+			Namespace:       out.GetNamespace(),
+			Labels:          out.Labels,
+			Annotations:     out.Annotations,
+			OwnerReferences: out.OwnerReferences,
+		}
+
+		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
+
+	case kubedbv1alpha1.ResourceKindMemcached:
+		var in kubedbv1alpha1.Memcached
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &in); err != nil {
+			return nil, err
+		}
+		var out kubedbv1alpha2.Memcached
+		if err := kubedbv1alpha1.Convert_v1alpha1_Memcached_To_v1alpha2_Memcached(&in, &out, nil); err != nil {
+			return nil, err
+		}
+		out.APIVersion = kubedbv1alpha2.SchemeGroupVersion.String()
+		out.Kind = in.Kind
+		out.SetDefaults()
+		out.ObjectMeta = metav1.ObjectMeta{
+			Name:            out.GetName(),
+			Namespace:       out.GetNamespace(),
+			Labels:          out.Labels,
+			Annotations:     out.Annotations,
+			OwnerReferences: out.OwnerReferences,
+		}
+
+		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
+
+	case kubedbv1alpha1.ResourceKindMongoDB:
+		var in kubedbv1alpha1.MongoDB
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &in); err != nil {
+			return nil, err
+		}
+		var out kubedbv1alpha2.MongoDB
+		if err := kubedbv1alpha1.Convert_v1alpha1_MongoDB_To_v1alpha2_MongoDB(&in, &out, nil); err != nil {
+			return nil, err
+		}
+		out.APIVersion = kubedbv1alpha2.SchemeGroupVersion.String()
+		out.Kind = in.Kind
+		if cv, ok := catalogmap[KindVersion{
+			Kind:    gvk.Kind,
+			Version: out.Spec.Version,
+		}]; ok {
+			out.SetDefaults(cv.(*catalogv1alpha1.MongoDBVersion), topology)
+		} else {
+			return nil, fmt.Errorf("unknown %v version %s", gvk, out.Spec.Version)
+		}
+		out.ObjectMeta = metav1.ObjectMeta{
+			Name:            out.GetName(),
+			Namespace:       out.GetNamespace(),
+			Labels:          out.Labels,
+			Annotations:     out.Annotations,
+			OwnerReferences: out.OwnerReferences,
+		}
+
+		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
+
+	case kubedbv1alpha1.ResourceKindMySQL:
+		var in kubedbv1alpha1.MySQL
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &in); err != nil {
+			return nil, err
+		}
+		var out kubedbv1alpha2.MySQL
+		if err := kubedbv1alpha1.Convert_v1alpha1_MySQL_To_v1alpha2_MySQL(&in, &out, nil); err != nil {
+			return nil, err
+		}
+		out.APIVersion = kubedbv1alpha2.SchemeGroupVersion.String()
+		out.Kind = in.Kind
+		out.SetDefaults(topology)
+		out.ObjectMeta = metav1.ObjectMeta{
+			Name:            out.GetName(),
+			Namespace:       out.GetNamespace(),
+			Labels:          out.Labels,
+			Annotations:     out.Annotations,
+			OwnerReferences: out.OwnerReferences,
+		}
+
+		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
+
+	case kubedbv1alpha1.ResourceKindPerconaXtraDB:
+		var in kubedbv1alpha1.PerconaXtraDB
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &in); err != nil {
+			return nil, err
+		}
+		var out kubedbv1alpha2.PerconaXtraDB
+		if err := kubedbv1alpha1.Convert_v1alpha1_PerconaXtraDB_To_v1alpha2_PerconaXtraDB(&in, &out, nil); err != nil {
+			return nil, err
+		}
+		out.APIVersion = kubedbv1alpha2.SchemeGroupVersion.String()
+		out.Kind = in.Kind
+		out.SetDefaults()
+		out.ObjectMeta = metav1.ObjectMeta{
+			Name:            out.GetName(),
+			Namespace:       out.GetNamespace(),
+			Labels:          out.Labels,
+			Annotations:     out.Annotations,
+			OwnerReferences: out.OwnerReferences,
+		}
+
+		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
+
+	case kubedbv1alpha1.ResourceKindPostgres:
+		var in kubedbv1alpha1.Postgres
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &in); err != nil {
+			return nil, err
+		}
+		var out kubedbv1alpha2.Postgres
+		if err := kubedbv1alpha1.Convert_v1alpha1_Postgres_To_v1alpha2_Postgres(&in, &out, nil); err != nil {
+			return nil, err
+		}
+		out.APIVersion = kubedbv1alpha2.SchemeGroupVersion.String()
+		out.Kind = in.Kind
+		if cv, ok := catalogmap[KindVersion{
+			Kind:    gvk.Kind,
+			Version: out.Spec.Version,
+		}]; ok {
+			out.SetDefaults(cv.(*catalogv1alpha1.PostgresVersion), topology)
+		} else {
+			return nil, fmt.Errorf("unknown %v version %s", gvk, out.Spec.Version)
+		}
+		out.ObjectMeta = metav1.ObjectMeta{
+			Name:            out.GetName(),
+			Namespace:       out.GetNamespace(),
+			Labels:          out.Labels,
+			Annotations:     out.Annotations,
+			OwnerReferences: out.OwnerReferences,
+		}
+
+		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
+
+	case kubedbv1alpha1.ResourceKindRedis:
+		var in kubedbv1alpha1.Redis
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &in); err != nil {
+			return nil, err
+		}
+		var out kubedbv1alpha2.Redis
+		if err := kubedbv1alpha1.Convert_v1alpha1_Redis_To_v1alpha2_Redis(&in, &out, nil); err != nil {
+			return nil, err
+		}
+		out.APIVersion = kubedbv1alpha2.SchemeGroupVersion.String()
+		out.Kind = in.Kind
+		out.SetDefaults(topology)
+		out.ObjectMeta = metav1.ObjectMeta{
+			Name:            out.GetName(),
+			Namespace:       out.GetNamespace(),
+			Labels:          out.Labels,
+			Annotations:     out.Annotations,
+			OwnerReferences: out.OwnerReferences,
+		}
+
+		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
+	}
+	return nil, fmt.Errorf("can't convert %v to v1alpha2", gvk)
+}
+
+func parseCatalog() (map[KindVersion]interface{}, error) {
+	catalogversions, err := parser.ListFSResources(catalog.FS())
+	if err != nil {
+		return nil, err
+	}
+	catalogmap := map[KindVersion]interface{}{}
+	for _, r := range catalogversions {
+		key := r.GetObjectKind().GroupVersionKind()
+		key.Kind = strings.TrimSuffix(key.Kind, "Version")
+
+		switch key.Kind {
+		case kubedbv1alpha1.ResourceKindElasticsearch:
+			var in catalogv1alpha1.ElasticsearchVersion
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(r.UnstructuredContent(), &in); err != nil {
+				return nil, err
+			}
+			catalogmap[KindVersion{
+				Kind:    key.Kind,
+				Version: r.GetName(),
+			}] = &in
+
+		case kubedbv1alpha1.ResourceKindMongoDB:
+			var in catalogv1alpha1.MongoDBVersion
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(r.UnstructuredContent(), &in); err != nil {
+				return nil, err
+			}
+			catalogmap[KindVersion{
+				Kind:    key.Kind,
+				Version: r.GetName(),
+			}] = &in
+
+		case kubedbv1alpha1.ResourceKindPostgres:
+			var in catalogv1alpha1.PostgresVersion
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(r.UnstructuredContent(), &in); err != nil {
+				return nil, err
+			}
+			catalogmap[KindVersion{
+				Kind:    key.Kind,
+				Version: r.GetName(),
+			}] = &in
+
+		}
+	}
+	return catalogmap, nil
 }
