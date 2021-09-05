@@ -41,6 +41,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/metadata"
 	catalogv1alpha1 "kubedb.dev/apimachinery/apis/catalog/v1alpha1"
+	"kubedb.dev/apimachinery/apis/kubedb"
 	kubedbv1alpha1 "kubedb.dev/apimachinery/apis/kubedb/v1alpha1"
 	kubedbv1alpha2 "kubedb.dev/apimachinery/apis/kubedb/v1alpha2"
 	"kubedb.dev/installer/catalog"
@@ -98,7 +99,7 @@ func calculate(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.S
 		}
 
 		var mapping *meta.RESTMapping
-		if gvk.Group == "kubedb.com" {
+		if gvk.Group == kubedb.GroupName {
 			mapping, err = mapper.RESTMapping(gvk.GroupKind())
 			if meta.IsNoMatchError(err) {
 				rsmap[gvk] = nil // keep track
@@ -130,7 +131,7 @@ func calculate(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.S
 			for _, item := range result.Items {
 				content := item.UnstructuredContent()
 
-				if gvk.Group == "kubedb.com" && gvk.Version == "v1alpha1" {
+				if gvk.Group == kubedb.GroupName && gvk.Version == "v1alpha1" {
 					content, err = Convert_kubedb_v1alpha1_To_v1alpha2(item, catalogmap, topology)
 					if err != nil {
 						return err

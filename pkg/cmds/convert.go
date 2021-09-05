@@ -35,6 +35,7 @@ import (
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/metadata"
+	"kubedb.dev/apimachinery/apis/kubedb"
 	kubedbv1alpha1 "kubedb.dev/apimachinery/apis/kubedb/v1alpha1"
 	"sigs.k8s.io/yaml"
 )
@@ -105,7 +106,7 @@ func convert(dir string, clientGetter genericclioptions.RESTClientGetter) error 
 		} else {
 			objects := make([]interface{}, 0, len(result.Items))
 			for _, item := range result.Items {
-				if gvk.Group == "kubedb.com" && gvk.Version == "v1alpha1" {
+				if gvk.Group == kubedb.GroupName && gvk.Version == "v1alpha1" {
 					content, err := Convert_kubedb_v1alpha1_To_v1alpha2(item, catalogmap, topology)
 					if err != nil {
 						return err
