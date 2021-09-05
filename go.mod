@@ -16,6 +16,7 @@ require (
 	kmodules.xyz/resource-metrics v0.0.3
 	kubedb.dev/apimachinery v0.20.1-0.20210905100118-9d9bc7587c31
 	kubedb.dev/installer v0.17.2-0.20210905064744-0b2b3de8f115
+	sigs.k8s.io/yaml v1.2.0
 )
 
 require (
@@ -108,7 +109,6 @@ require (
 	sigs.k8s.io/kustomize/api v0.8.8 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.10.17 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.1.0 // indirect
-	sigs.k8s.io/yaml v1.2.0 // indirect
 )
 
 replace bitbucket.org/ww/goautoneg => gomodules.xyz/goautoneg v0.0.0-20120707110453-a547fc61f48d
