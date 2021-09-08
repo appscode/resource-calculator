@@ -31,6 +31,7 @@ import (
 
 	"github.com/spf13/cobra"
 	core "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -69,6 +70,11 @@ type KindVersion struct {
 	Version string
 }
 
+type Stats struct {
+	Count     int
+	Resources core.ResourceList
+}
+
 func calculate(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.String) error {
 	cfg, err := clientGetter.ToRESTConfig()
 	if err != nil {
@@ -96,7 +102,7 @@ func calculate(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.S
 		return err
 	}
 
-	rsmap := map[schema.GroupVersionKind]core.ResourceList{}
+	rsmap := map[schema.GroupVersionKind]Stats{}
 	var rrTotal core.ResourceList
 	for _, gvk := range api.RegisteredTypes() {
 		if apiGroups.Len() > 0 && !apiGroups.Has(gvk.Group) {
@@ -107,7 +113,7 @@ func calculate(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.S
 		if gvk.Group == kubedb.GroupName {
 			mapping, err = mapper.RESTMapping(gvk.GroupKind())
 			if meta.IsNoMatchError(err) {
-				rsmap[gvk] = nil // keep track
+				rsmap[gvk] = Stats{} // keep track
 				continue
 			} else if err != nil {
 				return err
@@ -116,7 +122,7 @@ func calculate(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.S
 		} else {
 			mapping, err = mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 			if meta.IsNoMatchError(err) {
-				rsmap[gvk] = nil // keep track
+				rsmap[gvk] = Stats{} // keep track
 				continue
 			} else if err != nil {
 				return err
@@ -149,7 +155,10 @@ func calculate(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.S
 				}
 				summary = api.AddResourceList(summary, rr)
 			}
-			rsmap[gvk] = summary
+			rsmap[gvk] = Stats{
+				Count:     len(result.Items),
+				Resources: summary,
+			}
 			rrTotal = api.AddResourceList(rrTotal, summary)
 		}
 	}
@@ -167,13 +176,13 @@ func calculate(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.S
 
 	const padding = 3
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, padding, ' ', tabwriter.TabIndent)
-	_, _ = fmt.Fprintln(w, "API VERSION\tKIND\tCPU\tMEMORY\tSTORAGE\t")
+	_, _ = fmt.Fprintln(w, "API VERSION\tKIND\tCOUNT\tCPU\tMEMORY\tSTORAGE\t")
 	for _, gvk := range gvks {
 		rr := rsmap[gvk]
-		if rr == nil {
-			_, _ = fmt.Fprintf(w, "%s\t%s\t-\t-\t-\t\n", gvk.GroupVersion(), gvk.Kind)
+		if rr.Count == 0 {
+			_, _ = fmt.Fprintf(w, "%s\t%s\t-\t-\t-\t-\t\n", gvk.GroupVersion(), gvk.Kind)
 		} else {
-			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t\n", gvk.GroupVersion(), gvk.Kind, rr.Cpu(), rr.Memory(), rr.Storage())
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\t%s\t\n", gvk.GroupVersion(), gvk.Kind, rr.Count, rr.Resources.Cpu(), rr.Resources.Memory(), rr.Resources.Storage())
 		}
 	}
 	_, _ = fmt.Fprintf(w, "TOTAL\t=\t%s\t%s\t%s\t\n", rrTotal.Cpu(), rrTotal.Memory(), rrTotal.Storage())
@@ -452,7 +461,9 @@ func LoadCatalog(client cs.Interface) (map[KindVersion]interface{}, error) {
 
 	// load custom ElasticsearchVersions from cluster
 	if items, err := client.CatalogV1alpha1().ElasticsearchVersions().List(context.TODO(), metav1.ListOptions{}); err != nil {
-		return nil, err
+		if !apierrors.IsNotFound(err) {
+			return nil, err
+		}
 	} else {
 		for i, item := range items.Items {
 			kv := KindVersion{
@@ -467,7 +478,9 @@ func LoadCatalog(client cs.Interface) (map[KindVersion]interface{}, error) {
 
 	// load custom MongoDBVersions from cluster
 	if items, err := client.CatalogV1alpha1().MongoDBVersions().List(context.TODO(), metav1.ListOptions{}); err != nil {
-		return nil, err
+		if !apierrors.IsNotFound(err) {
+			return nil, err
+		}
 	} else {
 		for i, item := range items.Items {
 			kv := KindVersion{
@@ -482,7 +495,9 @@ func LoadCatalog(client cs.Interface) (map[KindVersion]interface{}, error) {
 
 	// load custom PostgresVersions from cluster
 	if items, err := client.CatalogV1alpha1().PostgresVersions().List(context.TODO(), metav1.ListOptions{}); err != nil {
-		return nil, err
+		if !apierrors.IsNotFound(err) {
+			return nil, err
+		}
 	} else {
 		for i, item := range items.Items {
 			kv := KindVersion{
