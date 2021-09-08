@@ -37,6 +37,7 @@ import (
 	"k8s.io/client-go/metadata"
 	"kubedb.dev/apimachinery/apis/kubedb"
 	kubedbv1alpha1 "kubedb.dev/apimachinery/apis/kubedb/v1alpha1"
+	cs "kubedb.dev/apimachinery/client/clientset/versioned"
 	"sigs.k8s.io/yaml"
 )
 
@@ -73,8 +74,12 @@ func convert(dir string, clientGetter genericclioptions.RESTClientGetter) error 
 	if err != nil {
 		return err
 	}
+	kubedbclient, err := cs.NewForConfig(cfg)
+	if err != nil {
+		return err
+	}
 
-	catalogmap, err := parseCatalog()
+	catalogmap, err := LoadCatalog(kubedbclient)
 	if err != nil {
 		return err
 	}

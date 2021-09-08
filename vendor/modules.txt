@@ -648,11 +648,25 @@ kmodules.xyz/resource-metrics/kubedb.com/v1alpha2
 # kubedb.dev/apimachinery v0.20.1-0.20210905100118-9d9bc7587c31
 ## explicit; go 1.16
 kubedb.dev/apimachinery/apis
+kubedb.dev/apimachinery/apis/autoscaling
+kubedb.dev/apimachinery/apis/autoscaling/v1alpha1
 kubedb.dev/apimachinery/apis/catalog
 kubedb.dev/apimachinery/apis/catalog/v1alpha1
+kubedb.dev/apimachinery/apis/config
+kubedb.dev/apimachinery/apis/config/v1alpha1
 kubedb.dev/apimachinery/apis/kubedb
 kubedb.dev/apimachinery/apis/kubedb/v1alpha1
 kubedb.dev/apimachinery/apis/kubedb/v1alpha2
+kubedb.dev/apimachinery/apis/ops
+kubedb.dev/apimachinery/apis/ops/v1alpha1
+kubedb.dev/apimachinery/client/clientset/versioned
+kubedb.dev/apimachinery/client/clientset/versioned/scheme
+kubedb.dev/apimachinery/client/clientset/versioned/typed/autoscaling/v1alpha1
+kubedb.dev/apimachinery/client/clientset/versioned/typed/catalog/v1alpha1
+kubedb.dev/apimachinery/client/clientset/versioned/typed/config/v1alpha1
+kubedb.dev/apimachinery/client/clientset/versioned/typed/kubedb/v1alpha1
+kubedb.dev/apimachinery/client/clientset/versioned/typed/kubedb/v1alpha2
+kubedb.dev/apimachinery/client/clientset/versioned/typed/ops/v1alpha1
 kubedb.dev/apimachinery/crds
 # kubedb.dev/installer v0.17.2-0.20210905064744-0b2b3de8f115
 ## explicit; go 1.16

@@ -44,6 +44,7 @@ import (
 	"kubedb.dev/apimachinery/apis/kubedb"
 	kubedbv1alpha1 "kubedb.dev/apimachinery/apis/kubedb/v1alpha1"
 	kubedbv1alpha2 "kubedb.dev/apimachinery/apis/kubedb/v1alpha2"
+	cs "kubedb.dev/apimachinery/client/clientset/versioned"
 	"kubedb.dev/installer/catalog"
 )
 
@@ -85,8 +86,12 @@ func calculate(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.S
 	if err != nil {
 		return err
 	}
+	kubedbclient, err := cs.NewForConfig(cfg)
+	if err != nil {
+		return err
+	}
 
-	catalogmap, err := parseCatalog()
+	catalogmap, err := LoadCatalog(kubedbclient)
 	if err != nil {
 		return err
 	}
@@ -401,7 +406,7 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 	return nil, fmt.Errorf("can't convert %v to v1alpha2", gvk)
 }
 
-func parseCatalog() (map[KindVersion]interface{}, error) {
+func LoadCatalog(client cs.Interface) (map[KindVersion]interface{}, error) {
 	catalogversions, err := parser.ListFSResources(catalog.FS())
 	if err != nil {
 		return nil, err
@@ -444,5 +449,51 @@ func parseCatalog() (map[KindVersion]interface{}, error) {
 
 		}
 	}
+
+	// load custom ElasticsearchVersions from cluster
+	if items, err := client.CatalogV1alpha1().ElasticsearchVersions().List(context.TODO(), metav1.ListOptions{}); err != nil {
+		return nil, err
+	} else {
+		for i, item := range items.Items {
+			kv := KindVersion{
+				Kind:    kubedbv1alpha1.ResourceKindElasticsearch,
+				Version: item.GetName(),
+			}
+			if _, ok := catalogmap[kv]; !ok {
+				catalogmap[kv] = &items.Items[i]
+			}
+		}
+	}
+
+	// load custom MongoDBVersions from cluster
+	if items, err := client.CatalogV1alpha1().MongoDBVersions().List(context.TODO(), metav1.ListOptions{}); err != nil {
+		return nil, err
+	} else {
+		for i, item := range items.Items {
+			kv := KindVersion{
+				Kind:    kubedbv1alpha1.ResourceKindMongoDB,
+				Version: item.GetName(),
+			}
+			if _, ok := catalogmap[kv]; !ok {
+				catalogmap[kv] = &items.Items[i]
+			}
+		}
+	}
+
+	// load custom PostgresVersions from cluster
+	if items, err := client.CatalogV1alpha1().PostgresVersions().List(context.TODO(), metav1.ListOptions{}); err != nil {
+		return nil, err
+	} else {
+		for i, item := range items.Items {
+			kv := KindVersion{
+				Kind:    kubedbv1alpha1.ResourceKindPostgres,
+				Version: item.GetName(),
+			}
+			if _, ok := catalogmap[kv]; !ok {
+				catalogmap[kv] = &items.Items[i]
+			}
+		}
+	}
+
 	return catalogmap, nil
 }
