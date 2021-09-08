@@ -103,7 +103,10 @@ func calculate(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.S
 	}
 
 	rsmap := map[schema.GroupVersionKind]Stats{}
-	var rrTotal core.ResourceList
+	var (
+		totalCount int
+		rrTotal    core.ResourceList
+	)
 	for _, gvk := range api.RegisteredTypes() {
 		if apiGroups.Len() > 0 && !apiGroups.Has(gvk.Group) {
 			continue
@@ -159,6 +162,7 @@ func calculate(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.S
 				Count:     len(result.Items),
 				Resources: summary,
 			}
+			totalCount += len(result.Items)
 			rrTotal = api.AddResourceList(rrTotal, summary)
 		}
 	}
@@ -185,7 +189,7 @@ func calculate(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.S
 			_, _ = fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\t%s\t\n", gvk.GroupVersion(), gvk.Kind, rr.Count, rr.Resources.Cpu(), rr.Resources.Memory(), rr.Resources.Storage())
 		}
 	}
-	_, _ = fmt.Fprintf(w, "TOTAL\t=\t%s\t%s\t%s\t\n", rrTotal.Cpu(), rrTotal.Memory(), rrTotal.Storage())
+	_, _ = fmt.Fprintf(w, "TOTAL\t=\t%d\t%s\t%s\t%s\t\n", totalCount, rrTotal.Cpu(), rrTotal.Memory(), rrTotal.Storage())
 	return w.Flush()
 }
 
