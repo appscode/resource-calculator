@@ -97,6 +97,19 @@ func calculate(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.S
 		return err
 	}
 
+	ns, err := client.Resource(schema.GroupVersionResource{
+		Group:    "",
+		Version:  "v1",
+		Resource: "namespaces",
+	}).Get(context.TODO(), "kube-system", metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	clusterID, _, err := unstructured.NestedString(ns.UnstructuredContent(), "metadata", "uid")
+	if err != nil {
+		return err
+	}
+
 	catalogmap, err := LoadCatalog(kubedbclient)
 	if err != nil {
 		return err
@@ -180,6 +193,9 @@ func calculate(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.S
 
 	const padding = 3
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, padding, ' ', tabwriter.TabIndent)
+	_, _ = fmt.Fprintln(os.Stdout, "")
+	_, _ = fmt.Fprintf(os.Stdout, "CLUSTER ID: %s\n", clusterID)
+	_, _ = fmt.Fprintln(os.Stdout, "")
 	_, _ = fmt.Fprintln(w, "API VERSION\tKIND\tCOUNT\tCPU\tMEMORY\tSTORAGE\t")
 	for _, gvk := range gvks {
 		rr := rsmap[gvk]
