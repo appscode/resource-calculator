@@ -1,4 +1,4 @@
-module kmodules.xyz/resource-calculator
+module kubeops.dev/resource-calculator
 
 go 1.17
 

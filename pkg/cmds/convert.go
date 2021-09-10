@@ -24,8 +24,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	core_util "kmodules.xyz/client-go/core/v1"
-
 	"github.com/spf13/cobra"
 	core "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -35,6 +33,7 @@ import (
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/metadata"
+	core_util "kmodules.xyz/client-go/core/v1"
 	"kubedb.dev/apimachinery/apis/kubedb"
 	kubedbv1alpha1 "kubedb.dev/apimachinery/apis/kubedb/v1alpha1"
 	cs "kubedb.dev/apimachinery/client/clientset/versioned"
