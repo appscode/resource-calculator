@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/metadata"
 	core_util "kmodules.xyz/client-go/core/v1"
 	"kubedb.dev/apimachinery/apis/kubedb"
@@ -61,7 +62,11 @@ func convert(dir string, clientGetter genericclioptions.RESTClientGetter) error 
 	if err != nil {
 		return err
 	}
-	client, err := dynamic.NewForConfig(cfg)
+	kc, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		return err
+	}
+	dc, err := dynamic.NewForConfig(cfg)
 	if err != nil {
 		return err
 	}
@@ -104,7 +109,7 @@ func convert(dir string, clientGetter genericclioptions.RESTClientGetter) error 
 			return err
 		}
 
-		ri := client.Resource(mapping.Resource).Namespace(core.NamespaceAll)
+		ri := dc.Resource(mapping.Resource).Namespace(core.NamespaceAll)
 		if result, err := ri.List(context.TODO(), metav1.ListOptions{}); err != nil {
 			return err
 		} else {
@@ -129,11 +134,6 @@ func convert(dir string, clientGetter genericclioptions.RESTClientGetter) error 
 		for _, obj := range objects {
 			buf.Reset()
 
-			if data, err := yaml.Marshal(obj); err != nil {
-				return err
-			} else {
-				buf.Write(data)
-			}
 			name, _, err := unstructured.NestedString(obj.(map[string]interface{}), "metadata", "name")
 			if err != nil {
 				return err
@@ -142,6 +142,39 @@ func convert(dir string, clientGetter genericclioptions.RESTClientGetter) error 
 			if err != nil {
 				return err
 			}
+
+			// config secret handling
+			if cfgName, ok, _ := unstructured.NestedString(obj.(map[string]interface{}), "spec", "configSecret", "name"); ok && strings.HasPrefix(cfgName, "FIX_CONVERT_TO_SECRET_") {
+				cmName := strings.TrimPrefix(cfgName, "FIX_CONVERT_TO_SECRET_")
+				if cm, err := kc.CoreV1().ConfigMaps(namespace).Get(context.TODO(), cmName, metav1.GetOptions{}); err == nil {
+					s := &core.Secret{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:            cm.Name,
+							Namespace:       cm.Namespace,
+							Labels:          cm.Labels,
+							Annotations:     cm.Annotations,
+							OwnerReferences: cm.OwnerReferences,
+							Finalizers:      cm.Finalizers,
+						},
+						StringData: cm.Data,
+					}
+					if data, err := yaml.Marshal(s); err != nil {
+						return err
+					} else {
+						buf.Write(data)
+						buf.WriteString("\n---\n")
+
+						_ = unstructured.SetNestedField(obj.(map[string]interface{}), cmName, "spec", "configSecret", "name")
+					}
+				}
+			}
+
+			if data, err := yaml.Marshal(obj); err != nil {
+				return err
+			} else {
+				buf.Write(data)
+			}
+
 			err = os.MkdirAll(filepath.Join(dir, strings.ToLower(gvk.Kind), namespace, name), 0755)
 			if err != nil {
 				return err
