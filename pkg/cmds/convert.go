@@ -142,11 +142,11 @@ func convert(dir string, clientGetter genericclioptions.RESTClientGetter) error 
 			if err != nil {
 				return err
 			}
-			err = os.MkdirAll(filepath.Join(dir, namespace, strings.ToLower(gvk.Kind)), 0755)
+			err = os.MkdirAll(filepath.Join(dir, strings.ToLower(gvk.Kind), namespace, name), 0755)
 			if err != nil {
 				return err
 			}
-			if err := ioutil.WriteFile(filepath.Join(dir, namespace, strings.ToLower(gvk.Kind), name+".yaml"), buf.Bytes(), 0644); err != nil {
+			if err := ioutil.WriteFile(filepath.Join(dir, strings.ToLower(gvk.Kind), namespace, name, name+".yaml"), buf.Bytes(), 0644); err != nil {
 				return err
 			}
 		}
