@@ -12,10 +12,10 @@ require (
 	k8s.io/client-go v0.21.1
 	k8s.io/component-base v0.21.1
 	k8s.io/kubectl v0.21.1
-	kmodules.xyz/client-go v0.0.0-20210905074110-e514db9cc988
+	kmodules.xyz/client-go v0.0.0-20210924004104-db8aae464dfb
 	kmodules.xyz/resource-metrics v0.0.3
-	kubedb.dev/apimachinery v0.20.1-0.20210905100118-9d9bc7587c31
-	kubedb.dev/installer v0.17.2-0.20210905064744-0b2b3de8f115
+	kubedb.dev/apimachinery v0.21.1-0.20210915153024-84659c4a8fca
+	kubedb.dev/installer v0.17.2-0.20210921153002-f74874ab735f
 	sigs.k8s.io/yaml v1.2.0
 )
 
