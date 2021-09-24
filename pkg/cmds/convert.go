@@ -115,7 +115,7 @@ func convert(dir string, clientGetter genericclioptions.RESTClientGetter) error 
 		} else {
 			objects := make([]interface{}, 0, len(result.Items))
 			for _, item := range result.Items {
-				if gvk.Group == kubedb.GroupName && gvk.Version == "v1alpha1" {
+				if gvk.Group == kubedb.GroupName && gvk.Version == kubedbv1alpha1.SchemeGroupVersion.Version {
 					content, err := Convert_kubedb_v1alpha1_To_v1alpha2(item, catalogmap, topology)
 					if err != nil {
 						return err

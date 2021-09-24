@@ -36,6 +36,7 @@ import (
 	core_util "kmodules.xyz/client-go/core/v1"
 	"kmodules.xyz/client-go/tools/parser"
 	"kubedb.dev/apimachinery/apis/kubedb"
+	kubedbv1alpha1 "kubedb.dev/apimachinery/apis/kubedb/v1alpha1"
 	cs "kubedb.dev/apimachinery/client/clientset/versioned"
 )
 
@@ -108,7 +109,7 @@ func checkDeprecated(clientGetter genericclioptions.RESTClientGetter, local bool
 			if gvk.Group != kubedb.GroupName {
 				continue
 			}
-			if gvk.Version == "v1alpha1" {
+			if gvk.Version == kubedbv1alpha1.SchemeGroupVersion.Version {
 				content, err := Convert_kubedb_v1alpha1_To_v1alpha2(*item.Object, catalogmap, topology)
 				if err != nil {
 					return err
@@ -136,7 +137,7 @@ func checkDeprecated(clientGetter genericclioptions.RESTClientGetter, local bool
 			} else {
 				objects := make([]parser.ResourceInfo, 0, len(result.Items))
 				for i, item := range result.Items {
-					if gvk.Group == kubedb.GroupName && gvk.Version == "v1alpha1" {
+					if gvk.Group == kubedb.GroupName && gvk.Version == kubedbv1alpha1.SchemeGroupVersion.Version {
 						content, err := Convert_kubedb_v1alpha1_To_v1alpha2(item, catalogmap, topology)
 						if err != nil {
 							return err
