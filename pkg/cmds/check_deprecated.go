@@ -59,38 +59,32 @@ func NewCmdCheckDeprecated(clientGetter genericclioptions.RESTClientGetter) *cob
 }
 
 func checkDeprecated(clientGetter genericclioptions.RESTClientGetter, local bool, filename string) error {
-	cfg, err := clientGetter.ToRESTConfig()
-	if err != nil {
-		return err
-	}
-	dc, err := dynamic.NewForConfig(cfg)
-	if err != nil {
-		return err
-	}
-	mapper, err := clientGetter.ToRESTMapper()
-	if err != nil {
-		return err
-	}
-	topology, err := core_util.DetectTopology(context.TODO(), metadata.NewForConfigOrDie(cfg))
-	if err != nil {
-		return err
-	}
-	kubedbclient, err := cs.NewForConfig(cfg)
-	if err != nil {
-		return err
-	}
+	var mapper meta.RESTMapper
+	var dc dynamic.Interface
+	var topology *core_util.Topology
+	var kubedbclient cs.Interface
 
-	ns, err := dc.Resource(schema.GroupVersionResource{
-		Group:    "",
-		Version:  "v1",
-		Resource: "namespaces",
-	}).Get(context.TODO(), "kube-system", metav1.GetOptions{})
-	if err != nil {
-		return err
-	}
-	clusterID, _, err := unstructured.NestedString(ns.UnstructuredContent(), "metadata", "uid")
-	if err != nil {
-		return err
+	if !local {
+		cfg, err := clientGetter.ToRESTConfig()
+		if err != nil {
+			return err
+		}
+		dc, err = dynamic.NewForConfig(cfg)
+		if err != nil {
+			return err
+		}
+		mapper, err = clientGetter.ToRESTMapper()
+		if err != nil {
+			return err
+		}
+		topology, err = core_util.DetectTopology(context.TODO(), metadata.NewForConfigOrDie(cfg))
+		if err != nil {
+			return err
+		}
+		kubedbclient, err = cs.NewForConfig(cfg)
+		if err != nil {
+			return err
+		}
 	}
 
 	catalogmap, err := LoadCatalog(kubedbclient, local)
@@ -98,7 +92,7 @@ func checkDeprecated(clientGetter genericclioptions.RESTClientGetter, local bool
 		return err
 	}
 
-	rsmap := map[schema.GroupVersionKind][]parser.ResourceInfo{}
+	rsmap := map[schema.GroupKind][]parser.ResourceInfo{}
 	if local {
 		objs, err := parser.ListPathResources(filename)
 		if err != nil {
@@ -106,7 +100,8 @@ func checkDeprecated(clientGetter genericclioptions.RESTClientGetter, local bool
 		}
 		for _, item := range objs {
 			gvk := item.Object.GroupVersionKind()
-			if gvk.Group != kubedb.GroupName {
+			gv := gvk.GroupKind()
+			if gv.Group != kubedb.GroupName {
 				continue
 			}
 			if gvk.Version == kubedbv1alpha1.SchemeGroupVersion.Version {
@@ -114,17 +109,17 @@ func checkDeprecated(clientGetter genericclioptions.RESTClientGetter, local bool
 				if err != nil {
 					return err
 				}
-				rsmap[gvk] = append(rsmap[gvk], parser.ResourceInfo{
+				rsmap[gv] = append(rsmap[gv], parser.ResourceInfo{
 					Filename: item.Filename,
 					Object:   &unstructured.Unstructured{Object: content},
 				})
 			} else {
-				rsmap[gvk] = append(rsmap[gvk], item)
+				rsmap[gv] = append(rsmap[gv], item)
 			}
 		}
 	} else {
-		for _, gvk := range registeredKubeDBTypes {
-			mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+		for _, gv := range registeredKubeDBTypes {
+			mapping, err := mapper.RESTMapping(gv)
 			if meta.IsNoMatchError(err) {
 				continue
 			} else if err != nil {
@@ -137,7 +132,7 @@ func checkDeprecated(clientGetter genericclioptions.RESTClientGetter, local bool
 			} else {
 				objects := make([]parser.ResourceInfo, 0, len(result.Items))
 				for i, item := range result.Items {
-					if gvk.Group == kubedb.GroupName && gvk.Version == kubedbv1alpha1.SchemeGroupVersion.Version {
+					if gv.Group == kubedb.GroupName && mapping.Resource.Version == kubedbv1alpha1.SchemeGroupVersion.Version {
 						content, err := Convert_kubedb_v1alpha1_To_v1alpha2(item, catalogmap, topology)
 						if err != nil {
 							return err
@@ -153,7 +148,7 @@ func checkDeprecated(clientGetter genericclioptions.RESTClientGetter, local bool
 						})
 					}
 				}
-				rsmap[gvk] = objects
+				rsmap[gv] = objects
 			}
 		}
 	}
@@ -236,11 +231,13 @@ func checkDeprecated(clientGetter genericclioptions.RESTClientGetter, local bool
 	const padding = 3
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, padding, ' ', tabwriter.TabIndent)
 	_, _ = fmt.Fprintln(os.Stdout, "")
-	_, _ = fmt.Fprintf(os.Stdout, "CLUSTER ID: %s\n", clusterID)
-	_, _ = fmt.Fprintln(os.Stdout, "")
 	_, _ = fmt.Fprintln(w, "FILE\tKIND\tNAMESPACE\tNAME\tVERSION\tCOMMENT\t")
 	for _, row := range rows {
-		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t\n", row.Filename, row.Kind, row.Namespace, row.Name, row.Version, row.Comment)
+		filename := row.Filename
+		if filename == "" {
+			filename = "-"
+		}
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t\n", filename, row.Kind, row.Namespace, row.Name, row.Version, row.Comment)
 	}
 	return w.Flush()
 }

@@ -41,16 +41,16 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-var registeredKubeDBTypes = []schema.GroupVersionKind{
-	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindElasticsearch),
-	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindEtcd),
-	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindMariaDB),
-	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindMemcached),
-	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindMongoDB),
-	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindMySQL),
-	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindPerconaXtraDB),
-	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindPostgres),
-	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindRedis),
+var registeredKubeDBTypes = []schema.GroupKind{
+	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindElasticsearch).GroupKind(),
+	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindEtcd).GroupKind(),
+	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindMariaDB).GroupKind(),
+	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindMemcached).GroupKind(),
+	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindMongoDB).GroupKind(),
+	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindMySQL).GroupKind(),
+	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindPerconaXtraDB).GroupKind(),
+	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindPostgres).GroupKind(),
+	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindRedis).GroupKind(),
 }
 
 func NewCmdConvert(clientGetter genericclioptions.RESTClientGetter) *cobra.Command {
@@ -100,9 +100,9 @@ func convert(dir string, clientGetter genericclioptions.RESTClientGetter) error 
 		return err
 	}
 
-	rsmap := map[schema.GroupVersionKind][]interface{}{}
-	for _, gvk := range registeredKubeDBTypes {
-		mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	rsmap := map[schema.GroupKind][]interface{}{}
+	for _, gv := range registeredKubeDBTypes {
+		mapping, err := mapper.RESTMapping(gv)
 		if meta.IsNoMatchError(err) {
 			continue
 		} else if err != nil {
@@ -115,17 +115,22 @@ func convert(dir string, clientGetter genericclioptions.RESTClientGetter) error 
 		} else {
 			objects := make([]interface{}, 0, len(result.Items))
 			for _, item := range result.Items {
-				if gvk.Group == kubedb.GroupName && gvk.Version == kubedbv1alpha1.SchemeGroupVersion.Version {
+				if gv.Group == kubedb.GroupName && mapping.GroupVersionKind.Version == kubedbv1alpha1.SchemeGroupVersion.Version {
 					content, err := Convert_kubedb_v1alpha1_To_v1alpha2(item, catalogmap, topology)
 					if err != nil {
 						return err
 					}
 					objects = append(objects, content)
 				} else {
+					item.SetManagedFields(nil)
+					item.SetCreationTimestamp(metav1.Time{})
+					item.SetGeneration(0)
+					item.SetUID("")
+					item.SetResourceVersion("")
 					objects = append(objects, item.UnstructuredContent())
 				}
 			}
-			rsmap[gvk] = objects
+			rsmap[gv] = objects
 		}
 	}
 
