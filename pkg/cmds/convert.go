@@ -41,6 +41,18 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+var registeredKubeDBTypes = []schema.GroupVersionKind{
+	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindElasticsearch),
+	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindEtcd),
+	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindMariaDB),
+	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindMemcached),
+	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindMongoDB),
+	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindMySQL),
+	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindPerconaXtraDB),
+	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindPostgres),
+	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindRedis),
+}
+
 func NewCmdConvert(clientGetter genericclioptions.RESTClientGetter) *cobra.Command {
 	var dir string
 	cmd := &cobra.Command{
@@ -83,25 +95,13 @@ func convert(dir string, clientGetter genericclioptions.RESTClientGetter) error 
 		return err
 	}
 
-	catalogmap, err := LoadCatalog(kubedbclient)
+	catalogmap, err := LoadCatalog(kubedbclient, false)
 	if err != nil {
 		return err
 	}
 
-	registeredTypes := []schema.GroupVersionKind{
-		kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindElasticsearch),
-		kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindEtcd),
-		kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindMariaDB),
-		kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindMemcached),
-		kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindMongoDB),
-		kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindMySQL),
-		kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindPerconaXtraDB),
-		kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindPostgres),
-		kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindRedis),
-	}
-
 	rsmap := map[schema.GroupVersionKind][]interface{}{}
-	for _, gvk := range registeredTypes {
+	for _, gvk := range registeredKubeDBTypes {
 		mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 		if meta.IsNoMatchError(err) {
 			continue

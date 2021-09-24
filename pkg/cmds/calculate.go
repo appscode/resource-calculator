@@ -109,7 +109,7 @@ func calculate(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.S
 		return err
 	}
 
-	catalogmap, err := LoadCatalog(kubedbclient)
+	catalogmap, err := LoadCatalog(kubedbclient, false)
 	if err != nil {
 		return err
 	}
@@ -434,97 +434,99 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 	return nil, fmt.Errorf("can't convert %v to v1alpha2", gvk)
 }
 
-func LoadCatalog(client cs.Interface) (map[KindVersion]interface{}, error) {
+func LoadCatalog(client cs.Interface, local bool) (map[KindVersion]interface{}, error) {
 	catalogversions, err := parser.ListFSResources(catalog.FS())
 	if err != nil {
 		return nil, err
 	}
 	catalogmap := map[KindVersion]interface{}{}
 	for _, r := range catalogversions {
-		key := r.GetObjectKind().GroupVersionKind()
+		key := r.Object.GetObjectKind().GroupVersionKind()
 		key.Kind = strings.TrimSuffix(key.Kind, "Version")
 
 		switch key.Kind {
 		case kubedbv1alpha1.ResourceKindElasticsearch:
 			var in catalogv1alpha1.ElasticsearchVersion
-			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(r.UnstructuredContent(), &in); err != nil {
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(r.Object.UnstructuredContent(), &in); err != nil {
 				return nil, err
 			}
 			catalogmap[KindVersion{
 				Kind:    key.Kind,
-				Version: r.GetName(),
+				Version: r.Object.GetName(),
 			}] = &in
 
 		case kubedbv1alpha1.ResourceKindMongoDB:
 			var in catalogv1alpha1.MongoDBVersion
-			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(r.UnstructuredContent(), &in); err != nil {
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(r.Object.UnstructuredContent(), &in); err != nil {
 				return nil, err
 			}
 			catalogmap[KindVersion{
 				Kind:    key.Kind,
-				Version: r.GetName(),
+				Version: r.Object.GetName(),
 			}] = &in
 
 		case kubedbv1alpha1.ResourceKindPostgres:
 			var in catalogv1alpha1.PostgresVersion
-			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(r.UnstructuredContent(), &in); err != nil {
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(r.Object.UnstructuredContent(), &in); err != nil {
 				return nil, err
 			}
 			catalogmap[KindVersion{
 				Kind:    key.Kind,
-				Version: r.GetName(),
+				Version: r.Object.GetName(),
 			}] = &in
 
 		}
 	}
 
-	// load custom ElasticsearchVersions from cluster
-	if items, err := client.CatalogV1alpha1().ElasticsearchVersions().List(context.TODO(), metav1.ListOptions{}); err != nil {
-		if !apierrors.IsNotFound(err) {
-			return nil, err
-		}
-	} else {
-		for i, item := range items.Items {
-			kv := KindVersion{
-				Kind:    kubedbv1alpha1.ResourceKindElasticsearch,
-				Version: item.GetName(),
+	if !local {
+		// load custom ElasticsearchVersions from cluster
+		if items, err := client.CatalogV1alpha1().ElasticsearchVersions().List(context.TODO(), metav1.ListOptions{}); err != nil {
+			if !apierrors.IsNotFound(err) {
+				return nil, err
 			}
-			if _, ok := catalogmap[kv]; !ok {
-				catalogmap[kv] = &items.Items[i]
+		} else {
+			for i, item := range items.Items {
+				kv := KindVersion{
+					Kind:    kubedbv1alpha1.ResourceKindElasticsearch,
+					Version: item.GetName(),
+				}
+				if _, ok := catalogmap[kv]; !ok {
+					catalogmap[kv] = &items.Items[i]
+				}
 			}
 		}
-	}
 
-	// load custom MongoDBVersions from cluster
-	if items, err := client.CatalogV1alpha1().MongoDBVersions().List(context.TODO(), metav1.ListOptions{}); err != nil {
-		if !apierrors.IsNotFound(err) {
-			return nil, err
-		}
-	} else {
-		for i, item := range items.Items {
-			kv := KindVersion{
-				Kind:    kubedbv1alpha1.ResourceKindMongoDB,
-				Version: item.GetName(),
+		// load custom MongoDBVersions from cluster
+		if items, err := client.CatalogV1alpha1().MongoDBVersions().List(context.TODO(), metav1.ListOptions{}); err != nil {
+			if !apierrors.IsNotFound(err) {
+				return nil, err
 			}
-			if _, ok := catalogmap[kv]; !ok {
-				catalogmap[kv] = &items.Items[i]
+		} else {
+			for i, item := range items.Items {
+				kv := KindVersion{
+					Kind:    kubedbv1alpha1.ResourceKindMongoDB,
+					Version: item.GetName(),
+				}
+				if _, ok := catalogmap[kv]; !ok {
+					catalogmap[kv] = &items.Items[i]
+				}
 			}
 		}
-	}
 
-	// load custom PostgresVersions from cluster
-	if items, err := client.CatalogV1alpha1().PostgresVersions().List(context.TODO(), metav1.ListOptions{}); err != nil {
-		if !apierrors.IsNotFound(err) {
-			return nil, err
-		}
-	} else {
-		for i, item := range items.Items {
-			kv := KindVersion{
-				Kind:    kubedbv1alpha1.ResourceKindPostgres,
-				Version: item.GetName(),
+		// load custom PostgresVersions from cluster
+		if items, err := client.CatalogV1alpha1().PostgresVersions().List(context.TODO(), metav1.ListOptions{}); err != nil {
+			if !apierrors.IsNotFound(err) {
+				return nil, err
 			}
-			if _, ok := catalogmap[kv]; !ok {
-				catalogmap[kv] = &items.Items[i]
+		} else {
+			for i, item := range items.Items {
+				kv := KindVersion{
+					Kind:    kubedbv1alpha1.ResourceKindPostgres,
+					Version: item.GetName(),
+				}
+				if _, ok := catalogmap[kv]; !ok {
+					catalogmap[kv] = &items.Items[i]
+				}
 			}
 		}
 	}

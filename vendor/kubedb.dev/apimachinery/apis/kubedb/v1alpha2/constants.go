@@ -197,22 +197,29 @@ const (
 	MariaDBDefaultClusterSize           = 3
 	MariaDBDataMountPath                = "/var/lib/mysql"
 	MariaDBDataLostFoundPath            = MariaDBDataMountPath + "lost+found"
+	MariaDBInitDBVolumeName             = "initial-script"
 	MariaDBInitDBMountPath              = "/docker-entrypoint-initdb.d"
 	MariaDBCustomConfigMountPath        = "/etc/mysql/conf.d/"
 	MariaDBClusterCustomConfigMountPath = "/etc/mysql/custom.conf.d/"
 	MariaDBCustomConfigVolumeName       = "custom-config"
 	MariaDBTLSConfigCustom              = "custom"
 	MariaDBInitContainerName            = "mariadb-init"
+	MariaDBCoordinatorContainerName     = "md-coordinator"
+	MariaDBRunScriptVolumeName          = "run-script"
+	MariaDBRunScriptVolumeMountPath     = "/run-script"
+	MariaDBInitScriptVolumeName         = "init-scripts"
+	MariaDBInitScriptVolumeMountPath    = "/scripts"
 
 	// =========================== PostgreSQL Constants ============================
-	PostgresDatabasePortName       = "db"
-	PostgresPrimaryServicePortName = "primary"
-	PostgresStandbyServicePortName = "standby"
-	PostgresDatabasePort           = 5432
-	PostgresPodPrimary             = "primary"
-	PostgresPodStandby             = "standby"
-	PostgresLabelRole              = kubedb.GroupName + "/role"
-
+	PostgresDatabasePortName         = "db"
+	PostgresPrimaryServicePortName   = "primary"
+	PostgresStandbyServicePortName   = "standby"
+	PostgresDatabasePort             = 5432
+	PostgresPodPrimary               = "primary"
+	PostgresPodStandby               = "standby"
+	PostgresLabelRole                = kubedb.GroupName + "/role"
+	EnvPostgresUser                  = "POSTGRES_USER"
+	EnvPostgresPassword              = "POSTGRES_PASSWORD"
 	PostgresCoordinatorContainerName = "pg-coordinator"
 	PostgresCoordinatorPort          = 2380
 	PostgresCoordinatorPortName      = "coordinator"
@@ -222,16 +229,6 @@ const (
 
 	PostgresRunScriptMountPath  = "/run_scripts"
 	PostgresRunScriptVolumeName = "scripts"
-
-	PostgresCurrentXlogLocation     = "pg_current_xlog_location"
-	PostgresLastXlogReceiveLocation = "pg_last_xlog_receive_location"
-	PostgresLastXlogReplayLocation  = "pg_last_xlog_replay_location"
-	PostgresXlogLocationDiff        = "pg_xlog_location_diff"
-
-	PostgresCurrentWalLSN         = "pg_current_wal_lsn"
-	PostgresLastWalReceivePostion = "pg_last_wal_receive_lsn"
-	PostgresLastWalReplayLSN      = "pg_last_wal_replay_lsn"
-	PostgresWalLSNDiff            = "pg_wal_lsn_diff"
 
 	PostgresKeyFileSecretSuffix = "key"
 	PostgresPEMSecretSuffix     = "pem"
@@ -264,6 +261,10 @@ const (
 	RedisDatabasePort           = 6379
 	RedisGossipPortName         = "gossip"
 	RedisGossipPort             = 16379
+	RedisSentinelPortName       = "sentinel"
+	RedisScriptVolumeName       = "script-vol"
+	RedisScriptVolumePath       = "/scripts"
+	RedisSentinelPort           = 26379
 
 	RedisKeyFileSecretSuffix = "key"
 	RedisPEMSecretSuffix     = "pem"
@@ -329,6 +330,17 @@ var (
 		},
 		Limits: core.ResourceList{
 			core.ResourceMemory: resource.MustParse("1024Mi"),
+		},
+	}
+	// CoordinatorDefaultResources must be used for raft backed coordinators to avoid unintended leader switches
+	CoordinatorDefaultResources = core.ResourceRequirements{
+		Limits: core.ResourceList{
+			core.ResourceCPU:    resource.MustParse(".500"),
+			core.ResourceMemory: resource.MustParse("256Mi"),
+		},
+		Requests: core.ResourceList{
+			core.ResourceCPU:    resource.MustParse(".500"),
+			core.ResourceMemory: resource.MustParse("256Mi"),
 		},
 	}
 )
