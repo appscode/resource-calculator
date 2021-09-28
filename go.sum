@@ -1196,8 +1196,8 @@ kmodules.xyz/schema-checker v0.1.3/go.mod h1:mp0Y2dChcsE7Ws0BcV4OmpdeD9ZB2NgUrGn
 kmodules.xyz/webhook-runtime v0.0.0-20210804101750-5c602fd5cf06/go.mod h1:MFZFmJk9IXNHwq8JlF/mukwBDbopFQj4swaB2MWHc/U=
 kubedb.dev/apimachinery v0.21.1-0.20210915153024-84659c4a8fca h1:DTm46xXlvgbbZ/4O+XGaqUsv4pSRmU3nUT1PaBVe9jY=
 kubedb.dev/apimachinery v0.21.1-0.20210915153024-84659c4a8fca/go.mod h1:FbzIcqyzHhTEZIlp2ndAhjr2qw/UcEvZEJKU1xicWPc=
-kubedb.dev/installer v0.17.2-0.20210921153002-f74874ab735f h1:vmnddpWzgX1V7mqKRl/Py6G5C/E1T6pXRu64FVkHw7M=
-kubedb.dev/installer v0.17.2-0.20210921153002-f74874ab735f/go.mod h1:R6kOMOHxWCOUBEsPdle82NBO68qjwOo7YnLbcxt3qUw=
+kubedb.dev/installer v0.17.2-0.20210928191619-37db9b158afd h1:Dv0bYWpOYpFdCmbMoV43ByqdCP7sUuU1LW9OPpI6Br8=
+kubedb.dev/installer v0.17.2-0.20210928191619-37db9b158afd/go.mod h1:R6kOMOHxWCOUBEsPdle82NBO68qjwOo7YnLbcxt3qUw=
 modernc.org/cc v1.0.0/go.mod h1:1Sk4//wdnYJiUIxnW8ddKpaOJCF37yAdqYnkxUpaYxw=
 modernc.org/golex v1.0.0/go.mod h1:b/QX9oBD/LhixY6NDh+IdGv17hgB+51fET1i2kPSmvk=
 modernc.org/mathutil v1.0.0/go.mod h1:wU0vUrJsVWBZ4P6e7xtFJEhFSNsfRLJ8H458uRjg03k=

@@ -7,13 +7,13 @@ spec:
     image: mysql:5.7.29
   distribution: Oracle
   exporter:
-    image: kubedb/mysqld-exporter:v0.11.0
+    image: prom/mysqld-exporter:v0.13.0
   initContainer:
     image: kubedb/mysql-init:5.7
   podSecurityPolicies:
     databasePolicyName: mysql-db
   replicationModeDetector:
-    image: kubedb/replication-mode-detector:v0.8.0
+    image: kubedb/replication-mode-detector:v0.9.0
   stash:
     addon:
       backupTask:
@@ -45,7 +45,7 @@ spec:
   podSecurityPolicies:
     databasePolicyName: mysql-db
   replicationModeDetector:
-    image: kubedb/replication-mode-detector:v0.8.0
+    image: kubedb/replication-mode-detector:v0.9.0
   upgradeConstraints:
     denylist:
       groupReplication:
@@ -71,7 +71,7 @@ spec:
   podSecurityPolicies:
     databasePolicyName: mysql-db
   replicationModeDetector:
-    image: kubedb/replication-mode-detector:v0.8.0
+    image: kubedb/replication-mode-detector:v0.9.0
   upgradeConstraints:
     denylist:
       groupReplication:
@@ -97,7 +97,7 @@ spec:
   podSecurityPolicies:
     databasePolicyName: mysql-db
   replicationModeDetector:
-    image: kubedb/replication-mode-detector:v0.8.0
+    image: kubedb/replication-mode-detector:v0.9.0
   stash:
     addon:
       backupTask:
