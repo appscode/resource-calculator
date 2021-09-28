@@ -153,6 +153,10 @@ func convert(dir string, clientGetter genericclioptions.RESTClientGetter) error 
 				cmName := strings.TrimPrefix(cfgName, "FIX_CONVERT_TO_SECRET_")
 				if cm, err := kc.CoreV1().ConfigMaps(namespace).Get(context.TODO(), cmName, metav1.GetOptions{}); err == nil {
 					s := &core.Secret{
+						TypeMeta: metav1.TypeMeta{
+							APIVersion: "v1",
+							Kind:       "Secret",
+						},
 						ObjectMeta: metav1.ObjectMeta{
 							Name:            cm.Name,
 							Namespace:       cm.Namespace,

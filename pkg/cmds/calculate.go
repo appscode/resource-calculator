@@ -238,6 +238,12 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 			Annotations:     out.Annotations,
 			OwnerReferences: out.OwnerReferences,
 		}
+		if out.Annotations != nil {
+			delete(out.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
+		}
+		if out.Spec.TerminationPolicy == "Pause" {
+			out.Spec.TerminationPolicy = "Halt"
+		}
 
 		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
 
@@ -259,6 +265,12 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 			Labels:          out.Labels,
 			Annotations:     out.Annotations,
 			OwnerReferences: out.OwnerReferences,
+		}
+		if out.Annotations != nil {
+			delete(out.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
+		}
+		if out.Spec.TerminationPolicy == "Pause" {
+			out.Spec.TerminationPolicy = "Halt"
 		}
 
 		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
@@ -282,6 +294,12 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 			Annotations:     out.Annotations,
 			OwnerReferences: out.OwnerReferences,
 		}
+		if out.Annotations != nil {
+			delete(out.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
+		}
+		if out.Spec.TerminationPolicy == "Pause" {
+			out.Spec.TerminationPolicy = "Halt"
+		}
 
 		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
 
@@ -303,6 +321,12 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 			Labels:          out.Labels,
 			Annotations:     out.Annotations,
 			OwnerReferences: out.OwnerReferences,
+		}
+		if out.Annotations != nil {
+			delete(out.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
+		}
+		if out.Spec.TerminationPolicy == "Pause" {
+			out.Spec.TerminationPolicy = "Halt"
 		}
 
 		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
@@ -333,6 +357,12 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 			Annotations:     out.Annotations,
 			OwnerReferences: out.OwnerReferences,
 		}
+		if out.Annotations != nil {
+			delete(out.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
+		}
+		if out.Spec.TerminationPolicy == "Pause" {
+			out.Spec.TerminationPolicy = "Halt"
+		}
 
 		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
 
@@ -355,6 +385,12 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 			Annotations:     out.Annotations,
 			OwnerReferences: out.OwnerReferences,
 		}
+		if out.Annotations != nil {
+			delete(out.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
+		}
+		if out.Spec.TerminationPolicy == "Pause" {
+			out.Spec.TerminationPolicy = "Halt"
+		}
 
 		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
 
@@ -376,6 +412,12 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 			Labels:          out.Labels,
 			Annotations:     out.Annotations,
 			OwnerReferences: out.OwnerReferences,
+		}
+		if out.Annotations != nil {
+			delete(out.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
+		}
+		if out.Spec.TerminationPolicy == "Pause" {
+			out.Spec.TerminationPolicy = "Halt"
 		}
 
 		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
@@ -406,6 +448,12 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 			Annotations:     out.Annotations,
 			OwnerReferences: out.OwnerReferences,
 		}
+		if out.Annotations != nil {
+			delete(out.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
+		}
+		if out.Spec.TerminationPolicy == "Pause" {
+			out.Spec.TerminationPolicy = "Halt"
+		}
 
 		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
 
@@ -427,6 +475,12 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 			Labels:          out.Labels,
 			Annotations:     out.Annotations,
 			OwnerReferences: out.OwnerReferences,
+		}
+		if out.Annotations != nil {
+			delete(out.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
+		}
+		if out.Spec.TerminationPolicy == "Pause" {
+			out.Spec.TerminationPolicy = "Halt"
 		}
 
 		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
