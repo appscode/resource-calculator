@@ -23,6 +23,7 @@ import (
 	"sort"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/spf13/cobra"
 	core "k8s.io/api/core/v1"
@@ -455,6 +456,9 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 		}
 		if out.Spec.TerminationPolicy == TerminationPolicyPause {
 			out.Spec.TerminationPolicy = kubedbv1alpha2.TerminationPolicyHalt
+		}
+		if out.Spec.LeaderElection != nil && out.Spec.LeaderElection.Period.Milliseconds() == 0 {
+			out.Spec.LeaderElection.Period = metav1.Duration{Duration: 300 * time.Millisecond}
 		}
 
 		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
