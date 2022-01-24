@@ -3,8 +3,8 @@ module kubeops.dev/resource-calculator
 go 1.17
 
 require (
-	github.com/spf13/cobra v1.2.1
-	gomodules.xyz/logs v0.0.5
+	github.com/spf13/cobra v1.1.3
+	gomodules.xyz/logs v0.0.6
 	gomodules.xyz/x v0.0.8
 	k8s.io/api v0.21.1
 	k8s.io/apimachinery v0.21.1
@@ -12,10 +12,10 @@ require (
 	k8s.io/client-go v0.21.1
 	k8s.io/component-base v0.21.1
 	k8s.io/kubectl v0.21.1
-	kmodules.xyz/client-go v0.0.0-20210924004104-db8aae464dfb
-	kmodules.xyz/resource-metrics v0.0.3
-	kubedb.dev/apimachinery v0.21.1-0.20210915153024-84659c4a8fca
-	kubedb.dev/installer v0.17.2-0.20210928191619-37db9b158afd
+	kmodules.xyz/client-go v0.0.0-20211122091731-6c471b24a4ea
+	kmodules.xyz/resource-metrics v0.0.7
+	kubedb.dev/apimachinery v0.24.0
+	kubedb.dev/installer v0.17.2-0.20211221083843-f9f29d98e18f
 	sigs.k8s.io/yaml v1.2.0
 )
 
@@ -60,7 +60,7 @@ require (
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/mailru/easyjson v0.7.0 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.0 // indirect
-	github.com/mitchellh/mapstructure v1.4.1 // indirect
+	github.com/mitchellh/mapstructure v1.1.2 // indirect
 	github.com/moby/spdystream v0.2.0 // indirect
 	github.com/moby/term v0.0.0-20201216013528-df9cb8a40635 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
@@ -80,10 +80,10 @@ require (
 	golang.org/x/crypto v0.0.0-20210314154223-e6e6c4f2bb5b // indirect
 	golang.org/x/net v0.0.0-20210428140749-89ef3d95e781 // indirect
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d // indirect
-	golang.org/x/sys v0.0.0-20210423082822-04245dca01da // indirect
+	golang.org/x/sys v0.0.0-20210817190340-bfb29a6856f2 // indirect
 	golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d // indirect
 	golang.org/x/text v0.3.6 // indirect
-	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba // indirect
+	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
 	gomodules.xyz/clock v0.0.0-20200817085942-06523dba733f // indirect
 	gomodules.xyz/encoding v0.0.2 // indirect
 	gomodules.xyz/flags v0.1.3 // indirect
@@ -100,15 +100,15 @@ require (
 	k8s.io/apiextensions-apiserver v0.21.1 // indirect
 	k8s.io/klog/v2 v2.8.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7 // indirect
-	k8s.io/utils v0.0.0-20210527160623-6fdb442a123b // indirect
-	kmodules.xyz/custom-resources v0.0.0-20210824055127-e5a3d2d6c161 // indirect
-	kmodules.xyz/monitoring-agent-api v0.0.0-20210902163558-0323c6034f70 // indirect
-	kmodules.xyz/objectstore-api v0.0.0-20210618005912-71f8a80f48f9 // indirect
-	kmodules.xyz/offshoot-api v0.0.0-20210829122105-6f4d481b0c61 // indirect
+	k8s.io/utils v0.0.0-20210802155522-efc7438f0176 // indirect
+	kmodules.xyz/custom-resources v0.0.0-20211007080833-72bd9e8cae6e // indirect
+	kmodules.xyz/monitoring-agent-api v0.0.0-20210928135619-38ca075a2dbd // indirect
+	kmodules.xyz/objectstore-api v0.0.0-20210928135706-fdf68f88ea6e // indirect
+	kmodules.xyz/offshoot-api v0.0.0-20211103060642-3e217667cf41 // indirect
 	sigs.k8s.io/controller-runtime v0.9.0 // indirect
 	sigs.k8s.io/kustomize/api v0.8.8 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.10.17 // indirect
-	sigs.k8s.io/structured-merge-diff/v4 v4.1.0 // indirect
+	sigs.k8s.io/structured-merge-diff/v4 v4.1.2 // indirect
 )
 
 replace bitbucket.org/ww/goautoneg => gomodules.xyz/goautoneg v0.0.0-20120707110453-a547fc61f48d
@@ -216,3 +216,9 @@ replace k8s.io/utils => k8s.io/utils v0.0.0-20201110183641-67b214c5f920
 replace sigs.k8s.io/application => github.com/kmodules/application v0.8.4-0.20210427030912-90eeee3bc4ad
 
 replace github.com/satori/go.uuid => github.com/gofrs/uuid v4.0.0+incompatible
+
+replace github.com/dgrijalva/jwt-go => github.com/gomodules/jwt v3.2.2+incompatible
+
+replace github.com/golang-jwt/jwt => github.com/golang-jwt/jwt v3.2.2+incompatible
+
+replace github.com/form3tech-oss/jwt-go => github.com/form3tech-oss/jwt-go v3.2.5+incompatible
