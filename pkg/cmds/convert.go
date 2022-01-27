@@ -101,8 +101,8 @@ func convert(dir string, clientGetter genericclioptions.RESTClientGetter) error 
 	}
 
 	rsmap := map[schema.GroupKind][]interface{}{}
-	for _, gv := range registeredKubeDBTypes {
-		mapping, err := mapper.RESTMapping(gv)
+	for _, gk := range registeredKubeDBTypes {
+		mapping, err := mapper.RESTMapping(gk)
 		if meta.IsNoMatchError(err) {
 			continue
 		} else if err != nil {
@@ -115,7 +115,7 @@ func convert(dir string, clientGetter genericclioptions.RESTClientGetter) error 
 		} else {
 			objects := make([]interface{}, 0, len(result.Items))
 			for _, item := range result.Items {
-				if gv.Group == kubedb.GroupName && mapping.GroupVersionKind.Version == kubedbv1alpha1.SchemeGroupVersion.Version {
+				if gk.Group == kubedb.GroupName && mapping.GroupVersionKind.Version == kubedbv1alpha1.SchemeGroupVersion.Version {
 					content, err := Convert_kubedb_v1alpha1_To_v1alpha2(item, catalogmap, topology)
 					if err != nil {
 						return err
@@ -130,12 +130,12 @@ func convert(dir string, clientGetter genericclioptions.RESTClientGetter) error 
 					objects = append(objects, item.UnstructuredContent())
 				}
 			}
-			rsmap[gv] = objects
+			rsmap[gk] = objects
 		}
 	}
 
 	var buf bytes.Buffer
-	for gvk, objects := range rsmap {
+	for gk, objects := range rsmap {
 		for _, obj := range objects {
 			buf.Reset()
 
@@ -184,11 +184,11 @@ func convert(dir string, clientGetter genericclioptions.RESTClientGetter) error 
 				buf.Write(data)
 			}
 
-			err = os.MkdirAll(filepath.Join(dir, strings.ToLower(gvk.Kind), namespace, name), 0755)
+			err = os.MkdirAll(filepath.Join(dir, strings.ToLower(gk.Kind), namespace, name), 0755)
 			if err != nil {
 				return err
 			}
-			if err := ioutil.WriteFile(filepath.Join(dir, strings.ToLower(gvk.Kind), namespace, name, name+".yaml"), buf.Bytes(), 0644); err != nil {
+			if err := ioutil.WriteFile(filepath.Join(dir, strings.ToLower(gk.Kind), namespace, name, name+".yaml"), buf.Bytes(), 0644); err != nil {
 				return err
 			}
 		}
