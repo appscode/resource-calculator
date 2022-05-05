@@ -4,18 +4,18 @@ metadata:
   name: 5.7.36
 spec:
   coordinator:
-    image: kubedb/mysql-coordinator:v0.2.0
+    image: kubedb/mysql-coordinator:v0.4.0
   db:
     image: mysql:5.7.36
   distribution: Official
   exporter:
     image: kubedb/mysqld-exporter:v0.13.1
   initContainer:
-    image: kubedb/mysql-init:5.7-v1
+    image: kubedb/mysql-init:5.7-v2
   podSecurityPolicies:
     databasePolicyName: mysql-db
   replicationModeDetector:
-    image: kubedb/replication-mode-detector:v0.11.0
+    image: kubedb/replication-mode-detector:v0.13.0
   stash:
     addon:
       backupTask:

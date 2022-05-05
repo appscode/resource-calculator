@@ -14,13 +14,13 @@ spec:
   podSecurityPolicies:
     databasePolicyName: mysql-db
   replicationModeDetector:
-    image: kubedb/replication-mode-detector:v0.11.0
+    image: kubedb/replication-mode-detector:v0.13.0
   upgradeConstraints:
-    allowlist:
+    denylist:
       groupReplication:
-      - "5.7"
+      - < 5.7.35
       standalone:
-      - "5.7"
+      - < 5.7.35
   version: "5.7"
 
 ---
@@ -40,11 +40,11 @@ spec:
   podSecurityPolicies:
     databasePolicyName: mysql-db
   replicationModeDetector:
-    image: kubedb/replication-mode-detector:v0.11.0
+    image: kubedb/replication-mode-detector:v0.13.0
   upgradeConstraints:
-    allowlist:
+    denylist:
       groupReplication:
-      - "5.7"
+      - < 5.7.35
       standalone:
-      - "5.7"
+      - < 5.7.35
   version: "5.7"

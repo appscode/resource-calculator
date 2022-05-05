@@ -81,6 +81,10 @@ type AppBindingSpec struct {
 	// +kubebuilder:validation:EmbeddedResource
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Parameters *runtime.RawExtension `json:"parameters,omitempty" protobuf:"bytes,6,opt,name=parameters"`
+
+	// TLSSecret is the name of the secret that will hold
+	// the client certificate and private key associated with the AppBinding.
+	TLSSecret *core.LocalObjectReference `json:"tlsSecret,omitempty" protobuf:"bytes,7,opt,name=tlsSecret"`
 }
 
 type AppType string
@@ -128,6 +132,12 @@ type ClientConfig struct {
 	// CABundle is a PEM encoded CA bundle which will be used to validate the serving certificate of this app.
 	// +optional
 	CABundle []byte `json:"caBundle,omitempty" protobuf:"bytes,4,opt,name=caBundle"`
+
+	// ServerName is used to verify the hostname on the returned
+	// certificates unless InsecureSkipVerify is given. It is also included
+	// in the client's handshake to support virtual hosting unless it is
+	// an IP address.
+	ServerName string `json:"serverName,omitempty" protobuf:"bytes,5,opt,name=serverName"`
 }
 
 // ServiceReference holds a reference to Service.legacy.k8s.io
@@ -137,22 +147,26 @@ type ServiceReference struct {
 	// If not specified, then nothing will be prefixed
 	Scheme string `json:"scheme" protobuf:"bytes,1,opt,name=scheme"`
 
+	// `namespace` is the namespace of the service.
+	// +optional
+	Namespace string `json:"namespace,omitempty" protobuf:"bytes,2,opt,name=namespace"`
+
 	// `name` is the name of the service.
 	// Required
-	Name string `json:"name" protobuf:"bytes,2,opt,name=name"`
+	Name string `json:"name" protobuf:"bytes,3,opt,name=name"`
 
 	// The port that will be exposed by this app.
-	Port int32 `json:"port" protobuf:"varint,3,opt,name=port"`
+	Port int32 `json:"port" protobuf:"varint,4,opt,name=port"`
 
 	// `path` is an optional URL path which will be sent in any request to
 	// this service.
 	// +optional
-	Path string `json:"path,omitempty" protobuf:"bytes,4,opt,name=path"`
+	Path string `json:"path,omitempty" protobuf:"bytes,5,opt,name=path"`
 
 	// `query` is optional encoded query string, without '?' which will be
 	// sent in any request to this service.
 	// +optional
-	Query string `json:"query,omitempty" protobuf:"bytes,5,opt,name=query"`
+	Query string `json:"query,omitempty" protobuf:"bytes,6,opt,name=query"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -274,7 +288,7 @@ type AddKeyTransform struct {
 // the credentials Secret.
 type AddKeysFromTransform struct {
 	// The reference to the Secret that should be merged into the credentials Secret.
-	SecretRef *ObjectReference `json:"secretRef,omitempty" protobuf:"bytes,1,opt,name=secretRef"`
+	SecretRef *core.LocalObjectReference `json:"secretRef,omitempty" protobuf:"bytes,1,opt,name=secretRef"`
 }
 
 // RemoveKeyTransform specifies that one of the credentials keys returned

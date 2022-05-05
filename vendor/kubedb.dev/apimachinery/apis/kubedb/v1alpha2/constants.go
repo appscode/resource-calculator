@@ -99,6 +99,8 @@ const (
 	ElasticsearchSearchGuardInternalUserFileName = "sg_internal_users.yml"
 	ElasticsearchOpendistroRolesMappingFileName  = "roles_mapping.yml"
 	ElasticsearchOpendistroInternalUserFileName  = "internal_users.yml"
+	ElasticsearchJavaOptsEnv                     = "ES_JAVA_OPTS"
+	ElasticsearchOpenSearchJavaOptsEnv           = "OPENSEARCH_JAVA_OPTS"
 
 	// Ref:
 	//	- https://www.elastic.co/guide/en/elasticsearch/reference/7.6/heap-size.html#heap-size
@@ -124,6 +126,7 @@ const (
 	MongoDBRootUsername           = "root"
 	MongoDBCustomConfigFile       = "mongod.conf"
 	MongoDBReplicaSetConfig       = "replicaset.json"
+	MongoDBConfigurationJSFile    = "configuration.js"
 	NodeTypeMongos                = "mongos"
 	NodeTypeShard                 = "shard"
 	NodeTypeConfig                = "configsvr"
@@ -232,6 +235,7 @@ const (
 	MariaDBRunScriptVolumeMountPath     = "/run-script"
 	MariaDBInitScriptVolumeName         = "init-scripts"
 	MariaDBInitScriptVolumeMountPath    = "/scripts"
+	MariaDBContainerName                = ResourceSingularMariaDB
 
 	// =========================== PostgreSQL Constants ============================
 	PostgresDatabasePortName         = "db"
@@ -278,7 +282,7 @@ const (
 	ProxySQLCustomConfigMountPath  = "/etc/custom-config"
 	// =========================== Redis Constants ============================
 	RedisConfigKey = "redis.conf" // RedisConfigKey is going to create for the customize redis configuration
-	//DefaultConfigKey is going to create for the default redis configuration
+	// DefaultConfigKey is going to create for the default redis configuration
 	DefaultConfigKey            = "default.conf"
 	RedisShardKey               = RedisKey + "/shard"
 	RedisDatabasePortName       = "db"

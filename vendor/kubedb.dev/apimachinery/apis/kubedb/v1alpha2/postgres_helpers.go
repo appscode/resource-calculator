@@ -192,12 +192,12 @@ func (p *Postgres) SetDefaults(postgresVersion *catalog.PostgresVersion, topolog
 			ElectionTick: 10,
 			// this value should be one.
 			HeartbeatTick: 1,
-			//we have set this default to 67108864. if the difference between primary and replica is more then this,
-			//the replica node is going to manually sync itself.
+			// we have set this default to 67108864. if the difference between primary and replica is more then this,
+			// the replica node is going to manually sync itself.
 			MaximumLagBeforeFailover: 64 * 1024 * 1024,
 		}
 	}
-	SetDefaultResourceLimits(&p.Spec.Coordinator.Resources, CoordinatorDefaultResources)
+	apis.SetDefaultResourceLimits(&p.Spec.Coordinator.Resources, CoordinatorDefaultResources)
 
 	if p.Spec.PodTemplate.Spec.ServiceAccountName == "" {
 		p.Spec.PodTemplate.Spec.ServiceAccountName = p.OffshootName()
@@ -257,7 +257,7 @@ func (p *Postgres) SetDefaults(postgresVersion *catalog.PostgresVersion, topolog
 
 	p.Spec.Monitor.SetDefaults()
 	p.SetTLSDefaults()
-	SetDefaultResourceLimits(&p.Spec.PodTemplate.Spec.Resources, DefaultResources)
+	apis.SetDefaultResourceLimits(&p.Spec.PodTemplate.Spec.Resources, DefaultResources)
 	p.setDefaultAffinity(&p.Spec.PodTemplate, p.OffshootSelectors(), topology)
 }
 
@@ -355,7 +355,7 @@ func GetSharedBufferSizeForPostgres(resource *resource.Quantity) string {
 		ret = (resource.Value() / 100) * 25
 	}
 	// the shared buffer value can't be less then this
-	//128 MB  is the minimum
+	// 128 MB  is the minimum
 	if ret < minSharedBuffer {
 		ret = minSharedBuffer
 	}
