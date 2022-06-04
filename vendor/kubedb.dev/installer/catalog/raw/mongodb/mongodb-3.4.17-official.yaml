@@ -9,11 +9,11 @@ spec:
   exporter:
     image: kubedb/mongodb_exporter:v0.20.4
   initContainer:
-    image: kubedb/mongodb-init:4.1-v3
+    image: kubedb/mongodb-init:4.1-v6
   podSecurityPolicies:
     databasePolicyName: mongodb-db
   replicationModeDetector:
-    image: kubedb/replication-mode-detector:v0.13.0
+    image: kubedb/replication-mode-detector:v0.14.0
   stash:
     addon:
       backupTask:
@@ -39,5 +39,5 @@ spec:
   podSecurityPolicies:
     databasePolicyName: mongodb-db
   replicationModeDetector:
-    image: kubedb/replication-mode-detector:v0.13.0
+    image: kubedb/replication-mode-detector:v0.14.0
   version: 3.4.17

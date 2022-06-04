@@ -55,9 +55,9 @@ const (
 type ElasticsearchDashboardCertificateAlias string
 
 const (
-	ElasticsearchDashboardCACert           ElasticsearchDashboardCertificateAlias = "ca"
-	ElasticsearchDatabaseClient            ElasticsearchDashboardCertificateAlias = "database-client"
-	ElasticsearchDashboardKibanaServerCert ElasticsearchDashboardCertificateAlias = "kibana-server"
+	ElasticsearchDashboardCACert     ElasticsearchDashboardCertificateAlias = "ca"
+	ElasticsearchDatabaseClientCert  ElasticsearchDashboardCertificateAlias = "database-client"
+	ElasticsearchDashboardServerCert ElasticsearchDashboardCertificateAlias = "server"
 )
 
 // +kubebuilder:validation:Enum=config
@@ -75,13 +75,16 @@ const (
 	StatsServiceAlias   ServiceAlias = "stats"
 )
 
-// +kubebuilder:validation:Enum=green;yellow;red
+// +kubebuilder:validation:Enum=green;yellow;red;available;degraded;unavailable
 type DashboardServerState string
 
 const (
-	StateGreen  DashboardServerState = "green"
-	StateYellow DashboardServerState = "yellow"
-	StateRed    DashboardServerState = "red"
+	StateGreen       DashboardServerState = "green"
+	StateYellow      DashboardServerState = "yellow"
+	StateRed         DashboardServerState = "red"
+	StateAvailable   DashboardServerState = "available"
+	StateDegraded    DashboardServerState = "degraded"
+	StateUnavailable DashboardServerState = "unavailable"
 )
 
 // +kubebuilder:validation:Enum=dashboard-custom-config;dashboard-temp-config;dashboard-config;kibana-server;database-client
@@ -91,6 +94,6 @@ const (
 	DashboardVolumeCustomConfig            DashboardVolumeName = "dashboard-custom-config"
 	DashboardVolumeOperatorGeneratedConfig DashboardVolumeName = "dashboard-temp-config"
 	DashboardVolumeConfig                  DashboardVolumeName = "dashboard-config"
-	DashboardVolumeKibanaServer            DashboardVolumeName = "kibana-server"
+	DashboardVolumeServerTLS               DashboardVolumeName = "server-tls"
 	DashboardVolumeDatabaseClient          DashboardVolumeName = "database-client"
 )

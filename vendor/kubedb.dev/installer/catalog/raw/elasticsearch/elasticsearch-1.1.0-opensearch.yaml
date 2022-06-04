@@ -4,6 +4,10 @@ metadata:
   name: opensearch-1.1.0
 spec:
   authPlugin: OpenSearch
+  dashboard:
+    image: opensearchproject/opensearch-dashboards:1.1.0
+  dashboardInitContainer:
+    yqImage: kubedb/elasticsearch-dashboard-init:1.1.0-opensearch-v2022.03.31
   db:
     image: opensearchproject/opensearch:1.1.0
   distribution: OpenSearch

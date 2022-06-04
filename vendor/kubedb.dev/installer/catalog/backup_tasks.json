@@ -10,7 +10,9 @@
     "searchguard-6.8.1"
   ],
   "elasticsearch-backup-7.14.0": [
+    "xpack-7.17.3",
     "xpack-7.16.2",
+    "opensearch-1.3.2",
     "opensearch-1.2.2",
     "opensearch-1.1.0",
     "kubedb-xpack-7.16.2"
@@ -71,6 +73,10 @@
     "kubedb-xpack-7.13.2",
     "kubedb-xpack-7.12.0"
   ],
+  "elasticsearch-backup-8.2.0": [
+    "xpack-8.2.0",
+    "kubedb-xpack-8.2.0"
+  ],
   "mariadb-backup-10.5.8": [
     "10.6.4",
     "10.5.8",
@@ -125,6 +131,7 @@
     "5.7.35-v1"
   ],
   "mysql-backup-8.0.21": [
+    "8.0.29",
     "8.0.27",
     "8.0.27-innodb"
   ],

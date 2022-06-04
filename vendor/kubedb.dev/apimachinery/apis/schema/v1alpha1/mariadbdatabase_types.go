@@ -56,7 +56,22 @@ type MariaDBDatabaseInfo struct {
 	Config MariaDBDatabaseConfiguration `json:"config"`
 }
 
-type MariaDBDatabaseConfiguration struct{}
+type MariaDBDatabaseConfiguration struct {
+	// Name is target database name
+	Name string `json:"name"`
+
+	// CharacterSet is the target database character set
+	// +optional
+	CharacterSet string `json:"characterSet,omitempty"`
+
+	// Collation is the target database collation
+	// +optional
+	Collation string `json:"collation,omitempty"`
+
+	// Comment is the additional comment to the mariadb Database
+	// +optional
+	Comment string `json:"comment,omitempty"`
+}
 
 // MariaDBDatabase is the Schema for the mariadbdatabases API
 
@@ -64,6 +79,7 @@ type MariaDBDatabaseConfiguration struct{}
 // +k8s:openapi-gen=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:path=mariadbdatabases,singular=mariadbdatabase,shortName=mdschema,categories={datastore,kubedb,appscode,all}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="DB_SERVER",type="string",JSONPath=".spec.database.serverRef.name"
 // +kubebuilder:printcolumn:name="DB_NAME",type="string",JSONPath=".spec.database.config.name"
