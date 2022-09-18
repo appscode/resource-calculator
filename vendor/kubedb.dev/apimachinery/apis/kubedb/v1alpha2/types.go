@@ -139,3 +139,20 @@ type CoordinatorSpec struct {
 	// +optional
 	SecurityContext *core.SecurityContext `json:"securityContext,omitempty"`
 }
+
+// AutoOpsSpec defines the specifications of automatic ops-request recommendation generation
+type AutoOpsSpec struct {
+	// Disabled specifies whether the ops-request recommendation generation will be disabled or not.
+	// +optional
+	Disabled bool `json:"disabled,omitempty"`
+}
+
+type SystemUserSecretsSpec struct {
+	// ReplicationUserSecret contains replication system user credentials
+	// +optional
+	ReplicationUserSecret *core.LocalObjectReference `json:"replicationUserSecret,omitempty"`
+
+	// MonitorUserSecret contains monitor system user credentials
+	// +optional
+	MonitorUserSecret *core.LocalObjectReference `json:"monitorUserSecret,omitempty"`
+}

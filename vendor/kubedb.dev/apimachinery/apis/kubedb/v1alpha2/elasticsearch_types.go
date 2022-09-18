@@ -52,6 +52,10 @@ type Elasticsearch struct {
 }
 
 type ElasticsearchSpec struct {
+	// AutoOps contains configuration of automatic ops-request-recommendation generation
+	// +optional
+	AutoOps AutoOpsSpec `json:"autoOps,omitempty"`
+
 	// Version of Elasticsearch to be deployed.
 	Version string `json:"version"`
 
@@ -164,8 +168,13 @@ type ElasticsearchSpec struct {
 	// It will be applied to all nodes. If the node level `heapSizePercentage` is specified,  this global value will be overwritten.
 	// It defaults to 50% of memory limit.
 	// +optional
-	// +kubebuilder:default:=50
+	// +kubebuilder:default=50
 	HeapSizePercentage *int32 `json:"heapSizePercentage,omitempty"`
+
+	// HealthChecker defines attributes of the health checker
+	// +optional
+	// +kubebuilder:default={periodSeconds: 10, timeoutSeconds: 10, failureThreshold: 1}
+	HealthChecker kmapi.HealthCheckSpec `json:"healthChecker"`
 }
 
 type ElasticsearchClusterTopology struct {
@@ -369,6 +378,7 @@ type ElasticsearchList struct {
 type ElasticsearchNodeRoleType string
 
 const (
+	ElasticsearchNodeRoleTypeCombined            ElasticsearchNodeRoleType = "combined"
 	ElasticsearchNodeRoleTypeMaster              ElasticsearchNodeRoleType = "master"
 	ElasticsearchNodeRoleTypeData                ElasticsearchNodeRoleType = "data"
 	ElasticsearchNodeRoleTypeDataContent         ElasticsearchNodeRoleType = "data-content"

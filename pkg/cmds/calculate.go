@@ -408,7 +408,7 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 		}
 		out.APIVersion = kubedbv1alpha2.SchemeGroupVersion.String()
 		out.Kind = in.Kind
-		out.SetDefaults()
+		out.SetDefaults(topology)
 		out.ObjectMeta = metav1.ObjectMeta{
 			Name:            out.GetName(),
 			Namespace:       out.GetNamespace(),

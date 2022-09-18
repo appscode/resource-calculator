@@ -23,6 +23,7 @@ import (
 	"kubedb.dev/apimachinery/apis/kubedb"
 	"kubedb.dev/apimachinery/crds"
 
+	"gomodules.xyz/pointer"
 	"k8s.io/apimachinery/pkg/labels"
 	appslister "k8s.io/client-go/listers/apps/v1"
 	kmapi "kmodules.xyz/client-go/api/v1"
@@ -238,4 +239,16 @@ func (p *PgBouncer) ReplicasAreReady(lister appslister.StatefulSetLister) (bool,
 	// Desire number of statefulSets
 	expectedItems := 1
 	return checkReplicas(lister.StatefulSets(p.Namespace), labels.SelectorFromSet(p.OffshootLabels()), expectedItems)
+}
+
+func (p *PgBouncer) SetHealthCheckerDefaults() {
+	if p.Spec.HealthChecker.PeriodSeconds == nil {
+		p.Spec.HealthChecker.PeriodSeconds = pointer.Int32P(10)
+	}
+	if p.Spec.HealthChecker.TimeoutSeconds == nil {
+		p.Spec.HealthChecker.TimeoutSeconds = pointer.Int32P(10)
+	}
+	if p.Spec.HealthChecker.FailureThreshold == nil {
+		p.Spec.HealthChecker.FailureThreshold = pointer.Int32P(1)
+	}
 }

@@ -7,17 +7,20 @@ spec:
     image: percona/percona-server-mongodb:4.0.10
   distribution: Percona
   exporter:
-    image: kubedb/mongodb_exporter:v0.20.4
+    image: kubedb/mongodb_exporter:v0.32.0
   initContainer:
     image: kubedb/mongodb-init:4.1-v6
   podSecurityPolicies:
     databasePolicyName: mongodb-db
   replicationModeDetector:
-    image: kubedb/replication-mode-detector:v0.14.0
+    image: kubedb/replication-mode-detector:v0.15.0
   stash:
     addon:
       backupTask:
         name: mongodb-backup-4.0.11
       restoreTask:
         name: mongodb-restore-4.0.11
+  upgradeConstraints:
+    allowlist:
+    - '>= 4.1.0, < 4.3.0'
   version: 4.0.10

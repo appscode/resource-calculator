@@ -169,7 +169,20 @@ func (p *ProxySQL) SetDefaults() {
 
 	p.Spec.Monitor.SetDefaults()
 	p.SetTLSDefaults()
+	p.SetHealthCheckerDefaults()
 	apis.SetDefaultResourceLimits(&p.Spec.PodTemplate.Spec.Resources, DefaultResources)
+}
+
+func (p *ProxySQL) SetHealthCheckerDefaults() {
+	if p.Spec.HealthChecker.PeriodSeconds == nil {
+		p.Spec.HealthChecker.PeriodSeconds = pointer.Int32P(10)
+	}
+	if p.Spec.HealthChecker.TimeoutSeconds == nil {
+		p.Spec.HealthChecker.TimeoutSeconds = pointer.Int32P(10)
+	}
+	if p.Spec.HealthChecker.FailureThreshold == nil {
+		p.Spec.HealthChecker.FailureThreshold = pointer.Int32P(1)
+	}
 }
 
 func (m *ProxySQL) SetTLSDefaults() {

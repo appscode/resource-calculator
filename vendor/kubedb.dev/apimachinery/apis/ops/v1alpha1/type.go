@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kmapi "kmodules.xyz/client-go/api/v1"
 )
 
@@ -39,6 +40,7 @@ const (
 	ScalingDown                  = "ScalingDown"
 	ScalingUp                    = "ScalingUp"
 	Successful                   = "Successful"
+	Running                      = "Running"
 	Updating                     = "Updating"
 	Upgrading                    = "Upgrading"
 	UpgradeVersion               = "UpgradeVersion"
@@ -68,8 +70,12 @@ const (
 	UpdateShardImage            = "UpdateShardImage"
 	UpdateStatefulSetResources  = "UpdateStatefulSetResources"
 	UpdateShardResources        = "UpdateShardResources"
+	UpdateArbiterResources      = "UpdateArbiterResources"
+	UpdateHiddenResources       = "UpdateHiddenResources"
 	ScaleDownShard              = "ScaleDownShard"
 	ScaleUpShard                = "ScaleUpShard"
+	ScaleDownHidden             = "ScaleDownHidden"
+	ScaleUpHidden               = "ScaleUpHidden"
 	UpdateReplicaSetImage       = "UpdateReplicaSetImage"
 	UpdateConfigServerImage     = "UpdateConfigServerImage"
 	UpdateMongosImage           = "UpdateMongosImage"
@@ -90,6 +96,7 @@ const (
 	ReconfigureShard            = "ReconfigureShard"
 	ReconfigureConfigServer     = "ReconfigureConfigServer"
 	ReconfigureArbiter          = "ReconfigureArbiter"
+	ReconfigureHidden           = "ReconfigureHidden"
 	UpdateStandaloneImage       = "UpdateStandaloneImage"
 	UpdateStandaloneResources   = "UpdateStandaloneResources"
 	ScaleDownStandalone         = "ScaleDownStandalone"
@@ -97,6 +104,7 @@ const (
 	StandaloneVolumeExpansion   = "StandaloneVolumeExpansion"
 	ReplicasetVolumeExpansion   = "ReplicasetVolumeExpansion"
 	ShardVolumeExpansion        = "ShardVolumeExpansion"
+	HiddenVolumeExpansion       = "HiddenVolumeExpansion"
 	ConfigServerVolumeExpansion = "ConfigServerVolumeExpansion"
 	RestartStandalone           = "RestartStandalone"
 	RestartReplicaSet           = "RestartReplicaSet"
@@ -104,6 +112,7 @@ const (
 	RestartConfigServer         = "RestartConfigServer"
 	RestartShard                = "RestartShard"
 	RestartArbiter              = "RestartArbiter"
+	RestartHidden               = "RestartHidden"
 	DeleteStatefulSets          = "DeleteStatefulSets"
 	DatabaseReady               = "DatabaseReady"
 
@@ -150,11 +159,19 @@ const (
 	ReconfigureSecurityAdmin           = "ReconfigureSecurityAdmin"
 
 	// Redis Constants
-	PatchedSecret  = "patchedSecret"
-	ConfigKeyRedis = "redis.conf"
-	RedisTLSArg    = "--tls-port 6379"
-	DBReady        = "DBReady"
-	RestartedPods  = "RestartedPods"
+	PatchedSecret                        = "patchedSecret"
+	ConfigKeyRedis                       = "redis.conf"
+	RedisTLSArg                          = "--tls-port 6379"
+	DBReady                              = "DBReady"
+	RestartedPods                        = "RestartedPods"
+	ScaleUpSentinel                      = "ScaleUpSentinel"
+	ScaleDownSentinel                    = "ScaleDownSentinel"
+	ScaleUpReplicas                      = "ScaleUpReplicas"
+	ScaleDownReplicas                    = "ScaleDownReplicas"
+	ScaleUpRedisReplicasInSentinelMode   = "ScaleUpRedisReplicasInSentinelMode"
+	ScaleDownRedisReplicasInSentinelMode = "ScaleDownRedisReplicasInSentinelMode"
+	UpdateRedisImage                     = "UpdateRedisImage"
+	RestartPodWithResources              = "RestartedPodsWithResources"
 
 	// Stash Constants
 	PauseBackupConfiguration  = "PauseBackupConfiguration"
@@ -201,7 +218,20 @@ const (
 	TempIniFilesPath = "/tmp/kubedb-custom-ini-files"
 )
 
-// +kubebuilder:validation:Enum=Pending;Progressing;Successful;WaitingForApproval;Failed;Approved;Denied
+type OpsRequestStatus struct {
+	// Specifies the current phase of the ops request
+	// +optional
+	Phase OpsRequestPhase `json:"phase,omitempty"`
+	// observedGeneration is the most recent generation observed for this resource. It corresponds to the
+	// resource's generation, which is updated on mutation by the API Server.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+	// Conditions applied to the request, such as approval or denial.
+	// +optional
+	Conditions []kmapi.Condition `json:"conditions,omitempty"`
+}
+
+// +kubebuilder:validation:Enum=Pending;Progressing;Successful;WaitingForApproval;Failed;Approved;Denied;Skipped
 type OpsRequestPhase string
 
 const (
@@ -211,10 +241,15 @@ const (
 	OpsRequestPhaseProgressing OpsRequestPhase = "Progressing"
 	// used for ops requests that are executed successfully
 	OpsRequestPhaseSuccessful OpsRequestPhase = "Successful"
-	// used for ops requests that are waiting for approval
-	OpsRequestPhaseWaitingForApproval OpsRequestPhase = "WaitingForApproval"
 	// used for ops requests that are failed
 	OpsRequestPhaseFailed OpsRequestPhase = "Failed"
+	// used for ops requests that are skipped
+	OpsRequestPhaseSkipped OpsRequestPhase = "Skipped"
+
+	// Approval-related Phases
+
+	// used for ops requests that are waiting for approval
+	OpsRequestPhaseWaitingForApproval OpsRequestPhase = "WaitingForApproval"
 	// used for ops requests that are approved
 	OpsRequestApproved OpsRequestPhase = "Approved"
 	// used for ops requests that are denied
@@ -271,4 +306,20 @@ type TLSSpec struct {
 	// Remove tells operator to remove TLS configuration
 	// +optional
 	Remove bool `json:"remove,omitempty"`
+}
+
+// +kubebuilder:validation:Enum=IfReady;Always
+type ApplyOption string
+
+const (
+	ApplyOptionIfReady ApplyOption = "IfReady"
+	ApplyOptionAlways  ApplyOption = "Always"
+)
+
+type Accessor interface {
+	GetObjectMeta() metav1.ObjectMeta
+	GetRequestType() OpsRequestType
+	GetDBRefName() string
+	GetStatus() OpsRequestStatus
+	SetStatus(_ OpsRequestStatus)
 }

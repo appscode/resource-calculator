@@ -51,6 +51,10 @@ type MongoDB struct {
 }
 
 type MongoDBSpec struct {
+	// AutoOps contains configuration of automatic ops-request-recommendation generation
+	// +optional
+	AutoOps AutoOpsSpec `json:"autoOps,omitempty"`
+
 	// Version of MongoDB to be deployed.
 	Version string `json:"version"`
 
@@ -138,7 +142,18 @@ type MongoDBSpec struct {
 	// More info: https://docs.mongodb.com/manual/core/replica-set-arbiter/
 	// +optional
 	// +nullable
-	Arbiter *MongoArbiterNode `json:"arbiter"`
+	Arbiter *MongoArbiterNode `json:"arbiter,omitempty"`
+
+	// Hidden component of mongodb which is invisible to client applications
+	// More info: https://www.mongodb.com/docs/manual/core/replica-set-hidden-member/
+	// +optional
+	// +nullable
+	Hidden *MongoHiddenNode `json:"hidden,omitempty"`
+
+	// HealthChecker defines attributes of the health checker
+	// +optional
+	// +kubebuilder:default={periodSeconds: 10, timeoutSeconds: 10, failureThreshold: 1}
+	HealthChecker kmapi.HealthCheckSpec `json:"healthChecker"`
 }
 
 // +kubebuilder:validation:Enum=server;client;metrics-exporter
@@ -264,6 +279,23 @@ type MongoArbiterNode struct {
 	// PodTemplate is an optional configuration for pods used to expose database
 	// +optional
 	PodTemplate ofst.PodTemplateSpec `json:"podTemplate,omitempty"`
+}
+
+type MongoHiddenNode struct {
+	// ConfigSecret is an optional field to provide custom configuration file for database (i.e mongod.cnf).
+	// If specified, this file will be used as configuration file otherwise default configuration file will be used.
+	ConfigSecret *core.LocalObjectReference `json:"configSecret,omitempty"`
+
+	// PodTemplate is an optional configuration for pods used to expose database
+	// +optional
+	PodTemplate ofst.PodTemplateSpec `json:"podTemplate,omitempty"`
+
+	// Replicas represents number of replicas of this specific node.
+	// If current node has replicaset enabled, then replicas is the amount of replicaset nodes.
+	Replicas int32 `json:"replicas"`
+
+	// Storage to specify how storage shall be used.
+	Storage core.PersistentVolumeClaimSpec `json:"storage"`
 }
 
 type MongoDBNode struct {

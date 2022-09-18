@@ -69,6 +69,10 @@ type MySQL struct {
 }
 
 type MySQLSpec struct {
+	// AutoOps contains configuration of automatic ops-request-recommendation generation
+	// +optional
+	AutoOps AutoOpsSpec `json:"autoOps,omitempty"`
+
 	// Version of MySQL to be deployed.
 	Version string `json:"version"`
 
@@ -127,7 +131,7 @@ type MySQLSpec struct {
 
 	// Indicated whether to use DNS or IP address to address pods in a db cluster.
 	// If IP address is used, HostNetwork will be used. Defaults to DNS.
-	// +kubebuilder:default:=DNS
+	// +kubebuilder:default=DNS
 	// +optional
 	// +default="DNS"
 	UseAddressType AddressType `json:"useAddressType,omitempty"`
@@ -136,8 +140,8 @@ type MySQLSpec struct {
 	// +optional
 	Coordinator CoordinatorSpec `json:"coordinator,omitempty"`
 
-	// AllowedSchemas defines the types of database schemas that MAY refer to
-	// a database instance and the trusted namespaces where those schema resources MAY be
+	// AllowedSchemas defines the types of database schemas that may refer to
+	// a database instance and the trusted namespaces where those schema resources may be
 	// present.
 	//
 	// +kubebuilder:default={namespaces:{from: Same}}
@@ -152,6 +156,11 @@ type MySQLSpec struct {
 	// +kubebuilder:default={namespaces:{from: Same}}
 	// +optional
 	AllowedReadReplicas *AllowedConsumers `json:"allowedReadReplicas,omitempty"`
+
+	// HealthChecker defines attributes of the health checker
+	// +optional
+	// +kubebuilder:default={periodSeconds: 10, timeoutSeconds: 10, failureThreshold: 1}
+	HealthChecker kmapi.HealthCheckSpec `json:"healthChecker"`
 }
 
 // +kubebuilder:validation:Enum=server;client;metrics-exporter
@@ -227,7 +236,7 @@ type MySQLInnoDBClusterSpec struct {
 
 type MySQLRouterSpec struct {
 	// +optional
-	// +kubebuilder:default:=1
+	// +kubebuilder:default=1
 	// +kubebuilder:validation:Minimum:=1
 	Replicas *int32 `json:"replicas,omitempty"`
 
