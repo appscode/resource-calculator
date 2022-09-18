@@ -7,19 +7,22 @@ spec:
     image: mongo:3.6.8
   distribution: Official
   exporter:
-    image: kubedb/mongodb_exporter:v0.20.4
+    image: kubedb/mongodb_exporter:v0.32.0
   initContainer:
     image: kubedb/mongodb-init:4.1-v6
   podSecurityPolicies:
     databasePolicyName: mongodb-db
   replicationModeDetector:
-    image: kubedb/replication-mode-detector:v0.14.0
+    image: kubedb/replication-mode-detector:v0.15.0
   stash:
     addon:
       backupTask:
         name: mongodb-backup-3.6.8
       restoreTask:
         name: mongodb-restore-3.6.8
+  upgradeConstraints:
+    allowlist:
+    - '>= 4.0.0, < 4.1.0'
   version: 3.6.8
 
 ---
@@ -39,5 +42,5 @@ spec:
   podSecurityPolicies:
     databasePolicyName: mongodb-db
   replicationModeDetector:
-    image: kubedb/replication-mode-detector:v0.14.0
+    image: kubedb/replication-mode-detector:v0.15.0
   version: 3.6.8

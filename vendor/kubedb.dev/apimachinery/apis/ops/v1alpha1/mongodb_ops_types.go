@@ -20,7 +20,6 @@ import (
 	core "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kmapi "kmodules.xyz/client-go/api/v1"
 )
 
 const (
@@ -45,8 +44,8 @@ const (
 type MongoDBOpsRequest struct {
 	metav1.TypeMeta   `json:",inline,omitempty"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              MongoDBOpsRequestSpec   `json:"spec,omitempty"`
-	Status            MongoDBOpsRequestStatus `json:"status,omitempty"`
+	Spec              MongoDBOpsRequestSpec `json:"spec,omitempty"`
+	Status            OpsRequestStatus      `json:"status,omitempty"`
 }
 
 // MongoDBOpsRequestSpec is the spec for MongoDBOpsRequest
@@ -71,10 +70,14 @@ type MongoDBOpsRequestSpec struct {
 	Restart *RestartSpec `json:"restart,omitempty"`
 	// Specifies information necessary for reprovisioning database
 	Reprovision *Reprovision `json:"reprovision,omitempty"`
+
 	// Specifies the Readiness Criteria
 	ReadinessCriteria *MongoDBReplicaReadinessCriteria `json:"readinessCriteria,omitempty"`
 	// Timeout for each step of the ops request in second. If a step doesn't finish within the specified timeout, the ops request will result in failure.
 	Timeout *metav1.Duration `json:"timeout,omitempty"`
+	// ApplyOption is to control the execution of OpsRequest depending on the database state.
+	// +kubebuilder:default="IfReady"
+	Apply ApplyOption `json:"apply,omitempty"`
 }
 
 // MongoDBReplicaReadinessCriteria is the criteria for checking readiness of a MongoDB pod
@@ -108,11 +111,16 @@ type MongosNode struct {
 	Replicas int32 `json:"replicas,omitempty"`
 }
 
+type HiddenNode struct {
+	Replicas int32 `json:"replicas,omitempty"`
+}
+
 // HorizontalScaling is the spec for mongodb horizontal scaling
 type MongoDBHorizontalScalingSpec struct {
 	Shard        *MongoDBShardNode `json:"shard,omitempty"`
 	ConfigServer *ConfigNode       `json:"configServer,omitempty"`
 	Mongos       *MongosNode       `json:"mongos,omitempty"`
+	Hidden       *HiddenNode       `json:"hidden,omitempty"`
 	Replicas     *int32            `json:"replicas,omitempty"`
 }
 
@@ -124,18 +132,20 @@ type MongoDBVerticalScalingSpec struct {
 	ConfigServer *core.ResourceRequirements `json:"configServer,omitempty"`
 	Shard        *core.ResourceRequirements `json:"shard,omitempty"`
 	Arbiter      *core.ResourceRequirements `json:"arbiter,omitempty"`
+	Hidden       *core.ResourceRequirements `json:"hidden,omitempty"`
 	Exporter     *core.ResourceRequirements `json:"exporter,omitempty"`
 	Coordinator  *core.ResourceRequirements `json:"coordinator,omitempty"`
 }
 
 // MongoDBVolumeExpansionSpec is the spec for mongodb volume expansion
 type MongoDBVolumeExpansionSpec struct {
-	// +kubebuilder:default:="Online"
+	// +kubebuilder:default="Online"
 	Mode         *VolumeExpansionMode `json:"mode,omitempty"`
 	Standalone   *resource.Quantity   `json:"standalone,omitempty"`
 	ReplicaSet   *resource.Quantity   `json:"replicaSet,omitempty"`
 	ConfigServer *resource.Quantity   `json:"configServer,omitempty"`
 	Shard        *resource.Quantity   `json:"shard,omitempty"`
+	Hidden       *resource.Quantity   `json:"hidden,omitempty"`
 }
 
 type MongoDBCustomConfigurationSpec struct {
@@ -145,6 +155,7 @@ type MongoDBCustomConfigurationSpec struct {
 	ConfigServer *MongoDBCustomConfiguration `json:"configServer,omitempty"`
 	Shard        *MongoDBCustomConfiguration `json:"shard,omitempty"`
 	Arbiter      *MongoDBCustomConfiguration `json:"arbiter,omitempty"`
+	Hidden       *MongoDBCustomConfiguration `json:"hidden,omitempty"`
 }
 
 type MongoDBCustomConfiguration struct {
@@ -154,18 +165,6 @@ type MongoDBCustomConfiguration struct {
 
 	ApplyConfig        map[string]string `json:"applyConfig,omitempty"`
 	RemoveCustomConfig bool              `json:"removeCustomConfig,omitempty"`
-}
-
-// MongoDBOpsRequestStatus is the status for MongoDBOpsRequest
-type MongoDBOpsRequestStatus struct {
-	Phase OpsRequestPhase `json:"phase,omitempty"`
-	// observedGeneration is the most recent generation observed for this resource. It corresponds to the
-	// resource's generation, which is updated on mutation by the API Server.
-	// +optional
-	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
-	// Conditions applied to the request, such as approval or denial.
-	// +optional
-	Conditions []kmapi.Condition `json:"conditions,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

@@ -19,7 +19,6 @@ package cmds
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -188,7 +187,7 @@ func convert(dir string, clientGetter genericclioptions.RESTClientGetter) error 
 			if err != nil {
 				return err
 			}
-			if err := ioutil.WriteFile(filepath.Join(dir, strings.ToLower(gk.Kind), namespace, name, name+".yaml"), buf.Bytes(), 0o644); err != nil {
+			if err := os.WriteFile(filepath.Join(dir, strings.ToLower(gk.Kind), namespace, name, name+".yaml"), buf.Bytes(), 0o644); err != nil {
 				return err
 			}
 		}

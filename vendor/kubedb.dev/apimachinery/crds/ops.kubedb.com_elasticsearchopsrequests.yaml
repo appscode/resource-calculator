@@ -42,6 +42,12 @@ spec:
             type: object
           spec:
             properties:
+              apply:
+                default: IfReady
+                enum:
+                - IfReady
+                - Always
+                type: string
               configuration:
                 properties:
                   applyConfig:
@@ -53,6 +59,7 @@ spec:
                       name:
                         type: string
                     type: object
+                    x-kubernetes-map-type: atomic
                   removeCustomConfig:
                     type: boolean
                   removeSecureCustomConfig:
@@ -62,12 +69,14 @@ spec:
                       name:
                         type: string
                     type: object
+                    x-kubernetes-map-type: atomic
                 type: object
               databaseRef:
                 properties:
                   name:
                     type: string
                 type: object
+                x-kubernetes-map-type: atomic
               horizontalScaling:
                 properties:
                   node:
@@ -147,6 +156,7 @@ spec:
                           - kind
                           - name
                           type: object
+                          x-kubernetes-map-type: atomic
                         privateKey:
                           properties:
                             encoding:
@@ -212,6 +222,7 @@ spec:
                     - kind
                     - name
                     type: object
+                    x-kubernetes-map-type: atomic
                   remove:
                     type: boolean
                   rotateCertificates:
@@ -614,6 +625,7 @@ spec:
                 - Failed
                 - Approved
                 - Denied
+                - Skipped
                 type: string
             type: object
         type: object
