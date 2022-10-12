@@ -18,6 +18,7 @@ package cmds
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -37,7 +38,10 @@ import (
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/metadata"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	core_util "kmodules.xyz/client-go/core/v1"
+	du "kmodules.xyz/client-go/dynamic"
 	"kmodules.xyz/client-go/tools/parser"
 	resourcemetrics "kmodules.xyz/resource-metrics"
 	"kmodules.xyz/resource-metrics/api"
@@ -47,20 +51,72 @@ import (
 	kubedbv1alpha2 "kubedb.dev/apimachinery/apis/kubedb/v1alpha2"
 	cs "kubedb.dev/apimachinery/client/clientset/versioned"
 	"kubedb.dev/installer/catalog"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+	"sigs.k8s.io/yaml"
 )
 
 func NewCmdCalculate(clientGetter genericclioptions.RESTClientGetter) *cobra.Command {
-	var apiGroups []string
+	var (
+		apiGroups   []string
+		allClusters bool
+		format      string
+	)
 	cmd := &cobra.Command{
 		Use:                   "calculate",
 		Short:                 "Calculate metrics of a specific group of resources",
 		DisableFlagsInUseLine: true,
 		DisableAutoGenTag:     true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return calculate(clientGetter, sets.NewString(apiGroups...))
+			var allStats []*ClusterStats
+
+			groups := sets.NewString(apiGroups...)
+			if allClusters {
+				kubecfg, err := clientGetter.ToRawKubeConfigLoader().RawConfig()
+				if err != nil {
+					return err
+				}
+				for ctx := range kubecfg.Contexts {
+					cfg, err := clientcmd.NewNonInteractiveClientConfig(kubecfg, ctx, &clientcmd.ConfigOverrides{}, nil).ClientConfig()
+					if err != nil {
+						return err
+					}
+					stats, err := calculate(cfg, groups, format)
+					if err != nil {
+						return err
+					}
+					allStats = append(allStats, stats)
+				}
+			} else {
+				cfg, err := clientGetter.ToRESTConfig()
+				if err != nil {
+					return err
+				}
+				stats, err := calculate(cfg, groups, format)
+				if err != nil {
+					return err
+				}
+				allStats = append(allStats, stats)
+			}
+
+			if format == "json" {
+				data, err := json.MarshalIndent(allStats, "", "  ")
+				if err != nil {
+					return err
+				}
+				fmt.Println(string(data))
+			} else if format == "yaml" || format == "yml" {
+				data, err := yaml.Marshal(allStats)
+				if err != nil {
+					return err
+				}
+				fmt.Println(string(data))
+			}
+			return nil
 		},
 	}
 	cmd.Flags().StringSliceVar(&apiGroups, "apiGroups", apiGroups, "api groups for which to calculate resource")
+	cmd.Flags().BoolVar(&allClusters, "all", allClusters, "If true, calculates resources for all contexts in KUBECONFIG")
+	cmd.Flags().StringVarP(&format, "output", "o", format, "Output format. One of: (text, json, yaml)")
 
 	return cmd
 }
@@ -71,48 +127,48 @@ type KindVersion struct {
 }
 
 type Stats struct {
-	Count     int
-	Resources core.ResourceList
+	Count     int               `json:"count"`
+	Resources core.ResourceList `json:"resources,omitempty"`
 }
 
-func calculate(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.String) error {
-	cfg, err := clientGetter.ToRESTConfig()
-	if err != nil {
-		return err
-	}
+type ClusterStats struct {
+	ClusterID string          `json:"clusterID"`
+	Stats     []ResourceStats `json:"stats"`
+	Total     Stats           `json:"total"`
+}
+
+type ResourceStats struct {
+	APIVersion string `json:"apiVersion"`
+	Kind       string `json:"kind"`
+	Stats      `json:",inline"`
+}
+
+func calculate(cfg *rest.Config, apiGroups sets.String, format string) (*ClusterStats, error) {
 	client, err := dynamic.NewForConfig(cfg)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	mapper, err := clientGetter.ToRESTMapper()
+	mapper, err := apiutil.NewDiscoveryRESTMapper(cfg)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	topology, err := core_util.DetectTopology(context.TODO(), metadata.NewForConfigOrDie(cfg))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	kubedbclient, err := cs.NewForConfig(cfg)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	ns, err := client.Resource(schema.GroupVersionResource{
-		Group:    "",
-		Version:  "v1",
-		Resource: "namespaces",
-	}).Get(context.TODO(), "kube-system", metav1.GetOptions{})
+	clusterID, err := du.ClusterUID(client)
 	if err != nil {
-		return err
-	}
-	clusterID, _, err := unstructured.NestedString(ns.UnstructuredContent(), "metadata", "uid")
-	if err != nil {
-		return err
+		return nil, err
 	}
 
 	catalogmap, err := LoadCatalog(kubedbclient, false)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	rsmap := map[schema.GroupVersionKind]Stats{}
@@ -132,7 +188,7 @@ func calculate(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.S
 				rsmap[gvk] = Stats{} // keep track
 				continue
 			} else if err != nil {
-				return err
+				return nil, err
 			}
 			gvk = mapping.GroupVersionKind // v1alpha1 or v1alpha2
 		} else {
@@ -141,7 +197,7 @@ func calculate(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.S
 				rsmap[gvk] = Stats{} // keep track
 				continue
 			} else if err != nil {
-				return err
+				return nil, err
 			}
 		}
 
@@ -152,7 +208,7 @@ func calculate(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.S
 			ri = client.Resource(mapping.Resource)
 		}
 		if result, err := ri.List(context.TODO(), metav1.ListOptions{}); err != nil {
-			return err
+			return nil, err
 		} else {
 			var summary core.ResourceList
 			for _, item := range result.Items {
@@ -161,13 +217,13 @@ func calculate(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.S
 				if gvk.Group == kubedb.GroupName && gvk.Version == kubedbv1alpha1.SchemeGroupVersion.Version {
 					content, err = Convert_kubedb_v1alpha1_To_v1alpha2(item, catalogmap, topology)
 					if err != nil {
-						return err
+						return nil, err
 					}
 				}
 
 				rr, err := resourcemetrics.AppResourceLimits(content)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				summary = api.AddResourceList(summary, rr)
 			}
@@ -191,6 +247,26 @@ func calculate(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.S
 		return gvks[i].Group < gvks[j].Group
 	})
 
+	if format == "json" || format == "yaml" || format == "yml" {
+		stats := &ClusterStats{
+			ClusterID: clusterID,
+			Stats:     make([]ResourceStats, 0, len(gvks)),
+			Total: Stats{
+				Count:     totalCount,
+				Resources: rrTotal,
+			},
+		}
+		for _, gvk := range gvks {
+			rr := rsmap[gvk]
+			stats.Stats = append(stats.Stats, ResourceStats{
+				APIVersion: gvk.GroupVersion().String(),
+				Kind:       gvk.Kind,
+				Stats:      rr,
+			})
+		}
+		return stats, nil
+	}
+
 	const padding = 3
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, padding, ' ', tabwriter.TabIndent)
 	_, _ = fmt.Fprintln(os.Stdout, "")
@@ -206,7 +282,7 @@ func calculate(clientGetter genericclioptions.RESTClientGetter, apiGroups sets.S
 		}
 	}
 	_, _ = fmt.Fprintf(w, "TOTAL\t=\t%d\t%s\t%s\t%s\t\n", totalCount, rrTotal.Cpu(), rrTotal.Memory(), rrTotal.Storage())
-	return w.Flush()
+	return nil, w.Flush()
 }
 
 const TerminationPolicyPause kubedbv1alpha2.TerminationPolicy = "Pause"
