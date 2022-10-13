@@ -68,19 +68,19 @@ func NewCmdCalculate(clientGetter genericclioptions.RESTClientGetter) *cobra.Com
 		DisableAutoGenTag:     true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var allStats []*ClusterStats
-
 			groups := sets.NewString(apiGroups...)
+
+			kubecfg, err := clientGetter.ToRawKubeConfigLoader().RawConfig()
+			if err != nil {
+				return err
+			}
 			if allClusters {
-				kubecfg, err := clientGetter.ToRawKubeConfigLoader().RawConfig()
-				if err != nil {
-					return err
-				}
 				for ctx := range kubecfg.Contexts {
 					cfg, err := clientcmd.NewNonInteractiveClientConfig(kubecfg, ctx, &clientcmd.ConfigOverrides{}, nil).ClientConfig()
 					if err != nil {
 						return err
 					}
-					stats, err := calculate(cfg, groups, format)
+					stats, err := calculate(ctx, cfg, groups, format)
 					if err != nil {
 						return err
 					}
@@ -91,7 +91,7 @@ func NewCmdCalculate(clientGetter genericclioptions.RESTClientGetter) *cobra.Com
 				if err != nil {
 					return err
 				}
-				stats, err := calculate(cfg, groups, format)
+				stats, err := calculate(kubecfg.CurrentContext, cfg, groups, format)
 				if err != nil {
 					return err
 				}
@@ -133,6 +133,7 @@ type Stats struct {
 
 type ClusterStats struct {
 	ClusterID string          `json:"clusterID"`
+	Context   string          `json:"context,omitempty"`
 	Stats     []ResourceStats `json:"stats"`
 	Total     Stats           `json:"total"`
 }
@@ -143,7 +144,7 @@ type ResourceStats struct {
 	Stats      `json:",inline"`
 }
 
-func calculate(cfg *rest.Config, apiGroups sets.String, format string) (*ClusterStats, error) {
+func calculate(ctxName string, cfg *rest.Config, apiGroups sets.String, format string) (*ClusterStats, error) {
 	client, err := dynamic.NewForConfig(cfg)
 	if err != nil {
 		return nil, err
@@ -250,6 +251,7 @@ func calculate(cfg *rest.Config, apiGroups sets.String, format string) (*Cluster
 	if format == "json" || format == "yaml" || format == "yml" {
 		stats := &ClusterStats{
 			ClusterID: clusterID,
+			Context:   ctxName,
 			Stats:     make([]ResourceStats, 0, len(gvks)),
 			Total: Stats{
 				Count:     totalCount,
@@ -271,6 +273,7 @@ func calculate(cfg *rest.Config, apiGroups sets.String, format string) (*Cluster
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, padding, ' ', tabwriter.TabIndent)
 	_, _ = fmt.Fprintln(os.Stdout, "")
 	_, _ = fmt.Fprintf(os.Stdout, "CLUSTER ID: %s\n", clusterID)
+	_, _ = fmt.Fprintf(os.Stdout, "KUBECONFIG CONTEXT: %s\n", ctxName)
 	_, _ = fmt.Fprintln(os.Stdout, "")
 	_, _ = fmt.Fprintln(w, "API VERSION\tKIND\tCOUNT\tCPU\tMEMORY\tSTORAGE\t")
 	for _, gvk := range gvks {
