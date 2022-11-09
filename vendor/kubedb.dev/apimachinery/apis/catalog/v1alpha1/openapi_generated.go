@@ -18765,6 +18765,12 @@ func schema_custom_resources_apis_appcatalog_v1alpha1_AppBindingSpec(ref common.
 							Format:      "",
 						},
 					},
+					"appRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Reference to underlying application",
+							Ref:         ref("kmodules.xyz/client-go/api/v1.TypedObjectReference"),
+						},
+					},
 					"version": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Version used to facilitate programmatic handling of application.",
@@ -18816,7 +18822,7 @@ func schema_custom_resources_apis_appcatalog_v1alpha1_AppBindingSpec(ref common.
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/core/v1.LocalObjectReference", "k8s.io/apimachinery/pkg/runtime.RawExtension", "kmodules.xyz/custom-resources/apis/appcatalog/v1alpha1.ClientConfig", "kmodules.xyz/custom-resources/apis/appcatalog/v1alpha1.SecretTransform"},
+			"k8s.io/api/core/v1.LocalObjectReference", "k8s.io/apimachinery/pkg/runtime.RawExtension", "kmodules.xyz/client-go/api/v1.TypedObjectReference", "kmodules.xyz/custom-resources/apis/appcatalog/v1alpha1.ClientConfig", "kmodules.xyz/custom-resources/apis/appcatalog/v1alpha1.SecretTransform"},
 	}
 }
 
@@ -23563,7 +23569,6 @@ func schema_apimachinery_apis_catalog_v1alpha1_ProxySQLVersionSpec(ref common.Re
 					"exporter": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Exporter Image",
-							Default:     map[string]interface{}{},
 							Ref:         ref("kubedb.dev/apimachinery/apis/catalog/v1alpha1.ProxySQLVersionExporter"),
 						},
 					},
@@ -23589,7 +23594,7 @@ func schema_apimachinery_apis_catalog_v1alpha1_ProxySQLVersionSpec(ref common.Re
 						},
 					},
 				},
-				Required: []string{"version", "proxysql", "exporter", "podSecurityPolicies"},
+				Required: []string{"version", "proxysql", "podSecurityPolicies"},
 			},
 		},
 		Dependencies: []string{
