@@ -17,50 +17,31 @@ limitations under the License.
 package cmds
 
 import (
-	"bytes"
-	"context"
+	"errors"
+	"fmt"
+	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
+	"gomodules.xyz/sets"
+	apps "k8s.io/api/apps/v1"
+	batch "k8s.io/api/batch/v1"
 	core "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/cli-runtime/pkg/genericclioptions"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/metadata"
-	core_util "kmodules.xyz/client-go/core/v1"
-	"kubedb.dev/apimachinery/apis/kubedb"
-	kubedbv1alpha1 "kubedb.dev/apimachinery/apis/kubedb/v1alpha1"
-	cs "kubedb.dev/apimachinery/client/clientset/versioned"
-	"sigs.k8s.io/yaml"
+	"k8s.io/apimachinery/pkg/runtime"
+	"kmodules.xyz/client-go/tools/parser"
+	api "kubedb.dev/apimachinery/apis/catalog/v1alpha1"
 )
 
-var registeredKubeDBTypes = []schema.GroupKind{
-	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindElasticsearch).GroupKind(),
-	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindEtcd).GroupKind(),
-	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindMariaDB).GroupKind(),
-	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindMemcached).GroupKind(),
-	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindMongoDB).GroupKind(),
-	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindMySQL).GroupKind(),
-	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindPerconaXtraDB).GroupKind(),
-	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindPostgres).GroupKind(),
-	kubedbv1alpha1.SchemeGroupVersion.WithKind(kubedbv1alpha1.ResourceKindRedis).GroupKind(),
-}
-
-func NewCmdConvert(clientGetter genericclioptions.RESTClientGetter) *cobra.Command {
+func NewCmdListImages() *cobra.Command {
 	var dir string
 	cmd := &cobra.Command{
-		Use:                   "convert",
-		Short:                 "Convert KubeDB resources from v1alpha1 to v1alpha2 api",
+		Use:                   "list",
+		Short:                 "List all Docker images in a dir/file or stdin",
 		DisableFlagsInUseLine: true,
 		DisableAutoGenTag:     true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return convert(dir, clientGetter)
+			return ListImages(args)
 		},
 	}
 	cmd.Flags().StringVar(&dir, "dir", dir, "Path to directory where yaml files are written")
@@ -68,129 +49,279 @@ func NewCmdConvert(clientGetter genericclioptions.RESTClientGetter) *cobra.Comma
 	return cmd
 }
 
-func convert(dir string, clientGetter genericclioptions.RESTClientGetter) error {
-	cfg, err := clientGetter.ToRESTConfig()
-	if err != nil {
-		return err
-	}
-	kc, err := kubernetes.NewForConfig(cfg)
-	if err != nil {
-		return err
-	}
-	dc, err := dynamic.NewForConfig(cfg)
-	if err != nil {
-		return err
-	}
-	mapper, err := clientGetter.ToRESTMapper()
-	if err != nil {
-		return err
-	}
-	topology, err := core_util.DetectTopology(context.TODO(), metadata.NewForConfigOrDie(cfg))
-	if err != nil {
-		return err
-	}
-	kubedbclient, err := cs.NewForConfig(cfg)
-	if err != nil {
-		return err
+func ListImages(args []string) error {
+	if len(args) == 0 {
+		return errors.New("missing input")
+	} else if len(args) > 1 {
+		return errors.New("too many inputs")
 	}
 
-	catalogmap, err := LoadCatalog(kubedbclient, false)
-	if err != nil {
-		return err
-	}
-
-	rsmap := map[schema.GroupKind][]interface{}{}
-	for _, gk := range registeredKubeDBTypes {
-		mapping, err := mapper.RESTMapping(gk)
-		if meta.IsNoMatchError(err) {
-			continue
-		} else if err != nil {
+	imgList := sets.NewString()
+	dir := args[0]
+	if dir == "-" {
+		data, err := io.ReadAll(os.Stdin)
+		if err != nil {
 			return err
 		}
-
-		ri := dc.Resource(mapping.Resource).Namespace(core.NamespaceAll)
-		if result, err := ri.List(context.TODO(), metav1.ListOptions{}); err != nil {
+		err = parser.ProcessResources(data, processYAML(imgList))
+		if err != nil {
 			return err
-		} else {
-			objects := make([]interface{}, 0, len(result.Items))
-			for _, item := range result.Items {
-				if gk.Group == kubedb.GroupName && mapping.GroupVersionKind.Version == kubedbv1alpha1.SchemeGroupVersion.Version {
-					content, err := Convert_kubedb_v1alpha1_To_v1alpha2(item, catalogmap, topology)
-					if err != nil {
-						return err
-					}
-					objects = append(objects, content)
-				} else {
-					item.SetManagedFields(nil)
-					item.SetCreationTimestamp(metav1.Time{})
-					item.SetGeneration(0)
-					item.SetUID("")
-					item.SetResourceVersion("")
-					objects = append(objects, item.UnstructuredContent())
-				}
-			}
-			rsmap[gk] = objects
+		}
+	} else {
+		err := parser.ProcessPath(dir, processYAML(imgList))
+		if err != nil {
+			return err
 		}
 	}
 
-	var buf bytes.Buffer
-	for gk, objects := range rsmap {
-		for _, obj := range objects {
-			buf.Reset()
-
-			name, _, err := unstructured.NestedString(obj.(map[string]interface{}), "metadata", "name")
-			if err != nil {
-				return err
-			}
-			namespace, _, err := unstructured.NestedString(obj.(map[string]interface{}), "metadata", "namespace")
-			if err != nil {
-				return err
-			}
-
-			// config secret handling
-			if cfgName, ok, _ := unstructured.NestedString(obj.(map[string]interface{}), "spec", "configSecret", "name"); ok && strings.HasPrefix(cfgName, "FIX_CONVERT_TO_SECRET_") {
-				cmName := strings.TrimPrefix(cfgName, "FIX_CONVERT_TO_SECRET_")
-				if cm, err := kc.CoreV1().ConfigMaps(namespace).Get(context.TODO(), cmName, metav1.GetOptions{}); err == nil {
-					s := &core.Secret{
-						TypeMeta: metav1.TypeMeta{
-							APIVersion: "v1",
-							Kind:       "Secret",
-						},
-						ObjectMeta: metav1.ObjectMeta{
-							Name:            cm.Name,
-							Namespace:       cm.Namespace,
-							Labels:          cm.Labels,
-							Annotations:     cm.Annotations,
-							OwnerReferences: cm.OwnerReferences,
-							Finalizers:      cm.Finalizers,
-						},
-						StringData: cm.Data,
-					}
-					if data, err := yaml.Marshal(s); err != nil {
-						return err
-					} else {
-						buf.Write(data)
-						buf.WriteString("\n---\n")
-
-						_ = unstructured.SetNestedField(obj.(map[string]interface{}), cmName, "spec", "configSecret", "name")
-					}
-				}
-			}
-
-			if data, err := yaml.Marshal(obj); err != nil {
-				return err
-			} else {
-				buf.Write(data)
-			}
-
-			err = os.MkdirAll(filepath.Join(dir, strings.ToLower(gk.Kind), namespace, name), 0o755)
-			if err != nil {
-				return err
-			}
-			if err := os.WriteFile(filepath.Join(dir, strings.ToLower(gk.Kind), namespace, name, name+".yaml"), buf.Bytes(), 0o644); err != nil {
-				return err
-			}
-		}
-	}
+	fmt.Println(strings.Join(imgList.List(), "\n"))
 	return nil
+}
+
+func processYAML(imgList sets.String) func(ri parser.ResourceInfo) error {
+	return func(ri parser.ResourceInfo) error {
+		switch ri.Object.GetObjectKind().GroupVersionKind() {
+		case core.SchemeGroupVersion.WithKind("ReplicationController"):
+			var obj core.ReplicationController
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(ri.Object.UnstructuredContent(), &obj); err != nil {
+				return err
+			}
+			collectFromContainers(obj.Spec.Template.Spec.Containers, imgList)
+			collectFromContainers(obj.Spec.Template.Spec.InitContainers, imgList)
+		case apps.SchemeGroupVersion.WithKind("Deployment"):
+			var obj apps.Deployment
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(ri.Object.UnstructuredContent(), &obj); err != nil {
+				return err
+			}
+			collectFromContainers(obj.Spec.Template.Spec.Containers, imgList)
+			collectFromContainers(obj.Spec.Template.Spec.InitContainers, imgList)
+		case apps.SchemeGroupVersion.WithKind("StatefulSet"):
+			var obj apps.StatefulSet
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(ri.Object.UnstructuredContent(), &obj); err != nil {
+				return err
+			}
+			collectFromContainers(obj.Spec.Template.Spec.Containers, imgList)
+			collectFromContainers(obj.Spec.Template.Spec.InitContainers, imgList)
+		case apps.SchemeGroupVersion.WithKind("DaemonSet"):
+			var obj apps.DaemonSet
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(ri.Object.UnstructuredContent(), &obj); err != nil {
+				return err
+			}
+			collectFromContainers(obj.Spec.Template.Spec.Containers, imgList)
+			collectFromContainers(obj.Spec.Template.Spec.InitContainers, imgList)
+		case batch.SchemeGroupVersion.WithKind("Job"):
+			var obj batch.Job
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(ri.Object.UnstructuredContent(), &obj); err != nil {
+				return err
+			}
+			collectFromContainers(obj.Spec.Template.Spec.Containers, imgList)
+			collectFromContainers(obj.Spec.Template.Spec.InitContainers, imgList)
+		case batch.SchemeGroupVersion.WithKind("CronJob"):
+			var obj batch.CronJob
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(ri.Object.UnstructuredContent(), &obj); err != nil {
+				return err
+			}
+			collectFromContainers(obj.Spec.JobTemplate.Spec.Template.Spec.Containers, imgList)
+			collectFromContainers(obj.Spec.JobTemplate.Spec.Template.Spec.InitContainers, imgList)
+		case api.SchemeGroupVersion.WithKind(api.ResourceKindElasticsearchVersion):
+			var v api.ElasticsearchVersion
+			err := runtime.DefaultUnstructuredConverter.FromUnstructured(ri.Object.UnstructuredContent(), &v)
+			if err != nil {
+				panic(err)
+			}
+
+			if err := collect(v.Spec.DB.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.InitContainer.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.Exporter.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.Dashboard.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.DashboardInitContainer.YQImage, imgList); err != nil {
+				panic(err)
+			}
+		case api.SchemeGroupVersion.WithKind(api.ResourceKindMemcachedVersion):
+			var v api.MemcachedVersion
+			err := runtime.DefaultUnstructuredConverter.FromUnstructured(ri.Object.UnstructuredContent(), &v)
+			if err != nil {
+				panic(err)
+			}
+
+			if err := collect(v.Spec.DB.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.Exporter.Image, imgList); err != nil {
+				panic(err)
+			}
+		case api.SchemeGroupVersion.WithKind(api.ResourceKindMariaDBVersion):
+			var v api.MariaDBVersion
+			err := runtime.DefaultUnstructuredConverter.FromUnstructured(ri.Object.UnstructuredContent(), &v)
+			if err != nil {
+				panic(err)
+			}
+
+			if err := collect(v.Spec.DB.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.Exporter.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.InitContainer.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.Coordinator.Image, imgList); err != nil {
+				panic(err)
+			}
+		case api.SchemeGroupVersion.WithKind(api.ResourceKindMongoDBVersion):
+			var v api.MongoDBVersion
+			err := runtime.DefaultUnstructuredConverter.FromUnstructured(ri.Object.UnstructuredContent(), &v)
+			if err != nil {
+				panic(err)
+			}
+
+			if err := collect(v.Spec.DB.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.Exporter.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.InitContainer.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.ReplicationModeDetector.Image, imgList); err != nil {
+				panic(err)
+			}
+		case api.SchemeGroupVersion.WithKind(api.ResourceKindMySQLVersion):
+			var v api.MySQLVersion
+			err := runtime.DefaultUnstructuredConverter.FromUnstructured(ri.Object.UnstructuredContent(), &v)
+			if err != nil {
+				panic(err)
+			}
+
+			if err := collect(v.Spec.DB.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.Exporter.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.InitContainer.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.ReplicationModeDetector.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.Coordinator.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.Router.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.RouterInitContainer.Image, imgList); err != nil {
+				panic(err)
+			}
+		case api.SchemeGroupVersion.WithKind(api.ResourceKindPerconaXtraDBVersion):
+			var v api.PerconaXtraDBVersion
+			err := runtime.DefaultUnstructuredConverter.FromUnstructured(ri.Object.UnstructuredContent(), &v)
+			if err != nil {
+				panic(err)
+			}
+
+			if err := collect(v.Spec.DB.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.Exporter.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.InitContainer.Image, imgList); err != nil {
+				panic(err)
+			}
+		case api.SchemeGroupVersion.WithKind(api.ResourceKindPgBouncerVersion):
+			var v api.PgBouncerVersion
+			err := runtime.DefaultUnstructuredConverter.FromUnstructured(ri.Object.UnstructuredContent(), &v)
+			if err != nil {
+				panic(err)
+			}
+
+			if err := collect(v.Spec.PgBouncer.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.Exporter.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.InitContainer.Image, imgList); err != nil {
+				panic(err)
+			}
+		case api.SchemeGroupVersion.WithKind(api.ResourceKindProxySQLVersion):
+			var v api.ProxySQLVersion
+			err := runtime.DefaultUnstructuredConverter.FromUnstructured(ri.Object.UnstructuredContent(), &v)
+			if err != nil {
+				panic(err)
+			}
+
+			if err := collect(v.Spec.Proxysql.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.Exporter.Image, imgList); err != nil {
+				panic(err)
+			}
+		case api.SchemeGroupVersion.WithKind(api.ResourceKindRedisVersion):
+			var v api.RedisVersion
+			err := runtime.DefaultUnstructuredConverter.FromUnstructured(ri.Object.UnstructuredContent(), &v)
+			if err != nil {
+				panic(err)
+			}
+
+			if err := collect(v.Spec.DB.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.Exporter.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.Coordinator.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.InitContainer.Image, imgList); err != nil {
+				panic(err)
+			}
+		case api.SchemeGroupVersion.WithKind(api.ResourceKindPostgresVersion):
+			var v api.PostgresVersion
+			err := runtime.DefaultUnstructuredConverter.FromUnstructured(ri.Object.UnstructuredContent(), &v)
+			if err != nil {
+				panic(err)
+			}
+
+			if err := collect(v.Spec.DB.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.Coordinator.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.Exporter.Image, imgList); err != nil {
+				panic(err)
+			}
+			if err := collect(v.Spec.InitContainer.Image, imgList); err != nil {
+				panic(err)
+			}
+		}
+		return nil
+	}
+}
+
+func collect(ref string, dm sets.String) error {
+	if ref == "" {
+		return nil
+	}
+	dm.Insert(ref)
+	return nil
+}
+
+func collectFromContainers(containers []core.Container, dm sets.String) {
+	for _, c := range containers {
+		dm.Insert(c.Image)
+	}
 }

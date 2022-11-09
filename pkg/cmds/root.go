@@ -19,15 +19,13 @@ package cmds
 import (
 	"github.com/spf13/cobra"
 	v "gomodules.xyz/x/version"
-	"k8s.io/cli-runtime/pkg/genericclioptions"
 	cliflag "k8s.io/component-base/cli/flag"
-	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
 func NewRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:               "img-tools [command]",
-		Short:             `Resource calculator by AppsCode`,
+		Short:             `OCI Image tools by AppsCode`,
 		DisableAutoGenTag: true,
 	}
 
@@ -36,15 +34,9 @@ func NewRootCmd() *cobra.Command {
 	// a.k.a. change all "_" to "-". e.g. glog package
 	flags.SetNormalizeFunc(cliflag.WordSepNormalizeFunc)
 
-	kubeConfigFlags := genericclioptions.NewConfigFlags(true)
-	kubeConfigFlags.AddFlags(flags)
-	matchVersionKubeConfigFlags := cmdutil.NewMatchVersionFlags(kubeConfigFlags)
-	matchVersionKubeConfigFlags.AddFlags(flags)
-
-	rootCmd.AddCommand(NewCmdCalculate(matchVersionKubeConfigFlags))
-	rootCmd.AddCommand(NewCmdConvert(matchVersionKubeConfigFlags))
-	rootCmd.AddCommand(NewCmdCheckDeprecated(matchVersionKubeConfigFlags))
+	rootCmd.AddCommand(NewCmdListImages())
 	rootCmd.AddCommand(NewCmdCompletion())
 	rootCmd.AddCommand(v.NewCmdVersion())
+
 	return rootCmd
 }
