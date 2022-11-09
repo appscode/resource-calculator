@@ -458,7 +458,6 @@ k8s.io/apimachinery/pkg/util/httpstream
 k8s.io/apimachinery/pkg/util/httpstream/spdy
 k8s.io/apimachinery/pkg/util/intstr
 k8s.io/apimachinery/pkg/util/json
-k8s.io/apimachinery/pkg/util/jsonmergepatch
 k8s.io/apimachinery/pkg/util/managedfields
 k8s.io/apimachinery/pkg/util/mergepatch
 k8s.io/apimachinery/pkg/util/naming
@@ -530,7 +529,6 @@ k8s.io/client-go/applyconfigurations/storage/v1alpha1
 k8s.io/client-go/applyconfigurations/storage/v1beta1
 k8s.io/client-go/discovery
 k8s.io/client-go/discovery/cached/disk
-k8s.io/client-go/discovery/cached/memory
 k8s.io/client-go/dynamic
 k8s.io/client-go/kubernetes
 k8s.io/client-go/kubernetes/scheme
@@ -621,7 +619,6 @@ k8s.io/client-go/tools/record
 k8s.io/client-go/tools/record/util
 k8s.io/client-go/tools/reference
 k8s.io/client-go/tools/remotecommand
-k8s.io/client-go/tools/watch
 k8s.io/client-go/transport
 k8s.io/client-go/transport/spdy
 k8s.io/client-go/util/cert
@@ -690,10 +687,7 @@ kmodules.xyz/client-go/apiextensions
 kmodules.xyz/client-go/apiextensions/v1
 kmodules.xyz/client-go/apps/v1
 kmodules.xyz/client-go/core/v1
-kmodules.xyz/client-go/discovery
-kmodules.xyz/client-go/dynamic
 kmodules.xyz/client-go/meta
-kmodules.xyz/client-go/tools/parser
 # kmodules.xyz/custom-resources v0.25.0
 ## explicit; go 1.18
 kmodules.xyz/custom-resources/apis/appcatalog
@@ -709,15 +703,6 @@ kmodules.xyz/objectstore-api/api/v1
 # kmodules.xyz/offshoot-api v0.25.0
 ## explicit; go 1.18
 kmodules.xyz/offshoot-api/api/v1
-# kmodules.xyz/resource-metrics v0.25.0
-## explicit; go 1.18
-kmodules.xyz/resource-metrics
-kmodules.xyz/resource-metrics/api
-kmodules.xyz/resource-metrics/apps/v1
-kmodules.xyz/resource-metrics/batch/v1
-kmodules.xyz/resource-metrics/batch/v1beta1
-kmodules.xyz/resource-metrics/core/v1
-kmodules.xyz/resource-metrics/kubedb.com/v1alpha2
 # kubedb.dev/apimachinery v0.28.4-0.20220918021210-a0b96812228b
 ## explicit; go 1.18
 kubedb.dev/apimachinery/apis
@@ -752,9 +737,6 @@ kubedb.dev/apimachinery/client/clientset/versioned/typed/schema/v1alpha1
 kubedb.dev/apimachinery/client/clientset/versioned/typed/ui/v1alpha1
 kubedb.dev/apimachinery/crds
 kubedb.dev/apimachinery/pkg/validator
-# kubedb.dev/installer v0.17.2-0.20220914213231-59a10600bd29
-## explicit; go 1.18
-kubedb.dev/installer/catalog
 # sigs.k8s.io/controller-runtime v0.13.0
 ## explicit; go 1.17
 sigs.k8s.io/controller-runtime

@@ -987,12 +987,8 @@ kmodules.xyz/objectstore-api v0.25.0 h1:xT7+SXBqAMtVkfOdp4espHAfZ6MYUC4G1OgzTkUR
 kmodules.xyz/objectstore-api v0.25.0/go.mod h1:X5aCkyU91p9TOn4jcWw0cfcJL0HCKd/Z6FJHdzKz1ZU=
 kmodules.xyz/offshoot-api v0.25.0 h1:Svq9da/+sg5afOjpgo9vx2J/Lu90Mo0aFxkdQmgKnGI=
 kmodules.xyz/offshoot-api v0.25.0/go.mod h1:ysEBn7LJuT3+s8ynAQA/OG0BSsJugXa6KGtDLMRjlKo=
-kmodules.xyz/resource-metrics v0.25.0 h1:wj3npVZZQr+Yysg/XdGn4LdT5kQizWeO0zq7QlSVx50=
-kmodules.xyz/resource-metrics v0.25.0/go.mod h1:4a49npnu73c9LGDWHWQsPWoXWXU9rpCcknoH1+HHesI=
 kubedb.dev/apimachinery v0.28.4-0.20220918021210-a0b96812228b h1:K1UDvmfHygzpDSekWeMPN1D4ZMU9aA6FjyrpWH/miw8=
 kubedb.dev/apimachinery v0.28.4-0.20220918021210-a0b96812228b/go.mod h1:OZ2A5/mTmlmQdPeFrctyDH2Q/nucRUtCX3dOuaYQcoA=
-kubedb.dev/installer v0.17.2-0.20220914213231-59a10600bd29 h1:WfZa8/AbtnfEo9G7SCNiaWdW7DTHjuhFzJWXsjP8ers=
-kubedb.dev/installer v0.17.2-0.20220914213231-59a10600bd29/go.mod h1:n6an/DT5UV4lC0oIJ4TWWHkvrL+SgbBGKP7t7RWvWOs=
 rsc.io/binaryregexp v0.2.0/go.mod h1:qTv7/COck+e2FymRvadv62gMdZztPaShugOCi3I+8D8=
 rsc.io/quote/v3 v3.1.0/go.mod h1:yEA65RcK8LyAZtP9Kv3t0HmxON59tX3rD+tICJqUlj0=
 rsc.io/sampler v1.3.0/go.mod h1:T1hPZKmBbMNahiBKFy5HrXp6adAjACjK9JXDnKaTXpA=
