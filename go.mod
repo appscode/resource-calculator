@@ -1,4 +1,4 @@
-module kubeops.dev/resource-calculator
+module kubeops.dev/img-tools
 
 go 1.18
 

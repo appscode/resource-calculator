@@ -30,13 +30,13 @@ func NewCmdCompletion() *cobra.Command {
 
 Bash:
 
-$ source <(resource-calculator completion bash)
+$ source <(img-tools completion bash)
 
 # To load completions for each session, execute once:
 Linux:
-  $ resource-calculator completion bash > /etc/bash_completion.d/resource-calculator
+  $ img-tools completion bash > /etc/bash_completion.d/img-tools
 MacOS:
-  $ resource-calculator completion bash > /usr/local/etc/bash_completion.d/resource-calculator
+  $ img-tools completion bash > /usr/local/etc/bash_completion.d/img-tools
 
 Zsh:
 
@@ -46,16 +46,16 @@ Zsh:
 $ echo "autoload -U compinit; compinit" >> ~/.zshrc
 
 # To load completions for each session, execute once:
-$ resource-calculator completion zsh > "${fpath[1]}/_resource-calculator"
+$ img-tools completion zsh > "${fpath[1]}/_img-tools"
 
 # You will need to start a new shell for this setup to take effect.
 
 Fish:
 
-$ resource-calculator completion fish | source
+$ img-tools completion fish | source
 
 # To load completions for each session, execute once:
-$ resource-calculator completion fish > ~/.config/fish/completions/resource-calculator.fish
+$ img-tools completion fish > ~/.config/fish/completions/img-tools.fish
 `,
 		DisableFlagsInUseLine: true,
 		ValidArgs:             []string{"bash", "zsh", "fish", "powershell"},

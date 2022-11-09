@@ -19,7 +19,7 @@ package main
 import (
 	"os"
 
-	"kubeops.dev/resource-calculator/pkg/cmds"
+	"kubeops.dev/img-tools/pkg/cmds"
 
 	"gomodules.xyz/logs"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"

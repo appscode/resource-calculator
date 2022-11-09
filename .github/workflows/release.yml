@@ -40,12 +40,12 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            bin/resource-calculator-darwin-amd64.tar.gz
-            bin/resource-calculator-darwin-arm64.tar.gz
-            bin/resource-calculator-linux-amd64.tar.gz
-            bin/resource-calculator-linux-arm.tar.gz
-            bin/resource-calculator-linux-arm64.tar.gz
-            bin/resource-calculator-windows-amd64.zip
-            bin/resource-calculator-checksums.txt
+            bin/img-tools-darwin-amd64.tar.gz
+            bin/img-tools-darwin-arm64.tar.gz
+            bin/img-tools-linux-amd64.tar.gz
+            bin/img-tools-linux-arm.tar.gz
+            bin/img-tools-linux-arm64.tar.gz
+            bin/img-tools-windows-amd64.zip
+            bin/img-tools-checksums.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

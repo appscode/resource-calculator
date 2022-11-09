@@ -16,7 +16,7 @@ SHELL=/bin/bash -o pipefail
 
 GO_PKG   := kmodules.xyz
 REPO     := $(notdir $(shell pwd))
-BIN      := resource-calculator
+BIN      := img-tools
 COMPRESS ?= no
 
 # This version-strategy uses git tags to set the version string

@@ -26,7 +26,7 @@ import (
 
 func NewRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
-		Use:               "resource-calculator [command]",
+		Use:               "img-tools [command]",
 		Short:             `Resource calculator by AppsCode`,
 		DisableAutoGenTag: true,
 	}
