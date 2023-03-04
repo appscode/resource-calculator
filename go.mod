@@ -12,13 +12,15 @@ require (
 	k8s.io/client-go v0.25.1
 	k8s.io/component-base v0.25.1
 	k8s.io/kubectl v0.25.1
-	kmodules.xyz/client-go v0.25.0
+	kmodules.xyz/client-go v0.25.10
 	kmodules.xyz/resource-metrics v0.25.0
 	kubedb.dev/apimachinery v0.28.4-0.20220918021210-a0b96812228b
 	kubedb.dev/installer v0.17.2-0.20220914213231-59a10600bd29
-	sigs.k8s.io/controller-runtime v0.13.0
+	sigs.k8s.io/controller-runtime v0.13.1
 	sigs.k8s.io/yaml v1.3.0
 )
+
+require kmodules.xyz/apiversion v0.2.0 // indirect
 
 require (
 	cloud.google.com/go v0.99.0 // indirect
@@ -85,12 +87,12 @@ require (
 	github.com/yudai/gojsondiff v1.0.0 // indirect
 	github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 // indirect
 	go.starlark.net v0.0.0-20200306205701-8dd3e2ee1dd5 // indirect
-	golang.org/x/crypto v0.0.0-20220622213112-05595931fe9d // indirect
-	golang.org/x/net v0.0.0-20220909164309-bea034e7d591 // indirect
+	golang.org/x/crypto v0.6.0 // indirect
+	golang.org/x/net v0.7.0 // indirect
 	golang.org/x/oauth2 v0.0.0-20220822191816-0ebed06d0094 // indirect
-	golang.org/x/sys v0.0.0-20220829200755-d48e67d00261 // indirect
-	golang.org/x/term v0.0.0-20220722155259-a9ba230a4035 // indirect
-	golang.org/x/text v0.3.7 // indirect
+	golang.org/x/sys v0.5.0 // indirect
+	golang.org/x/term v0.5.0 // indirect
+	golang.org/x/text v0.7.0 // indirect
 	golang.org/x/time v0.0.0-20220722155302-e5dcc9cfc0b9 // indirect
 	gomodules.xyz/clock v0.0.0-20200817085942-06523dba733f // indirect
 	gomodules.xyz/encoding v0.0.7 // indirect
