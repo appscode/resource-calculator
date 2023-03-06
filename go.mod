@@ -7,20 +7,18 @@ require (
 	gomodules.xyz/logs v0.0.6
 	gomodules.xyz/x v0.0.14
 	k8s.io/api v0.25.1
-	k8s.io/apimachinery v0.25.1
+	k8s.io/apimachinery v0.25.3
 	k8s.io/cli-runtime v0.25.1
 	k8s.io/client-go v0.25.1
 	k8s.io/component-base v0.25.1
 	k8s.io/kubectl v0.25.1
 	kmodules.xyz/client-go v0.25.10
-	kmodules.xyz/resource-metrics v0.25.0
+	kmodules.xyz/resource-metrics v0.25.1
 	kubedb.dev/apimachinery v0.28.4-0.20220918021210-a0b96812228b
 	kubedb.dev/installer v0.17.2-0.20220914213231-59a10600bd29
 	sigs.k8s.io/controller-runtime v0.13.1
 	sigs.k8s.io/yaml v1.3.0
 )
-
-require kmodules.xyz/apiversion v0.2.0 // indirect
 
 require (
 	cloud.google.com/go v0.99.0 // indirect
@@ -111,6 +109,7 @@ require (
 	k8s.io/klog/v2 v2.80.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20220803164354-a70c9af30aea // indirect
 	k8s.io/utils v0.0.0-20220823124924-e9cbc92d1a73 // indirect
+	kmodules.xyz/apiversion v0.2.0 // indirect
 	kmodules.xyz/custom-resources v0.25.0 // indirect
 	kmodules.xyz/monitoring-agent-api v0.25.0 // indirect
 	kmodules.xyz/objectstore-api v0.25.0 // indirect
