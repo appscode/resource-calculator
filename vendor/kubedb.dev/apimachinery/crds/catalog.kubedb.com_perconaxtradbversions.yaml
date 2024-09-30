@@ -9,7 +9,7 @@ spec:
   group: catalog.kubedb.com
   names:
     categories:
-    - datastore
+    - catalog
     - kubedb
     - appscode
     kind: PerconaXtraDBVersion
@@ -68,6 +68,13 @@ spec:
                 required:
                 - image
                 type: object
+              gitSyncer:
+                properties:
+                  image:
+                    type: string
+                required:
+                - image
+                type: object
               initContainer:
                 properties:
                   image:
@@ -81,6 +88,12 @@ spec:
                     type: string
                 required:
                 - databasePolicyName
+                type: object
+              securityContext:
+                properties:
+                  runAsUser:
+                    format: int64
+                    type: integer
                 type: object
               stash:
                 properties:
@@ -129,7 +142,22 @@ spec:
                     - restoreTask
                     type: object
                 type: object
-              upgradeConstraints:
+              ui:
+                items:
+                  properties:
+                    disable:
+                      type: boolean
+                    name:
+                      type: string
+                    values:
+                      x-kubernetes-preserve-unknown-fields: true
+                    version:
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
+              updateConstraints:
                 properties:
                   allowlist:
                     items:

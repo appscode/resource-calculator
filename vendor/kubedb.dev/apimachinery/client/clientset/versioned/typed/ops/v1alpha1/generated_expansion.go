@@ -18,9 +18,19 @@ limitations under the License.
 
 package v1alpha1
 
+type ClickHouseOpsRequestExpansion interface{}
+
+type DruidOpsRequestExpansion interface{}
+
 type ElasticsearchOpsRequestExpansion interface{}
 
 type EtcdOpsRequestExpansion interface{}
+
+type FerretDBOpsRequestExpansion interface{}
+
+type KafkaOpsRequestExpansion interface{}
+
+type MSSQLServerOpsRequestExpansion interface{}
 
 type MariaDBOpsRequestExpansion interface{}
 
@@ -34,10 +44,20 @@ type PerconaXtraDBOpsRequestExpansion interface{}
 
 type PgBouncerOpsRequestExpansion interface{}
 
+type PgpoolOpsRequestExpansion interface{}
+
 type PostgresOpsRequestExpansion interface{}
 
 type ProxySQLOpsRequestExpansion interface{}
 
+type RabbitMQOpsRequestExpansion interface{}
+
 type RedisOpsRequestExpansion interface{}
 
 type RedisSentinelOpsRequestExpansion interface{}
+
+type SinglestoreOpsRequestExpansion interface{}
+
+type SolrOpsRequestExpansion interface{}
+
+type ZooKeeperOpsRequestExpansion interface{}

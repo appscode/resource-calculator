@@ -20,10 +20,14 @@ import (
 	"fmt"
 
 	"kubedb.dev/apimachinery/apis"
+	catalog "kubedb.dev/apimachinery/apis/catalog/v1alpha1"
 	"kubedb.dev/apimachinery/apis/kubedb"
 	"kubedb.dev/apimachinery/crds"
 
+	promapi "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"gomodules.xyz/pointer"
+	core "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	appslister "k8s.io/client-go/listers/apps/v1"
 	kmapi "kmodules.xyz/client-go/api/v1"
@@ -35,6 +39,10 @@ import (
 
 func (p PgBouncer) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
 	return crds.MustCustomResourceDefinition(SchemeGroupVersion.WithResource(ResourcePluralPgBouncer))
+}
+
+func (p *PgBouncer) AsOwner() *metav1.OwnerReference {
+	return metav1.NewControllerRef(p, SchemeGroupVersion.WithKind(ResourceKindPgBouncer))
 }
 
 var _ apis.ResourceInfo = &PgBouncer{}
@@ -55,8 +63,10 @@ func (p PgBouncer) OffshootLabels() map[string]string {
 	return p.offshootLabels(p.OffshootSelectors(), nil)
 }
 
-func (p PgBouncer) PodLabels() map[string]string {
-	return p.offshootLabels(p.OffshootSelectors(), p.Spec.PodTemplate.Labels)
+func (p PgBouncer) PodLabels(backendSecretRV string) map[string]string {
+	podLabels := p.offshootLabels(p.OffshootSelectors(), p.Spec.PodTemplate.Labels)
+	podLabels[kubedb.BackendSecretResourceVersion] = backendSecretRV
+	return podLabels
 }
 
 func (p PgBouncer) PodControllerLabels() map[string]string {
@@ -69,7 +79,7 @@ func (p PgBouncer) ServiceLabels(alias ServiceAlias, extraLabels ...map[string]s
 }
 
 func (p PgBouncer) offshootLabels(selector, override map[string]string) map[string]string {
-	selector[meta_util.ComponentLabelKey] = ComponentConnectionPooler
+	selector[meta_util.ComponentLabelKey] = kubedb.ComponentConnectionPooler
 	return meta_util.FilterKeys(kubedb.GroupName, selector, meta_util.OverwriteKeys(nil, p.Labels, override))
 }
 
@@ -101,8 +111,15 @@ func (p PgBouncer) GoverningServiceName() string {
 	return meta_util.NameWithSuffix(p.ServiceName(), "pods")
 }
 
-func (p PgBouncer) AuthSecretName() string {
-	return meta_util.NameWithSuffix(p.ServiceName(), "auth")
+func (p PgBouncer) GetAuthSecretName() string {
+	if p.Spec.AuthSecret != nil && p.Spec.AuthSecret.Name != "" {
+		return p.Spec.AuthSecret.Name
+	}
+	return meta_util.NameWithSuffix(p.OffshootName(), "auth")
+}
+
+func (p PgBouncer) GetBackendSecretName() string {
+	return meta_util.NameWithSuffix(p.OffshootName(), "backend")
 }
 
 func (p PgBouncer) ConfigSecretName() string {
@@ -146,11 +163,15 @@ func (p pgbouncerStatsService) ServiceMonitorAdditionalLabels() map[string]strin
 }
 
 func (p pgbouncerStatsService) Path() string {
-	return DefaultStatsPath
+	return kubedb.DefaultStatsPath
 }
 
 func (p pgbouncerStatsService) Scheme() string {
 	return ""
+}
+
+func (p pgbouncerStatsService) TLSConfig() *promapi.TLSConfig {
+	return nil
 }
 
 func (p PgBouncer) StatsService() mona.StatsAccessor {
@@ -158,14 +179,14 @@ func (p PgBouncer) StatsService() mona.StatsAccessor {
 }
 
 func (p PgBouncer) StatsServiceLabels() map[string]string {
-	return p.ServiceLabels(StatsServiceAlias, map[string]string{LabelRole: RoleStats})
+	return p.ServiceLabels(StatsServiceAlias, map[string]string{kubedb.LabelRole: kubedb.RoleStats})
 }
 
 func (p PgBouncer) ReplicasServiceName() string {
 	return fmt.Sprintf("%v-replicas", p.Name)
 }
 
-func (p *PgBouncer) SetDefaults() {
+func (p *PgBouncer) SetDefaults(pgBouncerVersion *catalog.PgBouncerVersion, usesAcme bool) {
 	if p == nil {
 		return
 	}
@@ -174,36 +195,45 @@ func (p *PgBouncer) SetDefaults() {
 		p.Spec.TerminationPolicy = PgBouncerTerminationPolicyDelete
 	}
 
+	p.setConnectionPoolConfigDefaults()
+
 	if p.Spec.TLS != nil {
 		if p.Spec.SSLMode == "" {
 			p.Spec.SSLMode = PgBouncerSSLModeVerifyFull
-		}
-		if p.Spec.ConnectionPool.AuthType == "" {
-			p.Spec.ConnectionPool.AuthType = PgBouncerClientAuthModeMD5
 		}
 	} else {
 		if p.Spec.SSLMode == "" {
 			p.Spec.SSLMode = PgBouncerSSLModeDisable
 		}
-		if p.Spec.ConnectionPool.AuthType == "" {
-			p.Spec.ConnectionPool.AuthType = PgBouncerClientAuthModeMD5
-		}
+	}
+
+	p.SetSecurityContext(pgBouncerVersion)
+	if p.Spec.TLS != nil {
+		p.SetTLSDefaults(usesAcme)
 	}
 
 	p.Spec.Monitor.SetDefaults()
-
-	p.SetTLSDefaults()
-	apis.SetDefaultResourceLimits(&p.Spec.PodTemplate.Spec.Resources, DefaultResources)
+	if p.Spec.Monitor != nil && p.Spec.Monitor.Prometheus != nil {
+		if p.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsUser == nil {
+			p.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsUser = pgBouncerVersion.Spec.SecurityContext.RunAsUser
+		}
+		if p.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsGroup == nil {
+			p.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsGroup = pgBouncerVersion.Spec.SecurityContext.RunAsUser
+		}
+	}
+	apis.SetDefaultResourceLimits(&p.Spec.PodTemplate.Spec.Resources, kubedb.DefaultResources)
 }
 
-func (p *PgBouncer) SetTLSDefaults() {
+func (p *PgBouncer) SetTLSDefaults(usesAcme bool) {
 	if p.Spec.TLS == nil || p.Spec.TLS.IssuerRef == nil {
 		return
 	}
 
 	p.Spec.TLS.Certificates = kmapi.SetMissingSecretNameForCertificate(p.Spec.TLS.Certificates, string(PgBouncerServerCert), p.CertificateName(PgBouncerServerCert))
-	p.Spec.TLS.Certificates = kmapi.SetMissingSecretNameForCertificate(p.Spec.TLS.Certificates, string(PgBouncerClientCert), p.CertificateName(PgBouncerClientCert))
-	p.Spec.TLS.Certificates = kmapi.SetMissingSecretNameForCertificate(p.Spec.TLS.Certificates, string(PgBouncerMetricsExporterCert), p.CertificateName(PgBouncerMetricsExporterCert))
+	if !usesAcme {
+		p.Spec.TLS.Certificates = kmapi.SetMissingSecretNameForCertificate(p.Spec.TLS.Certificates, string(PgBouncerClientCert), p.CertificateName(PgBouncerClientCert))
+		p.Spec.TLS.Certificates = kmapi.SetMissingSecretNameForCertificate(p.Spec.TLS.Certificates, string(PgBouncerMetricsExporterCert), p.CertificateName(PgBouncerMetricsExporterCert))
+	}
 }
 
 // CertificateName returns the default certificate name and/or certificate secret name for a certificate alias
@@ -213,11 +243,12 @@ func (p *PgBouncer) CertificateName(alias PgBouncerCertificateAlias) string {
 
 // GetPersistentSecrets returns auth secret and config secret of a pgbouncer object
 func (p *PgBouncer) GetPersistentSecrets() []string {
-	if p != nil {
+	if p == nil {
 		return nil
 	}
 	var secrets []string
-	secrets = append(secrets, p.AuthSecretName())
+	secrets = append(secrets, p.GetAuthSecretName())
+	secrets = append(secrets, p.GetBackendSecretName())
 	secrets = append(secrets, p.ConfigSecretName())
 
 	return secrets
@@ -251,4 +282,82 @@ func (p *PgBouncer) SetHealthCheckerDefaults() {
 	if p.Spec.HealthChecker.FailureThreshold == nil {
 		p.Spec.HealthChecker.FailureThreshold = pointer.Int32P(1)
 	}
+}
+
+func (p *PgBouncer) setConnectionPoolConfigDefaults() {
+	if p.Spec.ConnectionPool == nil {
+		p.Spec.ConnectionPool = &ConnectionPoolConfig{}
+	}
+	if p.Spec.ConnectionPool.Port == nil {
+		p.Spec.ConnectionPool.Port = pointer.Int32P(5432)
+	}
+	if p.Spec.ConnectionPool.PoolMode == "" {
+		p.Spec.ConnectionPool.PoolMode = kubedb.PgBouncerDefaultPoolMode
+	}
+	if p.Spec.ConnectionPool.MaxClientConnections == nil {
+		p.Spec.ConnectionPool.MaxClientConnections = pointer.Int64P(100)
+	}
+	if p.Spec.ConnectionPool.DefaultPoolSize == nil {
+		p.Spec.ConnectionPool.DefaultPoolSize = pointer.Int64P(20)
+	}
+	if p.Spec.ConnectionPool.MinPoolSize == nil {
+		p.Spec.ConnectionPool.MinPoolSize = pointer.Int64P(0)
+	}
+	if p.Spec.ConnectionPool.ReservePoolSize == nil {
+		p.Spec.ConnectionPool.ReservePoolSize = pointer.Int64P(0)
+	}
+	if p.Spec.ConnectionPool.ReservePoolTimeoutSeconds == nil {
+		p.Spec.ConnectionPool.ReservePoolTimeoutSeconds = pointer.Int64P(5)
+	}
+	if p.Spec.ConnectionPool.MaxDBConnections == nil {
+		p.Spec.ConnectionPool.MaxDBConnections = pointer.Int64P(0)
+	}
+	if p.Spec.ConnectionPool.MaxUserConnections == nil {
+		p.Spec.ConnectionPool.MaxUserConnections = pointer.Int64P(0)
+	}
+	if p.Spec.ConnectionPool.StatsPeriodSeconds == nil {
+		p.Spec.ConnectionPool.StatsPeriodSeconds = pointer.Int64P(60)
+	}
+	if p.Spec.ConnectionPool.AuthType == "" {
+		p.Spec.ConnectionPool.AuthType = PgBouncerClientAuthModeMD5
+	}
+	if p.Spec.ConnectionPool.IgnoreStartupParameters == "" {
+		p.Spec.ConnectionPool.IgnoreStartupParameters = kubedb.PgBouncerDefaultIgnoreStartupParameters
+	}
+}
+
+func (p *PgBouncer) SetSecurityContext(pgBouncerVersion *catalog.PgBouncerVersion) {
+	if p.Spec.PodTemplate.Spec.ContainerSecurityContext == nil {
+		p.Spec.PodTemplate.Spec.ContainerSecurityContext = &core.SecurityContext{
+			RunAsUser:  pgBouncerVersion.Spec.SecurityContext.RunAsUser,
+			RunAsGroup: pgBouncerVersion.Spec.SecurityContext.RunAsUser,
+			Privileged: pointer.BoolP(false),
+		}
+	} else {
+		if p.Spec.PodTemplate.Spec.ContainerSecurityContext.RunAsUser == nil {
+			p.Spec.PodTemplate.Spec.ContainerSecurityContext.RunAsUser = pgBouncerVersion.Spec.SecurityContext.RunAsUser
+		}
+		if p.Spec.PodTemplate.Spec.ContainerSecurityContext.RunAsGroup == nil {
+			p.Spec.PodTemplate.Spec.ContainerSecurityContext.RunAsGroup = p.Spec.PodTemplate.Spec.ContainerSecurityContext.RunAsUser
+		}
+	}
+
+	if p.Spec.PodTemplate.Spec.SecurityContext == nil {
+		p.Spec.PodTemplate.Spec.SecurityContext = &core.PodSecurityContext{
+			RunAsUser:  p.Spec.PodTemplate.Spec.ContainerSecurityContext.RunAsUser,
+			RunAsGroup: p.Spec.PodTemplate.Spec.ContainerSecurityContext.RunAsGroup,
+		}
+	} else {
+		if p.Spec.PodTemplate.Spec.SecurityContext.RunAsUser == nil {
+			p.Spec.PodTemplate.Spec.SecurityContext.RunAsUser = p.Spec.PodTemplate.Spec.ContainerSecurityContext.RunAsUser
+		}
+		if p.Spec.PodTemplate.Spec.SecurityContext.RunAsGroup == nil {
+			p.Spec.PodTemplate.Spec.SecurityContext.RunAsGroup = p.Spec.PodTemplate.Spec.ContainerSecurityContext.RunAsGroup
+		}
+	}
+
+	// Need to set FSGroup equal to  p.Spec.PodTemplate.Spec.ContainerSecurityContext.RunAsGroup.
+	// So that /var/pv directory have the group permission for the RunAsGroup user GID.
+	// Otherwise, We will get write permission denied.
+	p.Spec.PodTemplate.Spec.SecurityContext.FSGroup = p.Spec.PodTemplate.Spec.ContainerSecurityContext.RunAsGroup
 }

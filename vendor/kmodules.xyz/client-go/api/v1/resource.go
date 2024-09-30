@@ -18,6 +18,7 @@ package v1
 
 import (
 	"fmt"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,13 +28,13 @@ import (
 // ResourceID identifies a resource
 type ResourceID struct {
 	Group   string `json:"group" protobuf:"bytes,1,opt,name=group"`
-	Version string `json:"version" protobuf:"bytes,2,opt,name=version"`
+	Version string `json:"version,omitempty" protobuf:"bytes,2,opt,name=version"`
 	// Name is the plural name of the resource to serve.  It must match the name of the CustomResourceDefinition-registration
 	// too: plural.group and it must be all lowercase.
-	Name string `json:"name" protobuf:"bytes,3,opt,name=name"`
+	Name string `json:"name,omitempty" protobuf:"bytes,3,opt,name=name"`
 	// Kind is the serialized kind of the resource.  It is normally CamelCase and singular.
-	Kind  string        `json:"kind" protobuf:"bytes,4,opt,name=kind"`
-	Scope ResourceScope `json:"scope" protobuf:"bytes,5,opt,name=scope,casttype=ResourceScope"`
+	Kind  string        `json:"kind,omitempty" protobuf:"bytes,4,opt,name=kind"`
+	Scope ResourceScope `json:"scope,omitempty" protobuf:"bytes,5,opt,name=scope,casttype=ResourceScope"`
 }
 
 // ResourceScope is an enum defining the different scopes available to a custom resource
@@ -66,6 +67,14 @@ func (r ResourceID) GroupVersionResource() schema.GroupVersionResource {
 
 func (r ResourceID) GroupVersionKind() schema.GroupVersionKind {
 	return schema.GroupVersionKind{Group: r.Group, Version: r.Version, Kind: r.Kind}
+}
+
+func (r ResourceID) ListGroupVersionKind() schema.GroupVersionKind {
+	kind := r.Kind + "List"
+	if strings.HasSuffix(r.Kind, "List") {
+		kind = r.Kind
+	}
+	return schema.GroupVersionKind{Group: r.Group, Version: r.Version, Kind: kind}
 }
 
 func (r ResourceID) MetaGVR() metav1.GroupVersionResource {
@@ -148,11 +157,17 @@ func ExtractResourceID(mapper meta.RESTMapper, in ResourceID) (*ResourceID, erro
 	if in.Group == "core" {
 		in.Group = ""
 	}
+	if in.Version != "" &&
+		in.Kind != "" &&
+		in.Name != "" &&
+		in.Scope != "" {
+		return &in, nil
+	}
 
 	kindFound := in.Kind != ""
-	resFOund := in.Name != ""
+	resFound := in.Name != ""
 	if kindFound {
-		if resFOund {
+		if resFound {
 			return &in, nil
 		} else {
 			var versions []string
@@ -169,7 +184,7 @@ func ExtractResourceID(mapper meta.RESTMapper, in ResourceID) (*ResourceID, erro
 			return NewResourceID(mapping), nil
 		}
 	} else {
-		if resFOund {
+		if resFound {
 			gvk, err := mapper.KindFor(in.GroupVersionResource())
 			if err != nil {
 				return nil, err

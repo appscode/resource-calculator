@@ -17,12 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
-	dbapi "kubedb.dev/apimachinery/apis/kubedb/v1alpha2"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/klog/v2"
 	kmapi "kmodules.xyz/client-go/api/v1"
+	cutil "kmodules.xyz/client-go/conditions"
 )
 
 func GetPhase(obj Interface) DatabaseSchemaPhase {
@@ -34,36 +30,36 @@ func GetPhase(obj Interface) DatabaseSchemaPhase {
 	if CheckIfSecretExpired(conditions) {
 		return DatabaseSchemaPhaseExpired
 	}
-	if kmapi.IsConditionTrue(conditions, string(DatabaseSchemaConditionTypeDBCreationUnsuccessful)) {
+	if cutil.IsConditionTrue(conditions, string(DatabaseSchemaConditionTypeDBCreationUnsuccessful)) {
 		return DatabaseSchemaPhaseFailed
 	}
 
 	// If Database or vault is not in ready state, Phase is 'Pending'
-	if !kmapi.IsConditionTrue(conditions, string(DatabaseSchemaConditionTypeDBServerReady)) ||
-		!kmapi.IsConditionTrue(conditions, string(DatabaseSchemaConditionTypeVaultReady)) {
+	if !cutil.IsConditionTrue(conditions, string(DatabaseSchemaConditionTypeDBServerReady)) ||
+		!cutil.IsConditionTrue(conditions, string(DatabaseSchemaConditionTypeVaultReady)) {
 		return DatabaseSchemaPhasePending
 	}
 
-	if kmapi.IsConditionTrue(conditions, string(DatabaseSchemaConditionTypeDoubleOptInNotPossible)) {
+	if cutil.IsConditionTrue(conditions, string(DatabaseSchemaConditionTypeDoubleOptInNotPossible)) {
 		return DatabaseSchemaPhaseFailed
 	}
 
 	// If SecretEngine or Role is not in ready state, Phase is 'InProgress'
-	if !kmapi.IsConditionTrue(conditions, string(DatabaseSchemaConditionTypeSecretEngineReady)) ||
-		!kmapi.IsConditionTrue(conditions, string(DatabaseSchemaConditionTypeRoleReady)) ||
-		!kmapi.IsConditionTrue(conditions, string(DatabaseSchemaConditionTypeSecretAccessRequestReady)) {
+	if !cutil.IsConditionTrue(conditions, string(DatabaseSchemaConditionTypeSecretEngineReady)) ||
+		!cutil.IsConditionTrue(conditions, string(DatabaseSchemaConditionTypeRoleReady)) ||
+		!cutil.IsConditionTrue(conditions, string(DatabaseSchemaConditionTypeSecretAccessRequestReady)) {
 		return DatabaseSchemaPhaseInProgress
 	}
 	// we are here means, SecretAccessRequest is approved and not expired. Now handle Init-Restore cases.
 
-	if !kmapi.IsConditionTrue(conditions, string(DatabaseSchemaConditionTypeAppBindingFound)) {
+	if !cutil.IsConditionTrue(conditions, string(DatabaseSchemaConditionTypeAppBindingFound)) {
 		return DatabaseSchemaPhaseInProgress
 	}
 
-	if kmapi.HasCondition(conditions, string(DatabaseSchemaConditionTypeRepositoryFound)) {
+	if cutil.HasCondition(conditions, string(DatabaseSchemaConditionTypeRepositoryFound)) {
 		//  ----------------------------- Restore case -----------------------------
-		if !kmapi.IsConditionTrue(conditions, string(DatabaseSchemaConditionTypeRepositoryFound)) ||
-			!kmapi.IsConditionTrue(conditions, string(DatabaseSchemaConditionTypeRestoreCompleted)) {
+		if !cutil.IsConditionTrue(conditions, string(DatabaseSchemaConditionTypeRepositoryFound)) ||
+			!cutil.IsConditionTrue(conditions, string(DatabaseSchemaConditionTypeRestoreCompleted)) {
 			return DatabaseSchemaPhaseInProgress
 		}
 		if CheckIfRestoreFailed(conditions) {
@@ -71,9 +67,9 @@ func GetPhase(obj Interface) DatabaseSchemaPhase {
 		} else {
 			return DatabaseSchemaPhaseCurrent
 		}
-	} else if kmapi.HasCondition(conditions, string(DatabaseSchemaConditionTypeInitScriptCompleted)) {
+	} else if cutil.HasCondition(conditions, string(DatabaseSchemaConditionTypeInitScriptCompleted)) {
 		//  ----------------------------- Init case -----------------------------
-		if !kmapi.IsConditionTrue(conditions, string(DatabaseSchemaConditionTypeInitScriptCompleted)) {
+		if !cutil.IsConditionTrue(conditions, string(DatabaseSchemaConditionTypeInitScriptCompleted)) {
 			return DatabaseSchemaPhaseInProgress
 		}
 		if CheckIfInitScriptFailed(conditions) {
@@ -86,17 +82,17 @@ func GetPhase(obj Interface) DatabaseSchemaPhase {
 }
 
 func CheckIfInitScriptFailed(conditions []kmapi.Condition) bool {
-	_, cond := kmapi.GetCondition(conditions, string(DatabaseSchemaConditionTypeInitScriptCompleted))
+	_, cond := cutil.GetCondition(conditions, string(DatabaseSchemaConditionTypeInitScriptCompleted))
 	return cond.Message == string(DatabaseSchemaMessageInitScriptFailed)
 }
 
 func CheckIfRestoreFailed(conditions []kmapi.Condition) bool {
-	_, cond := kmapi.GetCondition(conditions, string(DatabaseSchemaConditionTypeRestoreCompleted))
+	_, cond := cutil.GetCondition(conditions, string(DatabaseSchemaConditionTypeRestoreCompleted))
 	return cond.Message == string(DatabaseSchemaMessageRestoreSessionFailed)
 }
 
 func CheckIfSecretExpired(conditions []kmapi.Condition) bool {
-	i, cond := kmapi.GetCondition(conditions, string(DatabaseSchemaConditionTypeSecretAccessRequestReady))
+	i, cond := cutil.GetCondition(conditions, string(DatabaseSchemaConditionTypeSecretAccessRequestReady))
 	if i == -1 {
 		return false
 	}
@@ -113,68 +109,4 @@ func GetSchemaDoubleOptInLabelKey() string {
 
 func GetSchemaDoubleOptInLabelValue() string {
 	return "enabled"
-}
-
-// CheckIfDoubleOptInPossible is the intended function to be called from operator
-// It checks if the namespace, where SchemaDatabase is applied, is allowed.
-// It also checks the labels of schemaDatabase, to decide if that is allowed or not.
-func CheckIfDoubleOptInPossible(schemaMeta metav1.ObjectMeta, schemaNSMeta metav1.ObjectMeta, dbNSMeta metav1.ObjectMeta, consumers *dbapi.AllowedConsumers) (bool, error) {
-	if consumers == nil {
-		return false, nil
-	}
-	matchNamespace, err := IsInAllowedNamespaces(schemaNSMeta, dbNSMeta, consumers)
-	if err != nil {
-		return false, err
-	}
-	matchLabels, err := IsMatchByLabels(schemaMeta, consumers)
-	if err != nil {
-		return false, err
-	}
-	return matchNamespace && matchLabels, nil
-}
-
-func IsInAllowedNamespaces(schemaNSMeta metav1.ObjectMeta, dbNSMeta metav1.ObjectMeta, consumers *dbapi.AllowedConsumers) (bool, error) {
-	if consumers.Namespaces == nil || consumers.Namespaces.From == nil {
-		return false, nil
-	}
-
-	if *consumers.Namespaces.From == dbapi.NamespacesFromAll {
-		return true, nil
-	}
-	if *consumers.Namespaces.From == dbapi.NamespacesFromSame {
-		return schemaNSMeta.GetName() == dbNSMeta.GetName(), nil
-	}
-	if *consumers.Namespaces.From == dbapi.NamespacesFromSelector {
-		if consumers.Namespaces.Selector == nil {
-			// this says, Select namespace from the Selector, but the Namespace.Selector field is nil. So, no way to select namespace here.
-			return false, nil
-		}
-		ret, err := selectorMatches(consumers.Namespaces.Selector, schemaNSMeta.GetLabels())
-		if err != nil {
-			return false, err
-		}
-		return ret, nil
-	}
-	return false, nil
-}
-
-func IsMatchByLabels(schemaMeta metav1.ObjectMeta, consumers *dbapi.AllowedConsumers) (bool, error) {
-	if consumers.Selector != nil {
-		ret, err := selectorMatches(consumers.Selector, schemaMeta.Labels)
-		if err != nil {
-			return false, err
-		}
-		return ret, nil
-	}
-	// if Selector is not given, all the Schemas are allowed of the selected namespace
-	return true, nil
-}
-
-func selectorMatches(ls *metav1.LabelSelector, srcLabels map[string]string) (bool, error) {
-	selector, err := metav1.LabelSelectorAsSelector(ls)
-	if err != nil {
-		klog.Infoln("invalid selector: ", ls)
-		return false, err
-	}
-	return selector.Matches(labels.Set(srcLabels)), nil
 }

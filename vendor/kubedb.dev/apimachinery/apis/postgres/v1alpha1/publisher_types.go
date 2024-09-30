@@ -118,9 +118,17 @@ const (
 	PublisherMessageDBServerCritical     PublisherMessage       = "Database Server is critical"
 	PublisherMessageDBServerReady        PublisherMessage       = "Database Server is Ready"
 
+	PublisherConditionTypeDatabaseIsFound PublisherConditionType = "DatabaseIsFound"
+	PublisherMessageDatabaseIsFound       PublisherMessage       = "Database is found"
+	PublisherMessageDatabaseIsNotFound    PublisherMessage       = "Database is not found"
+
 	PublisherConditionTypeAllTablesFound PublisherConditionType = "AllTablesFound"
 	PublisherMessageAllTablesNotFound    PublisherMessage       = "All tables are not found"
-	PublisherMessageAllTablesFound       PublisherMessage       = "All tables are not found"
+	PublisherMessageAllTablesFound       PublisherMessage       = "All tables are found"
+
+	PublisherConditionTypeReplicaIdentityFound PublisherConditionType = "ReplicaIdentityFound"
+	PublisherMessageReplicaIdentityNotFound    PublisherMessage       = "Replica identity is not found"
+	PublisherMessageReplicaIdentityFound       PublisherMessage       = "Replica identity is found"
 
 	PublisherConditionTypePublicationSuccessful PublisherConditionType = "PublicationSuccessful"
 	PublisherMessagePublicationIsSuccessful     PublisherMessage       = "Publication is successful"
@@ -131,7 +139,7 @@ const (
 // +k8s:openapi-gen=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:path=publishers,singular=publisher,shortName=pub,categories={datastore,kubedb,appscode,all}
+// +kubebuilder:resource:path=publishers,singular=publisher,shortName=pub,categories={pgstore,kubedb,appscode}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.phase"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"

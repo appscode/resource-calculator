@@ -18,6 +18,7 @@ package v1
 
 import (
 	"context"
+	"time"
 
 	"github.com/pkg/errors"
 	api "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -27,6 +28,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog/v2"
 	kutil "kmodules.xyz/client-go"
+)
+
+const (
+	RetryTimeout = 10 * time.Minute
 )
 
 func CreateOrUpdateCustomResourceDefinition(
@@ -62,6 +67,34 @@ func CreateOrUpdateCustomResourceDefinition(
 	return cur, kutil.VerbUpdated, nil
 }
 
+func UpdateCustomResourceDefinitionIfPresent(
+	ctx context.Context,
+	c cs.Interface,
+	name string,
+	transform func(in *api.CustomResourceDefinition) *api.CustomResourceDefinition,
+	opts metav1.UpdateOptions,
+) (*api.CustomResourceDefinition, kutil.VerbType, error) {
+	_, err := c.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, name, metav1.GetOptions{})
+	if kerr.IsNotFound(err) {
+		return transform(&api.CustomResourceDefinition{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: api.SchemeGroupVersion.String(),
+				Kind:       "CustomResourceDefinition",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: name,
+			},
+		}), kutil.VerbUnchanged, nil
+	} else if err != nil {
+		return nil, kutil.VerbUnchanged, err
+	}
+	cur, err := TryUpdateCustomResourceDefinition(ctx, c, name, transform, opts)
+	if err != nil {
+		return nil, kutil.VerbUnchanged, err
+	}
+	return cur, kutil.VerbUpdated, nil
+}
+
 func TryUpdateCustomResourceDefinition(
 	ctx context.Context,
 	c cs.Interface,
@@ -70,7 +103,7 @@ func TryUpdateCustomResourceDefinition(
 	opts metav1.UpdateOptions,
 ) (result *api.CustomResourceDefinition, err error) {
 	attempt := 0
-	err = wait.PollImmediate(kutil.RetryInterval, kutil.RetryTimeout, func() (bool, error) {
+	err = wait.PollUntilContextTimeout(ctx, kutil.RetryInterval, RetryTimeout, true, func(ctx context.Context) (bool, error) {
 		attempt++
 		cur, e2 := c.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, name, metav1.GetOptions{})
 		if kerr.IsNotFound(e2) {

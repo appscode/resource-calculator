@@ -14,10 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+//go:generate go-enum --mustparse --names --values
 package v1alpha1
 
 import (
-	apis "kubedb.dev/apimachinery/apis/kubedb/v1alpha2"
+	dbapi "kubedb.dev/apimachinery/apis/kubedb/v1"
 
 	core "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -38,7 +39,7 @@ const (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:path=postgresopsrequests,singular=postgresopsrequest,shortName=pgops,categories={datastore,kubedb,appscode}
+// +kubebuilder:resource:path=postgresopsrequests,singular=postgresopsrequest,shortName=pgops,categories={ops,kubedb,appscode}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Type",type="string",JSONPath=".spec.type"
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.phase"
@@ -54,11 +55,11 @@ type PostgresTLSSpec struct {
 
 	// SSLMode for both standalone and clusters. [disable;allow;prefer;require;verify-ca;verify-full]
 	// +optional
-	SSLMode apis.PostgresSSLMode `json:"sslMode,omitempty"`
+	SSLMode dbapi.PostgresSSLMode `json:"sslMode,omitempty"`
 
 	// ClientAuthMode for sidecar or sharding. (default will be md5. [md5;scram;cert])
 	// +optional
-	ClientAuthMode apis.PostgresClientAuthMode `json:"clientAuthMode,omitempty"`
+	ClientAuthMode dbapi.PostgresClientAuthMode `json:"clientAuthMode,omitempty"`
 }
 
 // PostgresOpsRequestSpec is the spec for PostgresOpsRequest
@@ -66,9 +67,9 @@ type PostgresOpsRequestSpec struct {
 	// Specifies the Postgres reference
 	DatabaseRef core.LocalObjectReference `json:"databaseRef"`
 	// Specifies the ops request type: Upgrade, HorizontalScaling, VerticalScaling etc.
-	Type OpsRequestType `json:"type"`
+	Type PostgresOpsRequestType `json:"type"`
 	// Specifies information necessary for upgrading Postgres
-	Upgrade *PostgresUpgradeSpec `json:"upgrade,omitempty"`
+	UpdateVersion *PostgresUpdateVersionSpec `json:"updateVersion,omitempty"`
 	// Specifies information necessary for horizontal scaling
 	HorizontalScaling *PostgresHorizontalScalingSpec `json:"horizontalScaling,omitempty"`
 	// Specifies information necessary for vertical scaling
@@ -77,7 +78,6 @@ type PostgresOpsRequestSpec struct {
 	VolumeExpansion *PostgresVolumeExpansionSpec `json:"volumeExpansion,omitempty"`
 	// Specifies information necessary for custom configuration of Postgres
 	Configuration *PostgresCustomConfigurationSpec `json:"configuration,omitempty"`
-
 	// Specifies information necessary for configuring TLS
 	TLS *PostgresTLSSpec `json:"tls,omitempty"`
 	// Specifies information necessary for restarting database
@@ -89,33 +89,62 @@ type PostgresOpsRequestSpec struct {
 	Apply ApplyOption `json:"apply,omitempty"`
 }
 
-type PostgresUpgradeSpec struct {
+// +kubebuilder:validation:Enum=Upgrade;UpdateVersion;HorizontalScaling;VerticalScaling;VolumeExpansion;Restart;Reconfigure;ReconfigureTLS
+// ENUM(UpdateVersion, HorizontalScaling, VerticalScaling, VolumeExpansion, Restart, Reconfigure, ReconfigureTLS)
+type PostgresOpsRequestType string
+
+type PostgresUpdateVersionSpec struct {
 	// Specifies the target version name from catalog
 	TargetVersion string `json:"targetVersion,omitempty"`
 }
 
+// +kubebuilder:validation:Enum=Synchronous;Asynchronous
+type PostgresStreamingMode string
+
+const (
+	SynchronousPostgresStreamingMode  PostgresStreamingMode = "Synchronous"
+	AsynchronousPostgresStreamingMode PostgresStreamingMode = "Asynchronous"
+)
+
+// +kubebuilder:validation:Enum=Hot;Warm
+type PostgresStandbyMode string
+
+const (
+	HotPostgresStandbyMode  PostgresStandbyMode = "Hot"
+	WarmPostgresStandbyMode PostgresStandbyMode = "Warm"
+)
+
 // HorizontalScaling is the spec for Postgres horizontal scaling
 type PostgresHorizontalScalingSpec struct {
 	Replicas *int32 `json:"replicas,omitempty"`
+	// Standby mode
+	// +kubebuilder:default="Warm"
+	StandbyMode *PostgresStandbyMode `json:"standbyMode,omitempty"`
+
+	// Streaming mode
+	// +kubebuilder:default="Asynchronous"
+	StreamingMode *PostgresStreamingMode `json:"streamingMode,omitempty"`
 }
 
 // PostgresVerticalScalingSpec is the spec for Postgres vertical scaling
 type PostgresVerticalScalingSpec struct {
-	Postgres    *core.ResourceRequirements `json:"postgres,omitempty"`
-	Exporter    *core.ResourceRequirements `json:"exporter,omitempty"`
-	Coordinator *core.ResourceRequirements `json:"coordinator,omitempty"`
+	Postgres    *PodResources       `json:"postgres,omitempty"`
+	Exporter    *ContainerResources `json:"exporter,omitempty"`
+	Coordinator *ContainerResources `json:"coordinator,omitempty"`
+	Arbiter     *PodResources       `json:"arbiter,omitempty"`
 }
 
 // PostgresVolumeExpansionSpec is the spec for Postgres volume expansion
 type PostgresVolumeExpansionSpec struct {
 	// volume specification for Postgres
-	Postgres *resource.Quantity   `json:"postgres,omitempty"`
-	Mode     *VolumeExpansionMode `json:"mode,omitempty"`
+	Postgres *resource.Quantity  `json:"postgres,omitempty"`
+	Arbiter  *resource.Quantity  `json:"arbiter,omitempty"`
+	Mode     VolumeExpansionMode `json:"mode"`
 }
 
 type PostgresCustomConfigurationSpec struct {
 	ConfigSecret       *core.LocalObjectReference `json:"configSecret,omitempty"`
-	InlineConfig       string                     `json:"inlineConfig,omitempty"`
+	ApplyConfig        map[string]string          `json:"applyConfig,omitempty"`
 	RemoveCustomConfig bool                       `json:"removeCustomConfig,omitempty"`
 }
 

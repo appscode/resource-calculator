@@ -20,6 +20,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"k8s.io/client-go/discovery/cached/memory"
+	"k8s.io/client-go/restmapper"
 	"os"
 	"sort"
 	"strings"
@@ -50,8 +52,7 @@ import (
 	kubedbv1alpha1 "kubedb.dev/apimachinery/apis/kubedb/v1alpha1"
 	kubedbv1alpha2 "kubedb.dev/apimachinery/apis/kubedb/v1alpha2"
 	cs "kubedb.dev/apimachinery/client/clientset/versioned"
-	"kubedb.dev/installer/catalog"
-	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+	catalog "kubedb.dev/installer/catalog/kubedb"
 	"sigs.k8s.io/yaml"
 )
 
@@ -149,10 +150,6 @@ func calculate(ctxName string, cfg *rest.Config, apiGroups sets.String, format s
 	if err != nil {
 		return nil, err
 	}
-	mapper, err := apiutil.NewDiscoveryRESTMapper(cfg)
-	if err != nil {
-		return nil, err
-	}
 	topology, err := core_util.DetectTopology(context.TODO(), metadata.NewForConfigOrDie(cfg))
 	if err != nil {
 		return nil, err
@@ -161,6 +158,7 @@ func calculate(ctxName string, cfg *rest.Config, apiGroups sets.String, format s
 	if err != nil {
 		return nil, err
 	}
+	mapper := restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(kubedbclient.Discovery()))
 
 	clusterID, err := du.ClusterUID(client)
 	if err != nil {
@@ -351,8 +349,8 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 		if out.Annotations != nil {
 			delete(out.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
 		}
-		if out.Spec.TerminationPolicy == TerminationPolicyPause {
-			out.Spec.TerminationPolicy = kubedbv1alpha2.TerminationPolicyHalt
+		if out.Spec.DeletionPolicy == TerminationPolicyPause {
+			out.Spec.DeletionPolicy = kubedbv1alpha2.TerminationPolicyHalt
 		}
 
 		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)

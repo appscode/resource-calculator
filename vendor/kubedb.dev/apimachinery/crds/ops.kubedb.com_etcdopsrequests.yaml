@@ -9,7 +9,7 @@ spec:
   group: ops.kubedb.com
   names:
     categories:
-    - datastore
+    - ops
     - kubedb
     - appscode
     kind: EtcdOpsRequest
@@ -53,6 +53,7 @@ spec:
               databaseRef:
                 properties:
                   name:
+                    default: ""
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
@@ -167,7 +168,6 @@ spec:
                 type: object
               type:
                 enum:
-                - Upgrade
                 - UpdateVersion
                 - HorizontalScaling
                 - VerticalScaling
@@ -175,9 +175,8 @@ spec:
                 - Restart
                 - Reconfigure
                 - ReconfigureTLS
-                - Reprovision
                 type: string
-              upgrade:
+              updateVersion:
                 properties:
                   readinessCriteria:
                     type: object
@@ -210,14 +209,14 @@ spec:
                       type: integer
                     reason:
                       type: string
+                    severity:
+                      type: string
                     status:
                       type: string
                     type:
                       type: string
                   required:
                   - lastTransitionTime
-                  - message
-                  - reason
                   - status
                   - type
                   type: object
@@ -225,6 +224,21 @@ spec:
               observedGeneration:
                 format: int64
                 type: integer
+              pausedBackups:
+                items:
+                  properties:
+                    apiGroup:
+                      type: string
+                    kind:
+                      type: string
+                    name:
+                      type: string
+                    namespace:
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
               phase:
                 enum:
                 - Pending

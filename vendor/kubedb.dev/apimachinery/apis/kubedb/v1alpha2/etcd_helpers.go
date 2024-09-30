@@ -23,7 +23,9 @@ import (
 	"kubedb.dev/apimachinery/apis/kubedb"
 	"kubedb.dev/apimachinery/crds"
 
+	promapi "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"gomodules.xyz/pointer"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	appslister "k8s.io/client-go/listers/apps/v1"
 	"kmodules.xyz/client-go/apiextensions"
@@ -34,6 +36,10 @@ import (
 
 func (_ Etcd) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
 	return crds.MustCustomResourceDefinition(SchemeGroupVersion.WithResource(ResourcePluralEtcd))
+}
+
+func (e *Etcd) AsOwner() *metav1.OwnerReference {
+	return metav1.NewControllerRef(e, SchemeGroupVersion.WithKind(ResourceKindEtcd))
 }
 
 var _ apis.ResourceInfo = &Etcd{}
@@ -68,7 +74,7 @@ func (e Etcd) ServiceLabels(alias ServiceAlias, extraLabels ...map[string]string
 }
 
 func (e Etcd) offshootLabels(selector, override map[string]string) map[string]string {
-	selector[meta_util.ComponentLabelKey] = ComponentDatabase
+	selector[meta_util.ComponentLabelKey] = kubedb.ComponentDatabase
 	return meta_util.FilterKeys(kubedb.GroupName, selector, meta_util.OverwriteKeys(nil, e.Labels, override))
 }
 
@@ -90,6 +96,13 @@ func (e Etcd) ResourceSingular() string {
 
 func (e Etcd) ResourcePlural() string {
 	return ResourcePluralEtcd
+}
+
+func (e Etcd) GetAuthSecretName() string {
+	if e.Spec.AuthSecret != nil && e.Spec.AuthSecret.Name != "" {
+		return e.Spec.AuthSecret.Name
+	}
+	return meta_util.NameWithSuffix(e.OffshootName(), "auth")
 }
 
 func (e Etcd) ClientServiceName() string {
@@ -144,12 +157,16 @@ func (e etcdStatsService) Scheme() string {
 	return ""
 }
 
+func (e etcdStatsService) TLSConfig() *promapi.TLSConfig {
+	return nil
+}
+
 func (e Etcd) StatsService() mona.StatsAccessor {
 	return &etcdStatsService{&e}
 }
 
 func (e Etcd) StatsServiceLabels() map[string]string {
-	return e.ServiceLabels(StatsServiceAlias, map[string]string{LabelRole: RoleStats})
+	return e.ServiceLabels(StatsServiceAlias, map[string]string{kubedb.LabelRole: kubedb.RoleStats})
 }
 
 func (e *Etcd) SetDefaults() {
@@ -164,12 +181,12 @@ func (e *Etcd) SetDefaults() {
 	if e.Spec.StorageType == "" {
 		e.Spec.StorageType = StorageTypeDurable
 	}
-	if e.Spec.TerminationPolicy == "" {
-		e.Spec.TerminationPolicy = TerminationPolicyDelete
+	if e.Spec.DeletionPolicy == "" {
+		e.Spec.DeletionPolicy = TerminationPolicyDelete
 	}
 
 	e.Spec.Monitor.SetDefaults()
-	apis.SetDefaultResourceLimits(&e.Spec.PodTemplate.Spec.Resources, DefaultResources)
+	apis.SetDefaultResourceLimits(&e.Spec.PodTemplate.Spec.Resources, kubedb.DefaultResources)
 }
 
 func (e *EtcdSpec) GetPersistentSecrets() []string {
