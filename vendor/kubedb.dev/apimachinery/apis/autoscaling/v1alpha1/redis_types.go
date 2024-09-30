@@ -39,7 +39,7 @@ const (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:path=redisautoscalers,singular=redisautoscaler,shortName=rdscaler,categories={datastore,kubedb,appscode}
+// +kubebuilder:resource:path=redisautoscalers,singular=redisautoscaler,shortName=rdscaler,categories={autoscaler,kubedb,appscode}
 // +kubebuilder:subresource:status
 type RedisAutoscaler struct {
 	metav1.TypeMeta `json:",inline"`
@@ -70,6 +70,9 @@ type RedisAutoscalerSpec struct {
 }
 
 type RedisComputeAutoscalerSpec struct {
+	// +optional
+	NodeTopology *NodeTopology `json:"nodeTopology,omitempty"`
+
 	Standalone *ComputeAutoscalerSpec `json:"standalone,omitempty"`
 	Cluster    *ComputeAutoscalerSpec `json:"cluster,omitempty"`
 	Sentinel   *ComputeAutoscalerSpec `json:"sentinel,omitempty"`

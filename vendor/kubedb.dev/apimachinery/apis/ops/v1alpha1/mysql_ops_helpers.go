@@ -28,7 +28,7 @@ import (
 	meta_util "kmodules.xyz/client-go/meta"
 )
 
-func (_ MySQLOpsRequest) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
+func (m MySQLOpsRequest) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
 	return crds.MustCustomResourceDefinition(SchemeGroupVersion.WithResource(ResourcePluralMySQLOpsRequest))
 }
 
@@ -60,24 +60,24 @@ func (m MySQLOpsRequest) ValidateSpecs() error {
 
 var _ Accessor = &MySQLOpsRequest{}
 
-func (e *MySQLOpsRequest) GetObjectMeta() metav1.ObjectMeta {
-	return e.ObjectMeta
+func (m *MySQLOpsRequest) GetObjectMeta() metav1.ObjectMeta {
+	return m.ObjectMeta
 }
 
-func (e *MySQLOpsRequest) GetRequestType() OpsRequestType {
-	return e.Spec.Type
+func (m *MySQLOpsRequest) GetDBRefName() string {
+	return m.Spec.DatabaseRef.Name
 }
 
-func (e *MySQLOpsRequest) GetDBRefName() string {
-	return e.Spec.DatabaseRef.Name
+func (m *MySQLOpsRequest) GetRequestType() any {
+	return m.Spec.Type
 }
 
-func (e *MySQLOpsRequest) GetStatus() OpsRequestStatus {
-	return e.Status
+func (m *MySQLOpsRequest) GetStatus() OpsRequestStatus {
+	return m.Status
 }
 
-func (e *MySQLOpsRequest) SetStatus(s OpsRequestStatus) {
-	e.Status = s
+func (m *MySQLOpsRequest) SetStatus(s OpsRequestStatus) {
+	m.Status = s
 }
 
 func (m MySQLOpsRequest) GetKey() string {

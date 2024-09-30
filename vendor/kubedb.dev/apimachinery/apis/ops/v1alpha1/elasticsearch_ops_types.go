@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+//go:generate go-enum --mustparse --names --values
 package v1alpha1
 
 import (
@@ -36,7 +37,7 @@ const (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:path=elasticsearchopsrequests,singular=elasticsearchopsrequest,shortName=esops,categories={datastore,kubedb,appscode}
+// +kubebuilder:resource:path=elasticsearchopsrequests,singular=elasticsearchopsrequest,shortName=esops,categories={ops,kubedb,appscode}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Type",type="string",JSONPath=".spec.type"
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.phase"
@@ -53,9 +54,9 @@ type ElasticsearchOpsRequestSpec struct {
 	// Specifies the Elasticsearch reference
 	DatabaseRef core.LocalObjectReference `json:"databaseRef"`
 	// Specifies the ops request type: Upgrade, HorizontalScaling, VerticalScaling etc.
-	Type OpsRequestType `json:"type"`
+	Type ElasticsearchOpsRequestType `json:"type"`
 	// Specifies information necessary for upgrading Elasticsearch
-	Upgrade *ElasticsearchUpgradeSpec `json:"upgrade,omitempty"`
+	UpdateVersion *ElasticsearchUpdateVersionSpec `json:"updateVersion,omitempty"`
 	// Specifies information necessary for horizontal scaling
 	HorizontalScaling *ElasticsearchHorizontalScalingSpec `json:"horizontalScaling,omitempty"`
 	// Specifies information necessary for vertical scaling
@@ -75,7 +76,14 @@ type ElasticsearchOpsRequestSpec struct {
 	Apply ApplyOption `json:"apply,omitempty"`
 }
 
-type ElasticsearchUpgradeSpec struct {
+// +kubebuilder:validation:Enum=Upgrade;UpdateVersion;HorizontalScaling;VerticalScaling;VolumeExpansion;Restart;Reconfigure;ReconfigureTLS
+// ENUM(UpdateVersion, HorizontalScaling, VerticalScaling, VolumeExpansion, Restart, Reconfigure, ReconfigureTLS)
+type ElasticsearchOpsRequestType string
+
+// ElasticsearchReplicaReadinessCriteria is the criteria for checking readiness of an Elasticsearch database
+type ElasticsearchReplicaReadinessCriteria struct{}
+
+type ElasticsearchUpdateVersionSpec struct {
 	// Specifies the target version name from catalog
 	TargetVersion string `json:"targetVersion,omitempty"`
 }
@@ -109,40 +117,27 @@ type ElasticsearchHorizontalScalingTopologySpec struct {
 // ElasticsearchVerticalScalingSpec is the spec for Elasticsearch vertical scaling
 type ElasticsearchVerticalScalingSpec struct {
 	// Resource spec for combined nodes
-	Node *core.ResourceRequirements `json:"node,omitempty"`
+	Node *PodResources `json:"node,omitempty"`
 	// Resource spec for exporter sidecar
-	Exporter *core.ResourceRequirements `json:"exporter,omitempty"`
-	// Specifies the resource spec for cluster in topology mode
-	Topology *ElasticsearchVerticalScalingTopologySpec `json:"topology,omitempty"`
-}
-
-// ElasticsearchVerticalScalingTopologySpec is the resource spec in the cluster topology mode
-type ElasticsearchVerticalScalingTopologySpec struct {
-	Master       *core.ResourceRequirements `json:"master,omitempty"`
-	Ingest       *core.ResourceRequirements `json:"ingest,omitempty"`
-	Data         *core.ResourceRequirements `json:"data,omitempty"`
-	DataContent  *core.ResourceRequirements `json:"dataContent,omitempty"`
-	DataHot      *core.ResourceRequirements `json:"dataHot,omitempty"`
-	DataWarm     *core.ResourceRequirements `json:"dataWarm,omitempty"`
-	DataCold     *core.ResourceRequirements `json:"dataCold,omitempty"`
-	DataFrozen   *core.ResourceRequirements `json:"dataFrozen,omitempty"`
-	ML           *core.ResourceRequirements `json:"ml,omitempty"`
-	Transform    *core.ResourceRequirements `json:"transform,omitempty"`
-	Coordinating *core.ResourceRequirements `json:"coordinating,omitempty"`
+	Exporter     *ContainerResources `json:"exporter,omitempty"`
+	Master       *PodResources       `json:"master,omitempty"`
+	Ingest       *PodResources       `json:"ingest,omitempty"`
+	Data         *PodResources       `json:"data,omitempty"`
+	DataContent  *PodResources       `json:"dataContent,omitempty"`
+	DataHot      *PodResources       `json:"dataHot,omitempty"`
+	DataWarm     *PodResources       `json:"dataWarm,omitempty"`
+	DataCold     *PodResources       `json:"dataCold,omitempty"`
+	DataFrozen   *PodResources       `json:"dataFrozen,omitempty"`
+	ML           *PodResources       `json:"ml,omitempty"`
+	Transform    *PodResources       `json:"transform,omitempty"`
+	Coordinating *PodResources       `json:"coordinating,omitempty"`
 }
 
 // ElasticsearchVolumeExpansionSpec is the spec for Elasticsearch volume expansion
 type ElasticsearchVolumeExpansionSpec struct {
-	// +kubebuilder:default="Online"
-	Mode *VolumeExpansionMode `json:"mode,omitempty"`
+	Mode VolumeExpansionMode `json:"mode"`
 	// volume specification for combined nodes
 	Node *resource.Quantity `json:"node,omitempty"`
-	// volume specification for nodes in cluster topology
-	Topology *ElasticsearchVolumeExpansionTopologySpec `json:"topology,omitempty"`
-}
-
-// ElasticsearchVolumeExpansionTopologySpec is the spec for Elasticsearch volume expansion in topology mode
-type ElasticsearchVolumeExpansionTopologySpec struct {
 	// volume specification for master nodes
 	Master *resource.Quantity `json:"master,omitempty"`
 	// volume specification for ingest nodes

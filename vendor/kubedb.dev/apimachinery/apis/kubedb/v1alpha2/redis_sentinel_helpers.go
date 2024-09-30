@@ -20,9 +20,11 @@ import (
 	"fmt"
 
 	"kubedb.dev/apimachinery/apis"
+	catalog "kubedb.dev/apimachinery/apis/catalog/v1alpha1"
 	"kubedb.dev/apimachinery/apis/kubedb"
 	"kubedb.dev/apimachinery/crds"
 
+	promapi "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"gomodules.xyz/pointer"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,6 +34,7 @@ import (
 	"kmodules.xyz/client-go/apiextensions"
 	core_util "kmodules.xyz/client-go/core/v1"
 	meta_util "kmodules.xyz/client-go/meta"
+	"kmodules.xyz/client-go/policy/secomp"
 	appcat "kmodules.xyz/custom-resources/apis/appcatalog/v1alpha1"
 	mona "kmodules.xyz/monitoring-agent-api/api/v1"
 	ofst "kmodules.xyz/offshoot-api/api/v1"
@@ -39,6 +42,10 @@ import (
 
 func (rs RedisSentinel) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
 	return crds.MustCustomResourceDefinition(SchemeGroupVersion.WithResource(ResourcePluralRedisSentinel))
+}
+
+func (rs *RedisSentinel) AsOwner() *metav1.OwnerReference {
+	return metav1.NewControllerRef(rs, SchemeGroupVersion.WithKind(ResourceKindRedisSentinel))
 }
 
 var _ apis.ResourceInfo = &RedisSentinel{}
@@ -73,7 +80,7 @@ func (rs RedisSentinel) ServiceLabels(alias ServiceAlias, extraLabels ...map[str
 }
 
 func (rs RedisSentinel) offshootLabels(selector, override map[string]string) map[string]string {
-	selector[meta_util.ComponentLabelKey] = ComponentDatabase
+	selector[meta_util.ComponentLabelKey] = kubedb.ComponentDatabase
 	return meta_util.FilterKeys(kubedb.GroupName, selector, meta_util.OverwriteKeys(rs.Labels, override))
 }
 
@@ -97,12 +104,19 @@ func (rs RedisSentinel) ResourcePlural() string {
 	return ResourcePluralRedisSentinel
 }
 
+func (rs RedisSentinel) GetAuthSecretName() string {
+	if rs.Spec.AuthSecret != nil && rs.Spec.AuthSecret.Name != "" {
+		return rs.Spec.AuthSecret.Name
+	}
+	return meta_util.NameWithSuffix(rs.OffshootName(), "auth")
+}
+
 func (rs RedisSentinel) GoverningServiceName() string {
 	return meta_util.NameWithSuffix(rs.OffshootName(), "pods")
 }
 
 func (r RedisSentinel) Address() string {
-	return fmt.Sprintf("%v.%v.svc:%d", r.Name, r.Namespace, RedisSentinelPort)
+	return fmt.Sprintf("%v.%v.svc:%d", r.Name, r.Namespace, kubedb.RedisSentinelPort)
 }
 
 func (rs RedisSentinel) ConfigSecretName() string {
@@ -146,11 +160,15 @@ func (rs redisSentinelStatsService) ServiceMonitorAdditionalLabels() map[string]
 }
 
 func (rs redisSentinelStatsService) Path() string {
-	return DefaultStatsPath
+	return kubedb.DefaultStatsPath
 }
 
 func (r redisSentinelStatsService) Scheme() string {
 	return ""
+}
+
+func (r redisSentinelStatsService) TLSConfig() *promapi.TLSConfig {
+	return nil
 }
 
 func (rs RedisSentinel) StatsService() mona.StatsAccessor {
@@ -158,10 +176,10 @@ func (rs RedisSentinel) StatsService() mona.StatsAccessor {
 }
 
 func (rs RedisSentinel) StatsServiceLabels() map[string]string {
-	return rs.ServiceLabels(StatsServiceAlias, map[string]string{LabelRole: RoleStats})
+	return rs.ServiceLabels(StatsServiceAlias, map[string]string{kubedb.LabelRole: kubedb.RoleStats})
 }
 
-func (rs *RedisSentinel) SetDefaults(topology *core_util.Topology) {
+func (rs *RedisSentinel) SetDefaults(rdVersion *catalog.RedisVersion, topology *core_util.Topology) {
 	if rs == nil {
 		return
 	}
@@ -173,6 +191,7 @@ func (rs *RedisSentinel) SetDefaults(topology *core_util.Topology) {
 		rs.Spec.TerminationPolicy = TerminationPolicyDelete
 	}
 
+	rs.setDefaultContainerSecurityContext(rdVersion, &rs.Spec.PodTemplate)
 	if rs.Spec.PodTemplate.Spec.ServiceAccountName == "" {
 		rs.Spec.PodTemplate.Spec.ServiceAccountName = rs.OffshootName()
 	}
@@ -180,9 +199,17 @@ func (rs *RedisSentinel) SetDefaults(topology *core_util.Topology) {
 	rs.setDefaultAffinity(&rs.Spec.PodTemplate, rs.OffshootSelectors(), topology)
 
 	rs.Spec.Monitor.SetDefaults()
+	if rs.Spec.Monitor != nil && rs.Spec.Monitor.Prometheus != nil {
+		if rs.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsUser == nil {
+			rs.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsUser = rdVersion.Spec.SecurityContext.RunAsUser
+		}
+		if rs.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsGroup == nil {
+			rs.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsGroup = rdVersion.Spec.SecurityContext.RunAsUser
+		}
+	}
 	rs.SetTLSDefaults()
 	rs.SetHealthCheckerDefaults()
-	apis.SetDefaultResourceLimits(&rs.Spec.PodTemplate.Spec.Resources, DefaultResources)
+	apis.SetDefaultResourceLimits(&rs.Spec.PodTemplate.Spec.Resources, kubedb.DefaultResources)
 }
 
 func (rs *RedisSentinel) SetHealthCheckerDefaults() {
@@ -254,6 +281,45 @@ func (rs *RedisSentinel) setDefaultAffinity(podTemplate *ofst.PodTemplateSpec, l
 				},
 			},
 		},
+	}
+}
+
+func (rs *RedisSentinel) setDefaultContainerSecurityContext(rdVersion *catalog.RedisVersion, podTemplate *ofst.PodTemplateSpec) {
+	if podTemplate == nil {
+		return
+	}
+	if podTemplate.Spec.ContainerSecurityContext == nil {
+		podTemplate.Spec.ContainerSecurityContext = &corev1.SecurityContext{}
+	}
+	if podTemplate.Spec.SecurityContext == nil {
+		podTemplate.Spec.SecurityContext = &corev1.PodSecurityContext{}
+	}
+	if podTemplate.Spec.SecurityContext.FSGroup == nil {
+		podTemplate.Spec.SecurityContext.FSGroup = rdVersion.Spec.SecurityContext.RunAsUser
+	}
+	rs.assignDefaultContainerSecurityContext(rdVersion, podTemplate.Spec.ContainerSecurityContext)
+}
+
+func (rs *RedisSentinel) assignDefaultContainerSecurityContext(rdVersion *catalog.RedisVersion, sc *corev1.SecurityContext) {
+	if sc.AllowPrivilegeEscalation == nil {
+		sc.AllowPrivilegeEscalation = pointer.BoolP(false)
+	}
+	if sc.Capabilities == nil {
+		sc.Capabilities = &corev1.Capabilities{
+			Drop: []corev1.Capability{"ALL"},
+		}
+	}
+	if sc.RunAsNonRoot == nil {
+		sc.RunAsNonRoot = pointer.BoolP(true)
+	}
+	if sc.RunAsUser == nil {
+		sc.RunAsUser = rdVersion.Spec.SecurityContext.RunAsUser
+	}
+	if sc.RunAsGroup == nil {
+		sc.RunAsGroup = rdVersion.Spec.SecurityContext.RunAsUser
+	}
+	if sc.SeccompProfile == nil {
+		sc.SeccompProfile = secomp.DefaultSeccompProfile()
 	}
 }
 

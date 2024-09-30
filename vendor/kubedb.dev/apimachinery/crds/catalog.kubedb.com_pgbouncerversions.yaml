@@ -9,7 +9,7 @@ spec:
   group: catalog.kubedb.com
   names:
     categories:
-    - datastore
+    - catalog
     - kubedb
     - appscode
     kind: PgBouncerVersion
@@ -54,13 +54,6 @@ spec:
                 required:
                 - image
                 type: object
-              initContainer:
-                properties:
-                  image:
-                    type: string
-                required:
-                - image
-                type: object
               pgBouncer:
                 properties:
                   image:
@@ -68,7 +61,30 @@ spec:
                 required:
                 - image
                 type: object
-              upgradeConstraints:
+              securityContext:
+                properties:
+                  runAsAnyNonRoot:
+                    type: boolean
+                  runAsUser:
+                    format: int64
+                    type: integer
+                type: object
+              ui:
+                items:
+                  properties:
+                    disable:
+                      type: boolean
+                    name:
+                      type: string
+                    values:
+                      x-kubernetes-preserve-unknown-fields: true
+                    version:
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
+              updateConstraints:
                 properties:
                   allowlist:
                     items:

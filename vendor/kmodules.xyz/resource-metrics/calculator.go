@@ -22,8 +22,11 @@ import (
 	_ "kmodules.xyz/resource-metrics/batch/v1"
 	_ "kmodules.xyz/resource-metrics/batch/v1beta1"
 	_ "kmodules.xyz/resource-metrics/core/v1"
+	_ "kmodules.xyz/resource-metrics/kafka.kubedb.com/v1alpha1"
+	_ "kmodules.xyz/resource-metrics/kubedb.com/v1"
 	_ "kmodules.xyz/resource-metrics/kubedb.com/v1alpha2"
 	_ "kmodules.xyz/resource-metrics/kubevault.com/v1alpha2"
+	_ "kmodules.xyz/resource-metrics/ops.kubedb.com/v1alpha1"
 
 	core "k8s.io/api/core/v1"
 )
@@ -106,4 +109,20 @@ func RoleResourceRequests(obj map[string]interface{}) (map[api.PodRole]core.Reso
 		return nil, err
 	}
 	return c.RoleResourceRequests(obj)
+}
+
+func PodResourceLimits(obj map[string]interface{}) (core.ResourceList, error) {
+	c, err := api.Load(obj)
+	if err != nil {
+		return nil, err
+	}
+	return c.PodResourceLimits(obj)
+}
+
+func PodResourceRequests(obj map[string]interface{}) (core.ResourceList, error) {
+	c, err := api.Load(obj)
+	if err != nil {
+		return nil, err
+	}
+	return c.PodResourceRequests(obj)
 }

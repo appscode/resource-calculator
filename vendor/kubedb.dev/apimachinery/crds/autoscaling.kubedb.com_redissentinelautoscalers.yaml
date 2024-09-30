@@ -9,7 +9,7 @@ spec:
   group: autoscaling.kubedb.com
   names:
     categories:
-    - datastore
+    - autoscaler
     - kubedb
     - appscode
     kind: RedisSentinelAutoscaler
@@ -34,6 +34,19 @@ spec:
             properties:
               compute:
                 properties:
+                  nodeTopology:
+                    properties:
+                      name:
+                        type: string
+                      scaleDownDiffPercentage:
+                        default: 25
+                        format: int32
+                        type: integer
+                      scaleUpDiffPercentage:
+                        default: 15
+                        format: int32
+                        type: integer
+                    type: object
                   sentinel:
                     properties:
                       containerControlledValues:
@@ -82,6 +95,7 @@ spec:
               databaseRef:
                 properties:
                   name:
+                    default: ""
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
@@ -95,25 +109,6 @@ spec:
                     type: string
                   timeout:
                     type: string
-                type: object
-              storage:
-                properties:
-                  sentinel:
-                    properties:
-                      expansionMode:
-                        enum:
-                        - Offline
-                        - Online
-                        type: string
-                      scalingThreshold:
-                        format: int32
-                        type: integer
-                      trigger:
-                        type: string
-                      usageThreshold:
-                        format: int32
-                        type: integer
-                    type: object
                 type: object
             required:
             - databaseRef
@@ -209,14 +204,14 @@ spec:
                       type: integer
                     reason:
                       type: string
+                    severity:
+                      type: string
                     status:
                       type: string
                     type:
                       type: string
                   required:
                   - lastTransitionTime
-                  - message
-                  - reason
                   - status
                   - type
                   type: object

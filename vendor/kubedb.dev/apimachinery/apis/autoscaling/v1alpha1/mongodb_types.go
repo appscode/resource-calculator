@@ -39,7 +39,7 @@ const (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:path=mongodbautoscalers,singular=mongodbautoscaler,shortName=mgscaler,categories={datastore,kubedb,appscode}
+// +kubebuilder:resource:path=mongodbautoscalers,singular=mongodbautoscaler,shortName=mgscaler,categories={autoscaler,kubedb,appscode}
 // +kubebuilder:subresource:status
 type MongoDBAutoscaler struct {
 	metav1.TypeMeta `json:",inline"`
@@ -68,11 +68,16 @@ type MongoDBAutoscalerSpec struct {
 }
 
 type MongoDBComputeAutoscalerSpec struct {
+	// +optional
+	NodeTopology *NodeTopology `json:"nodeTopology,omitempty"`
+
 	Standalone   *ComputeAutoscalerSpec `json:"standalone,omitempty"`
 	ReplicaSet   *ComputeAutoscalerSpec `json:"replicaSet,omitempty"`
 	ConfigServer *ComputeAutoscalerSpec `json:"configServer,omitempty"`
 	Shard        *ComputeAutoscalerSpec `json:"shard,omitempty"`
 	Mongos       *ComputeAutoscalerSpec `json:"mongos,omitempty"`
+	Arbiter      *ComputeAutoscalerSpec `json:"arbiter,omitempty"`
+	Hidden       *ComputeAutoscalerSpec `json:"hidden,omitempty"`
 }
 
 type MongoDBStorageAutoscalerSpec struct {
@@ -80,6 +85,7 @@ type MongoDBStorageAutoscalerSpec struct {
 	ReplicaSet   *StorageAutoscalerSpec `json:"replicaSet,omitempty"`
 	ConfigServer *StorageAutoscalerSpec `json:"configServer,omitempty"`
 	Shard        *StorageAutoscalerSpec `json:"shard,omitempty"`
+	Hidden       *StorageAutoscalerSpec `json:"hidden,omitempty"`
 }
 
 type MongoDBOpsRequestOptions struct {

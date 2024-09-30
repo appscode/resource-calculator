@@ -29,22 +29,47 @@ import (
 
 type CatalogV1alpha1Interface interface {
 	RESTClient() rest.Interface
+	CassandraVersionsGetter
+	ClickHouseVersionsGetter
+	DruidVersionsGetter
 	ElasticsearchVersionsGetter
 	EtcdVersionsGetter
+	FerretDBVersionsGetter
+	KafkaConnectorVersionsGetter
+	KafkaVersionsGetter
+	MSSQLServerVersionsGetter
 	MariaDBVersionsGetter
 	MemcachedVersionsGetter
 	MongoDBVersionsGetter
 	MySQLVersionsGetter
 	PerconaXtraDBVersionsGetter
 	PgBouncerVersionsGetter
+	PgpoolVersionsGetter
 	PostgresVersionsGetter
 	ProxySQLVersionsGetter
+	RabbitMQVersionsGetter
 	RedisVersionsGetter
+	SchemaRegistryVersionsGetter
+	SinglestoreVersionsGetter
+	SolrVersionsGetter
+	ZooKeeperVersionsGetter
 }
 
 // CatalogV1alpha1Client is used to interact with features provided by the catalog.kubedb.com group.
 type CatalogV1alpha1Client struct {
 	restClient rest.Interface
+}
+
+func (c *CatalogV1alpha1Client) CassandraVersions() CassandraVersionInterface {
+	return newCassandraVersions(c)
+}
+
+func (c *CatalogV1alpha1Client) ClickHouseVersions() ClickHouseVersionInterface {
+	return newClickHouseVersions(c)
+}
+
+func (c *CatalogV1alpha1Client) DruidVersions() DruidVersionInterface {
+	return newDruidVersions(c)
 }
 
 func (c *CatalogV1alpha1Client) ElasticsearchVersions() ElasticsearchVersionInterface {
@@ -53,6 +78,22 @@ func (c *CatalogV1alpha1Client) ElasticsearchVersions() ElasticsearchVersionInte
 
 func (c *CatalogV1alpha1Client) EtcdVersions() EtcdVersionInterface {
 	return newEtcdVersions(c)
+}
+
+func (c *CatalogV1alpha1Client) FerretDBVersions() FerretDBVersionInterface {
+	return newFerretDBVersions(c)
+}
+
+func (c *CatalogV1alpha1Client) KafkaConnectorVersions() KafkaConnectorVersionInterface {
+	return newKafkaConnectorVersions(c)
+}
+
+func (c *CatalogV1alpha1Client) KafkaVersions() KafkaVersionInterface {
+	return newKafkaVersions(c)
+}
+
+func (c *CatalogV1alpha1Client) MSSQLServerVersions() MSSQLServerVersionInterface {
+	return newMSSQLServerVersions(c)
 }
 
 func (c *CatalogV1alpha1Client) MariaDBVersions() MariaDBVersionInterface {
@@ -79,6 +120,10 @@ func (c *CatalogV1alpha1Client) PgBouncerVersions() PgBouncerVersionInterface {
 	return newPgBouncerVersions(c)
 }
 
+func (c *CatalogV1alpha1Client) PgpoolVersions() PgpoolVersionInterface {
+	return newPgpoolVersions(c)
+}
+
 func (c *CatalogV1alpha1Client) PostgresVersions() PostgresVersionInterface {
 	return newPostgresVersions(c)
 }
@@ -87,8 +132,28 @@ func (c *CatalogV1alpha1Client) ProxySQLVersions() ProxySQLVersionInterface {
 	return newProxySQLVersions(c)
 }
 
+func (c *CatalogV1alpha1Client) RabbitMQVersions() RabbitMQVersionInterface {
+	return newRabbitMQVersions(c)
+}
+
 func (c *CatalogV1alpha1Client) RedisVersions() RedisVersionInterface {
 	return newRedisVersions(c)
+}
+
+func (c *CatalogV1alpha1Client) SchemaRegistryVersions() SchemaRegistryVersionInterface {
+	return newSchemaRegistryVersions(c)
+}
+
+func (c *CatalogV1alpha1Client) SinglestoreVersions() SinglestoreVersionInterface {
+	return newSinglestoreVersions(c)
+}
+
+func (c *CatalogV1alpha1Client) SolrVersions() SolrVersionInterface {
+	return newSolrVersions(c)
+}
+
+func (c *CatalogV1alpha1Client) ZooKeeperVersions() ZooKeeperVersionInterface {
+	return newZooKeeperVersions(c)
 }
 
 // NewForConfig creates a new CatalogV1alpha1Client for the given config.

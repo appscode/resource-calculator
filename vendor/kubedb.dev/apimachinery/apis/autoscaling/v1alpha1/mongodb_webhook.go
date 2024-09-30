@@ -17,16 +17,20 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"context"
 	"errors"
+	"fmt"
 
-	dbapi "kubedb.dev/apimachinery/apis/kubedb/v1alpha2"
+	dbapi "kubedb.dev/apimachinery/apis/kubedb/v1"
 	opsapi "kubedb.dev/apimachinery/apis/ops/v1alpha1"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // log is for logging in this package.
@@ -49,6 +53,16 @@ func (in *MongoDBAutoscaler) Default() {
 }
 
 func (in *MongoDBAutoscaler) setDefaults() {
+	var db dbapi.MongoDB
+	err := DefaultClient.Get(context.TODO(), types.NamespacedName{
+		Name:      in.Spec.DatabaseRef.Name,
+		Namespace: in.Namespace,
+	}, &db)
+	if err != nil {
+		_ = fmt.Errorf("can't get MongoDB %s/%s \n", in.Namespace, in.Spec.DatabaseRef.Name)
+		return
+	}
+
 	in.setOpsReqOptsDefaults()
 
 	if in.Spec.Storage != nil {
@@ -56,6 +70,7 @@ func (in *MongoDBAutoscaler) setDefaults() {
 		setDefaultStorageValues(in.Spec.Storage.ReplicaSet)
 		setDefaultStorageValues(in.Spec.Storage.Shard)
 		setDefaultStorageValues(in.Spec.Storage.ConfigServer)
+		setDefaultStorageValues(in.Spec.Storage.Hidden)
 	}
 
 	if in.Spec.Compute != nil {
@@ -64,6 +79,16 @@ func (in *MongoDBAutoscaler) setDefaults() {
 		setDefaultComputeValues(in.Spec.Compute.Shard)
 		setDefaultComputeValues(in.Spec.Compute.ConfigServer)
 		setDefaultComputeValues(in.Spec.Compute.Mongos)
+		setDefaultComputeValues(in.Spec.Compute.Arbiter)
+		setDefaultComputeValues(in.Spec.Compute.Hidden)
+
+		setInMemoryDefaults(in.Spec.Compute.Standalone, db.Spec.StorageEngine)
+		setInMemoryDefaults(in.Spec.Compute.ReplicaSet, db.Spec.StorageEngine)
+		setInMemoryDefaults(in.Spec.Compute.Shard, db.Spec.StorageEngine)
+		setInMemoryDefaults(in.Spec.Compute.ConfigServer, db.Spec.StorageEngine)
+		setInMemoryDefaults(in.Spec.Compute.Mongos, db.Spec.StorageEngine)
+		// no need for Defaulting the Arbiter & Hidden PodResources.
+		// As arbiter is not a data-node.  And hidden doesn't have the impact of storageEngine (it can't be InMemory).
 	}
 }
 
@@ -78,44 +103,40 @@ func (in *MongoDBAutoscaler) setOpsReqOptsDefaults() {
 	}
 }
 
-func (in *MongoDBAutoscaler) SetDefaults(db *dbapi.MongoDB) {
-	if in.Spec.Compute != nil {
-		setInMemoryDefaults(in.Spec.Compute.Standalone, db.Spec.StorageEngine)
-		setInMemoryDefaults(in.Spec.Compute.ReplicaSet, db.Spec.StorageEngine)
-		setInMemoryDefaults(in.Spec.Compute.Shard, db.Spec.StorageEngine)
-		setInMemoryDefaults(in.Spec.Compute.ConfigServer, db.Spec.StorageEngine)
-		setInMemoryDefaults(in.Spec.Compute.Mongos, db.Spec.StorageEngine)
-	}
-}
-
 // +kubebuilder:webhook:path=/validate-schema-kubedb-com-v1alpha1-mongodbautoscaler,mutating=false,failurePolicy=fail,sideEffects=None,groups=schema.kubedb.com,resources=mongodbautoscalers,verbs=create;update;delete,versions=v1alpha1,name=vmongodbautoscaler.kb.io,admissionReviewVersions={v1,v1beta1}
 
 var _ webhook.Validator = &MongoDBAutoscaler{}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (in *MongoDBAutoscaler) ValidateCreate() error {
+func (in *MongoDBAutoscaler) ValidateCreate() (admission.Warnings, error) {
 	mongoLog.Info("validate create", "name", in.Name)
-	return in.validate()
+	return nil, in.validate()
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (in *MongoDBAutoscaler) ValidateUpdate(old runtime.Object) error {
-	mongoLog.Info("validate create", "name", in.Name)
-	return in.validate()
+func (in *MongoDBAutoscaler) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
+	mongoLog.Info("validate update", "name", in.Name)
+	return nil, in.validate()
 }
 
-func (_ MongoDBAutoscaler) ValidateDelete() error {
-	return nil
+func (_ MongoDBAutoscaler) ValidateDelete() (admission.Warnings, error) {
+	return nil, nil
 }
 
 func (in *MongoDBAutoscaler) validate() error {
 	if in.Spec.DatabaseRef == nil {
 		return errors.New("databaseRef can't be empty")
 	}
-	return nil
-}
+	var mg dbapi.MongoDB
+	err := DefaultClient.Get(context.TODO(), types.NamespacedName{
+		Name:      in.Spec.DatabaseRef.Name,
+		Namespace: in.Namespace,
+	}, &mg)
+	if err != nil {
+		_ = fmt.Errorf("can't get MongoDB %s/%s \n", in.Namespace, in.Spec.DatabaseRef.Name)
+		return err
+	}
 
-func (in *MongoDBAutoscaler) ValidateFields(mg *dbapi.MongoDB) error {
 	if in.Spec.Compute != nil {
 		cm := in.Spec.Compute
 		if mg.Spec.ShardTopology != nil {
@@ -151,6 +172,12 @@ func (in *MongoDBAutoscaler) ValidateFields(mg *dbapi.MongoDB) error {
 			if cm.Mongos != nil {
 				return errors.New("Spec.Compute.Mongos is invalid for Standalone mongoDB")
 			}
+			if cm.Arbiter != nil {
+				return errors.New("Spec.Compute.Arbiter is invalid for Standalone mongoDB")
+			}
+			if cm.Hidden != nil {
+				return errors.New("Spec.Compute.Hidden is invalid for Standalone mongoDB")
+			}
 		}
 	}
 
@@ -163,6 +190,14 @@ func (in *MongoDBAutoscaler) ValidateFields(mg *dbapi.MongoDB) error {
 			if st.Standalone != nil {
 				return errors.New("Spec.Storage.Standalone is invalid for sharded mongoDB")
 			}
+
+			if err = validateScalingRules(st.ConfigServer); err != nil {
+				return err
+			}
+			if err = validateScalingRules(st.Shard); err != nil {
+				return err
+			}
+
 		} else if mg.Spec.ReplicaSet != nil {
 			if st.Standalone != nil {
 				return errors.New("Spec.Storage.Standalone is invalid for replicaSet mongoDB")
@@ -172,6 +207,10 @@ func (in *MongoDBAutoscaler) ValidateFields(mg *dbapi.MongoDB) error {
 			}
 			if st.ConfigServer != nil {
 				return errors.New("Spec.Storage.ConfigServer is invalid for replicaSet mongoDB")
+			}
+
+			if err = validateScalingRules(st.ReplicaSet); err != nil {
+				return err
 			}
 		} else {
 			if st.ReplicaSet != nil {
@@ -183,7 +222,21 @@ func (in *MongoDBAutoscaler) ValidateFields(mg *dbapi.MongoDB) error {
 			if st.ConfigServer != nil {
 				return errors.New("Spec.Storage.ConfigServer is invalid for Standalone mongoDB")
 			}
+			if st.Hidden != nil {
+				return errors.New("Spec.Storage.Hidden is invalid for Standalone mongoDB")
+			}
+
+			if err = validateScalingRules(st.Standalone); err != nil {
+				return err
+			}
+		}
+
+		if mg.Spec.Hidden != nil {
+			if err = validateScalingRules(st.Hidden); err != nil {
+				return err
+			}
 		}
 	}
+
 	return nil
 }

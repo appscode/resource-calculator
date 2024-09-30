@@ -19,10 +19,13 @@ limitations under the License.
 package scheme
 
 import (
+	archiverv1alpha1 "kubedb.dev/apimachinery/apis/archiver/v1alpha1"
 	autoscalingv1alpha1 "kubedb.dev/apimachinery/apis/autoscaling/v1alpha1"
 	catalogv1alpha1 "kubedb.dev/apimachinery/apis/catalog/v1alpha1"
 	configv1alpha1 "kubedb.dev/apimachinery/apis/config/v1alpha1"
-	dashboardv1alpha1 "kubedb.dev/apimachinery/apis/dashboard/v1alpha1"
+	elasticsearchv1alpha1 "kubedb.dev/apimachinery/apis/elasticsearch/v1alpha1"
+	kafkav1alpha1 "kubedb.dev/apimachinery/apis/kafka/v1alpha1"
+	kubedbv1 "kubedb.dev/apimachinery/apis/kubedb/v1"
 	kubedbv1alpha1 "kubedb.dev/apimachinery/apis/kubedb/v1alpha1"
 	kubedbv1alpha2 "kubedb.dev/apimachinery/apis/kubedb/v1alpha2"
 	opsv1alpha1 "kubedb.dev/apimachinery/apis/ops/v1alpha1"
@@ -41,12 +44,15 @@ var Scheme = runtime.NewScheme()
 var Codecs = serializer.NewCodecFactory(Scheme)
 var ParameterCodec = runtime.NewParameterCodec(Scheme)
 var localSchemeBuilder = runtime.SchemeBuilder{
+	archiverv1alpha1.AddToScheme,
 	autoscalingv1alpha1.AddToScheme,
 	catalogv1alpha1.AddToScheme,
 	configv1alpha1.AddToScheme,
-	dashboardv1alpha1.AddToScheme,
+	elasticsearchv1alpha1.AddToScheme,
+	kafkav1alpha1.AddToScheme,
 	kubedbv1alpha1.AddToScheme,
 	kubedbv1alpha2.AddToScheme,
+	kubedbv1.AddToScheme,
 	opsv1alpha1.AddToScheme,
 	postgresv1alpha1.AddToScheme,
 	schemav1alpha1.AddToScheme,
