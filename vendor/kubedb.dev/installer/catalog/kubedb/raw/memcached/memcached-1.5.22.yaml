@@ -1,0 +1,17 @@
+apiVersion: catalog.kubedb.com/v1alpha1
+kind: MemcachedVersion
+metadata:
+  name: 1.5.22
+spec:
+  db:
+    image: ghcr.io/appscode-images/memcached:1.5.22-alpine
+  exporter:
+    image: prom/memcached-exporter:v0.14.2
+  podSecurityPolicies:
+    databasePolicyName: memcached-db
+  securityContext:
+    runAsUser: 999
+  updateConstraints:
+    allowlist:
+    - '>1.5.22, <= 1.6.29'
+  version: 1.5.22

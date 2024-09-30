@@ -27,7 +27,7 @@ import (
 	"kmodules.xyz/client-go/apiextensions"
 )
 
-func (_ MemcachedOpsRequest) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
+func (m MemcachedOpsRequest) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
 	return crds.MustCustomResourceDefinition(SchemeGroupVersion.WithResource(ResourcePluralMemcachedOpsRequest))
 }
 
@@ -59,22 +59,22 @@ func (m MemcachedOpsRequest) ValidateSpecs() error {
 
 var _ Accessor = &MemcachedOpsRequest{}
 
-func (e *MemcachedOpsRequest) GetObjectMeta() metav1.ObjectMeta {
-	return e.ObjectMeta
+func (m *MemcachedOpsRequest) GetObjectMeta() metav1.ObjectMeta {
+	return m.ObjectMeta
 }
 
-func (e *MemcachedOpsRequest) GetRequestType() OpsRequestType {
-	return e.Spec.Type
+func (m *MemcachedOpsRequest) GetDBRefName() string {
+	return m.Spec.DatabaseRef.Name
 }
 
-func (e *MemcachedOpsRequest) GetDBRefName() string {
-	return e.Spec.DatabaseRef.Name
+func (m *MemcachedOpsRequest) GetRequestType() any {
+	return m.Spec.Type
 }
 
-func (e *MemcachedOpsRequest) GetStatus() OpsRequestStatus {
-	return e.Status
+func (m *MemcachedOpsRequest) GetStatus() OpsRequestStatus {
+	return m.Status
 }
 
-func (e *MemcachedOpsRequest) SetStatus(s OpsRequestStatus) {
-	e.Status = s
+func (m *MemcachedOpsRequest) SetStatus(s OpsRequestStatus) {
+	m.Status = s
 }

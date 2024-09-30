@@ -14,13 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+//go:generate go-enum --mustparse --names --values
 package v1alpha1
 
 import (
 	core "k8s.io/api/core/v1"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	ofst "kmodules.xyz/offshoot-api/api/v1"
 )
 
 const (
@@ -37,7 +37,7 @@ const (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:path=redissentinelopsrequests,singular=redissentinelopsrequest,shortName=rdsops,categories={datastore,kubedb,appscode}
+// +kubebuilder:resource:path=redissentinelopsrequests,singular=redissentinelopsrequest,shortName=rdsops,categories={ops,kubedb,appscode}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Type",type="string",JSONPath=".spec.type"
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.phase"
@@ -54,15 +54,13 @@ type RedisSentinelOpsRequestSpec struct {
 	// Specifies the RedisSentinel reference
 	DatabaseRef core.LocalObjectReference `json:"databaseRef"`
 	// Specifies the ops request type: Upgrade, HorizontalScaling, VerticalScaling etc.
-	Type OpsRequestType `json:"type"`
+	Type RedisSentinelOpsRequestType `json:"type"`
 	// Specifies information necessary for upgrading RedisSentinel
-	Upgrade *RedisSentinelUpgradeSpec `json:"upgrade,omitempty"`
+	UpdateVersion *RedisSentinelUpdateVersionSpec `json:"updateVersion,omitempty"`
 	// Specifies information necessary for horizontal scaling
 	HorizontalScaling *RedisSentinelHorizontalScalingSpec `json:"horizontalScaling,omitempty"`
 	// Specifies information necessary for vertical scaling
 	VerticalScaling *RedisSentinelVerticalScalingSpec `json:"verticalScaling,omitempty"`
-	// Specifies information necessary for volume expansion
-	VolumeExpansion *RedisSentinelVolumeExpansionSpec `json:"volumeExpansion,omitempty"`
 	// Specifies information necessary for custom configuration of RedisSentinel
 	Configuration *RedisSentinelCustomConfigurationSpec `json:"configuration,omitempty"`
 	// Specifies information necessary for configuring TLS
@@ -76,11 +74,15 @@ type RedisSentinelOpsRequestSpec struct {
 	Apply ApplyOption `json:"apply,omitempty"`
 }
 
+// +kubebuilder:validation:Enum=UpdateVersion;HorizontalScaling;VerticalScaling;Restart;Reconfigure;ReconfigureTLS
+// ENUM(UpdateVersion, HorizontalScaling, VerticalScaling, Restart, Reconfigure, ReconfigureTLS)
+type RedisSentinelOpsRequestType string
+
 // RedisSentinelReplicaReadinessCriteria is the criteria for checking readiness of a RedisSentinel pod
 // after updating, horizontal scaling etc.
 type RedisSentinelReplicaReadinessCriteria struct{}
 
-type RedisSentinelUpgradeSpec struct {
+type RedisSentinelUpdateVersionSpec struct {
 	// Specifies the target version name from catalog
 	TargetVersion     string                                 `json:"targetVersion,omitempty"`
 	ReadinessCriteria *RedisSentinelReplicaReadinessCriteria `json:"readinessCriteria,omitempty"`
@@ -93,24 +95,20 @@ type RedisSentinelHorizontalScalingSpec struct {
 
 // RedisSentinelVerticalScalingSpec is the spec for RedisSentinel vertical scaling
 type RedisSentinelVerticalScalingSpec struct {
-	RedisSentinel *core.ResourceRequirements `json:"redissentinel,omitempty"`
-	Exporter      *core.ResourceRequirements `json:"exporter,omitempty"`
-	Coordinator   *core.ResourceRequirements `json:"coordinator,omitempty"`
+	RedisSentinel *PodResources       `json:"redissentinel,omitempty"`
+	Exporter      *ContainerResources `json:"exporter,omitempty"`
+	Coordinator   *ContainerResources `json:"coordinator,omitempty"`
 }
 
 // RedisSentinelVolumeExpansionSpec is the spec for RedisSentinel volume expansion
 type RedisSentinelVolumeExpansionSpec struct {
-	// +kubebuilder:default="Online"
-	Mode          *VolumeExpansionMode `json:"mode,omitempty"`
-	RedisSentinel *resource.Quantity   `json:"redissentinel,omitempty"`
+	Mode          VolumeExpansionMode `json:"mode"`
+	RedisSentinel *resource.Quantity  `json:"redissentinel,omitempty"`
 }
 
 type RedisSentinelCustomConfigurationSpec struct {
-	// PodTemplate is an optional configuration for pods used to expose database
-	// +optional
-	PodTemplate        ofst.PodTemplateSpec       `json:"podTemplate,omitempty"`
 	ConfigSecret       *core.LocalObjectReference `json:"configSecret,omitempty"`
-	InlineConfig       string                     `json:"inlineConfig,omitempty"`
+	ApplyConfig        map[string]string          `json:"applyConfig,omitempty"`
 	RemoveCustomConfig bool                       `json:"removeCustomConfig,omitempty"`
 }
 

@@ -17,6 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	opsapi "kubedb.dev/apimachinery/apis/ops/v1alpha1"
+
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -37,7 +39,7 @@ const (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:path=mariadbautoscalers,singular=mariadbautoscaler,shortName=mdscaler,categories={datastore,kubedb,appscode}
+// +kubebuilder:resource:path=mariadbautoscalers,singular=mariadbautoscaler,shortName=mdscaler,categories={autoscaler,kubedb,appscode}
 // +kubebuilder:subresource:status
 type MariaDBAutoscaler struct {
 	metav1.TypeMeta `json:",inline"`
@@ -58,16 +60,34 @@ type MariaDBAutoscaler struct {
 type MariaDBAutoscalerSpec struct {
 	DatabaseRef *core.LocalObjectReference `json:"databaseRef"`
 
+	// This field will be used to control the behaviour of ops-manager
+	OpsRequestOptions *MariaDBOpsRequestOptions `json:"opsRequestOptions,omitempty"`
+
 	Compute *MariaDBComputeAutoscalerSpec `json:"compute,omitempty"`
 	Storage *MariaDBStorageAutoscalerSpec `json:"storage,omitempty"`
 }
 
 type MariaDBComputeAutoscalerSpec struct {
+	// +optional
+	NodeTopology *NodeTopology `json:"nodeTopology,omitempty"`
+
 	MariaDB *ComputeAutoscalerSpec `json:"mariadb,omitempty"`
 }
 
 type MariaDBStorageAutoscalerSpec struct {
 	MariaDB *StorageAutoscalerSpec `json:"mariadb,omitempty"`
+}
+
+type MariaDBOpsRequestOptions struct {
+	// Specifies the Readiness Criteria
+	ReadinessCriteria *opsapi.MariaDBReplicaReadinessCriteria `json:"readinessCriteria,omitempty"`
+
+	// Timeout for each step of the ops request in second. If a step doesn't finish within the specified timeout, the ops request will result in failure.
+	Timeout *metav1.Duration `json:"timeout,omitempty"`
+
+	// ApplyOption is to control the execution of OpsRequest depending on the database state.
+	// +kubebuilder:default="IfReady"
+	Apply opsapi.ApplyOption `json:"apply,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

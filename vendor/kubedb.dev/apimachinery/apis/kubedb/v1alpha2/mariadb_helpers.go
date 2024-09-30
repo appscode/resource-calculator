@@ -21,9 +21,11 @@ import (
 	"path/filepath"
 
 	"kubedb.dev/apimachinery/apis"
+	"kubedb.dev/apimachinery/apis/catalog/v1alpha1"
 	"kubedb.dev/apimachinery/apis/kubedb"
 	"kubedb.dev/apimachinery/crds"
 
+	promapi "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"gomodules.xyz/pointer"
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,6 +35,7 @@ import (
 	"kmodules.xyz/client-go/apiextensions"
 	core_util "kmodules.xyz/client-go/core/v1"
 	meta_util "kmodules.xyz/client-go/meta"
+	"kmodules.xyz/client-go/policy/secomp"
 	appcat "kmodules.xyz/custom-resources/apis/appcatalog/v1alpha1"
 	mona "kmodules.xyz/monitoring-agent-api/api/v1"
 	ofst "kmodules.xyz/offshoot-api/api/v1"
@@ -40,6 +43,10 @@ import (
 
 func (_ MariaDB) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
 	return crds.MustCustomResourceDefinition(SchemeGroupVersion.WithResource(ResourcePluralMariaDB))
+}
+
+func (m *MariaDB) AsOwner() *metav1.OwnerReference {
+	return metav1.NewControllerRef(m, SchemeGroupVersion.WithKind(ResourceKindMariaDB))
 }
 
 var _ apis.ResourceInfo = &MariaDB{}
@@ -69,7 +76,7 @@ func (m MariaDB) PodControllerLabels() map[string]string {
 }
 
 func (m MariaDB) offshootLabels(selector, override map[string]string) map[string]string {
-	selector[meta_util.ComponentLabelKey] = ComponentDatabase
+	selector[meta_util.ComponentLabelKey] = kubedb.ComponentDatabase
 	return meta_util.FilterKeys(kubedb.GroupName, selector, meta_util.OverwriteKeys(nil, m.Labels, override))
 }
 
@@ -115,7 +122,10 @@ func (m MariaDB) PeerName(idx int) string {
 }
 
 func (m MariaDB) GetAuthSecretName() string {
-	return m.Spec.AuthSecret.Name
+	if m.Spec.AuthSecret != nil && m.Spec.AuthSecret.Name != "" {
+		return m.Spec.AuthSecret.Name
+	}
+	return meta_util.NameWithSuffix(m.OffshootName(), "auth")
 }
 
 func (m MariaDB) ClusterName() string {
@@ -159,11 +169,15 @@ func (m mariadbStatsService) ServiceMonitorAdditionalLabels() map[string]string 
 }
 
 func (m mariadbStatsService) Path() string {
-	return DefaultStatsPath
+	return kubedb.DefaultStatsPath
 }
 
 func (m mariadbStatsService) Scheme() string {
 	return ""
+}
+
+func (m mariadbStatsService) TLSConfig() *promapi.TLSConfig {
+	return nil
 }
 
 func (m MariaDB) StatsService() mona.StatsAccessor {
@@ -171,20 +185,25 @@ func (m MariaDB) StatsService() mona.StatsAccessor {
 }
 
 func (m MariaDB) StatsServiceLabels() map[string]string {
-	return m.ServiceLabels(StatsServiceAlias, map[string]string{LabelRole: RoleStats})
+	return m.ServiceLabels(StatsServiceAlias, map[string]string{kubedb.LabelRole: kubedb.RoleStats})
 }
 
 func (m MariaDB) PrimaryServiceDNS() string {
 	return fmt.Sprintf("%s.%s.svc", m.ServiceName(), m.Namespace)
 }
 
-func (m *MariaDB) SetDefaults(topology *core_util.Topology) {
+func (m *MariaDB) SetDefaults(mdVersion *v1alpha1.MariaDBVersion, topology *core_util.Topology) {
 	if m == nil {
 		return
 	}
 
 	if m.Spec.Replicas == nil {
 		m.Spec.Replicas = pointer.Int32P(1)
+	} else {
+		if m.Spec.Coordinator.SecurityContext == nil {
+			m.Spec.Coordinator.SecurityContext = &core.SecurityContext{}
+		}
+		m.assignDefaultContainerSecurityContext(mdVersion, m.Spec.Coordinator.SecurityContext)
 	}
 
 	if m.Spec.StorageType == "" {
@@ -198,11 +217,61 @@ func (m *MariaDB) SetDefaults(topology *core_util.Topology) {
 		m.Spec.PodTemplate.Spec.ServiceAccountName = m.OffshootName()
 	}
 
-	m.Spec.Monitor.SetDefaults()
+	m.setDefaultContainerSecurityContext(mdVersion, &m.Spec.PodTemplate)
+
 	m.setDefaultAffinity(&m.Spec.PodTemplate, m.OffshootSelectors(), topology)
 	m.SetTLSDefaults()
 	m.SetHealthCheckerDefaults()
-	apis.SetDefaultResourceLimits(&m.Spec.PodTemplate.Spec.Resources, DefaultResources)
+	apis.SetDefaultResourceLimits(&m.Spec.PodTemplate.Spec.Resources, kubedb.DefaultResources)
+
+	m.Spec.Monitor.SetDefaults()
+	if m.Spec.Monitor != nil && m.Spec.Monitor.Prometheus != nil {
+		if m.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsUser == nil {
+			m.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsUser = mdVersion.Spec.SecurityContext.RunAsUser
+		}
+		if m.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsGroup == nil {
+			m.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsGroup = mdVersion.Spec.SecurityContext.RunAsUser
+		}
+	}
+}
+
+func (m *MariaDB) setDefaultContainerSecurityContext(mdVersion *v1alpha1.MariaDBVersion, podTemplate *ofst.PodTemplateSpec) {
+	if podTemplate == nil {
+		return
+	}
+	if podTemplate.Spec.ContainerSecurityContext == nil {
+		podTemplate.Spec.ContainerSecurityContext = &core.SecurityContext{}
+	}
+	if podTemplate.Spec.SecurityContext == nil {
+		podTemplate.Spec.SecurityContext = &core.PodSecurityContext{}
+	}
+	if podTemplate.Spec.SecurityContext.FSGroup == nil {
+		podTemplate.Spec.SecurityContext.FSGroup = mdVersion.Spec.SecurityContext.RunAsUser
+	}
+	m.assignDefaultContainerSecurityContext(mdVersion, podTemplate.Spec.ContainerSecurityContext)
+}
+
+func (m *MariaDB) assignDefaultContainerSecurityContext(mdVersion *v1alpha1.MariaDBVersion, sc *core.SecurityContext) {
+	if sc.AllowPrivilegeEscalation == nil {
+		sc.AllowPrivilegeEscalation = pointer.BoolP(false)
+	}
+	if sc.Capabilities == nil {
+		sc.Capabilities = &core.Capabilities{
+			Drop: []core.Capability{"ALL"},
+		}
+	}
+	if sc.RunAsNonRoot == nil {
+		sc.RunAsNonRoot = pointer.BoolP(true)
+	}
+	if sc.RunAsUser == nil {
+		sc.RunAsUser = mdVersion.Spec.SecurityContext.RunAsUser
+	}
+	if sc.RunAsGroup == nil {
+		sc.RunAsGroup = mdVersion.Spec.SecurityContext.RunAsUser
+	}
+	if sc.SeccompProfile == nil {
+		sc.SeccompProfile = secomp.DefaultSeccompProfile()
+	}
 }
 
 // setDefaultAffinity
@@ -295,10 +364,6 @@ func (m *MariaDB) GetCertSecretName(alias MariaDBCertificateAlias) string {
 	return m.CertificateName(alias)
 }
 
-func (m *MariaDB) AuthSecretName() string {
-	return meta_util.NameWithSuffix(m.Name, "auth")
-}
-
 func (m *MariaDB) ReplicasAreReady(lister appslister.StatefulSetLister) (bool, string, error) {
 	// Desire number of statefulSets
 	expectedItems := 1
@@ -310,7 +375,7 @@ func (m *MariaDB) InlineConfigSecretName() string {
 }
 
 func (m *MariaDB) CertMountPath(alias MariaDBCertificateAlias) string {
-	return filepath.Join(PerconaXtraDBCertMountPath, string(alias))
+	return filepath.Join(kubedb.PerconaXtraDBCertMountPath, string(alias))
 }
 
 func (m *MariaDB) CertFilePath(certAlias MariaDBCertificateAlias, certFileName string) string {

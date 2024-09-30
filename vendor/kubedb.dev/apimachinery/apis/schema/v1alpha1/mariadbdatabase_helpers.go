@@ -14,13 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// nolint:goconst
 package v1alpha1
 
 import (
 	"context"
 
-	dbapi "kubedb.dev/apimachinery/apis/kubedb/v1alpha2"
+	dbapi "kubedb.dev/apimachinery/apis/kubedb/v1"
 	"kubedb.dev/apimachinery/crds"
+	"kubedb.dev/apimachinery/pkg/double_optin"
 
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -172,7 +174,7 @@ func (in *MariaDBDatabase) CheckDoubleOptIn(ctx context.Context, client client.C
 		return false, err
 	}
 
-	possible, err := CheckIfDoubleOptInPossible(schema.ObjectMeta, nsSchema.ObjectMeta, nsDB.ObjectMeta, maria.Spec.AllowedSchemas)
+	possible, err := double_optin.CheckIfDoubleOptInPossible(schema.ObjectMeta, nsSchema.ObjectMeta, nsDB.ObjectMeta, maria.Spec.AllowedSchemas)
 	if err != nil {
 		return false, err
 	}

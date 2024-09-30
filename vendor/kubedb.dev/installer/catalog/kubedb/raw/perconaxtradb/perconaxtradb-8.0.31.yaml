@@ -1,0 +1,27 @@
+apiVersion: catalog.kubedb.com/v1alpha1
+kind: PerconaXtraDBVersion
+metadata:
+  name: 8.0.31
+spec:
+  coordinator:
+    image: ghcr.io/kubedb/percona-xtradb-coordinator:v0.21.0
+  db:
+    image: percona/percona-xtradb-cluster:8.0.31
+  exporter:
+    image: prom/mysqld-exporter:v0.13.0
+  initContainer:
+    image: ghcr.io/kubedb/percona-xtradb-init:0.2.1
+  podSecurityPolicies:
+    databasePolicyName: percona-xtradb-db
+  securityContext:
+    runAsUser: 1001
+  stash:
+    addon:
+      backupTask:
+        name: perconaxtradb-backup-5.7
+      restoreTask:
+        name: perconaxtradb-restore-5.7
+  updateConstraints:
+    allowlist:
+    - '> 8.0.31, <= 8.0.31'
+  version: 8.0.31

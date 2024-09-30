@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+//go:generate go-enum --mustparse --names --values
 package v1alpha1
 
 import (
@@ -35,7 +36,7 @@ const (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:path=etcdopsrequests,singular=etcdopsrequest,shortName=etcdops,categories={datastore,kubedb,appscode}
+// +kubebuilder:resource:path=etcdopsrequests,singular=etcdopsrequest,shortName=etcdops,categories={ops,kubedb,appscode}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Type",type="string",JSONPath=".spec.type"
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.phase"
@@ -52,9 +53,9 @@ type EtcdOpsRequestSpec struct {
 	// Specifies the Etcd reference
 	DatabaseRef core.LocalObjectReference `json:"databaseRef"`
 	// Specifies the ops request type: Upgrade, HorizontalScaling, VerticalScaling etc.
-	Type OpsRequestType `json:"type"`
+	Type EtcdOpsRequestType `json:"type"`
 	// Specifies information necessary for upgrading Etcd
-	Upgrade *EtcdUpgradeSpec `json:"upgrade,omitempty"`
+	UpdateVersion *EtcdUpdateVersionSpec `json:"updateVersion,omitempty"`
 	// Specifies information necessary for horizontal scaling
 	HorizontalScaling *EtcdHorizontalScalingSpec `json:"horizontalScaling,omitempty"`
 	// Specifies information necessary for vertical scaling
@@ -72,11 +73,15 @@ type EtcdOpsRequestSpec struct {
 	Apply ApplyOption `json:"apply,omitempty"`
 }
 
+// +kubebuilder:validation:Enum=UpdateVersion;HorizontalScaling;VerticalScaling;VolumeExpansion;Restart;Reconfigure;ReconfigureTLS
+// ENUM(UpdateVersion, HorizontalScaling, VerticalScaling, VolumeExpansion, Restart, Reconfigure, ReconfigureTLS)
+type EtcdOpsRequestType string
+
 // EtcdReplicaReadinessCriteria is the criteria for checking readiness of a Etcd pod
 // after updating, horizontal scaling etc.
 type EtcdReplicaReadinessCriteria struct{}
 
-type EtcdUpgradeSpec struct {
+type EtcdUpdateVersionSpec struct {
 	// Specifies the target version name from catalog
 	TargetVersion     string                        `json:"targetVersion,omitempty"`
 	ReadinessCriteria *EtcdReplicaReadinessCriteria `json:"readinessCriteria,omitempty"`

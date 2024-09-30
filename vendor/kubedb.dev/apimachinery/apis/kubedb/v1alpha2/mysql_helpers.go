@@ -20,9 +20,12 @@ import (
 	"fmt"
 
 	"kubedb.dev/apimachinery/apis"
+	"kubedb.dev/apimachinery/apis/catalog/v1alpha1"
 	"kubedb.dev/apimachinery/apis/kubedb"
 	"kubedb.dev/apimachinery/crds"
 
+	"github.com/google/uuid"
+	promapi "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"gomodules.xyz/pointer"
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,6 +35,7 @@ import (
 	"kmodules.xyz/client-go/apiextensions"
 	core_util "kmodules.xyz/client-go/core/v1"
 	meta_util "kmodules.xyz/client-go/meta"
+	"kmodules.xyz/client-go/policy/secomp"
 	appcat "kmodules.xyz/custom-resources/apis/appcatalog/v1alpha1"
 	mona "kmodules.xyz/monitoring-agent-api/api/v1"
 	ofst "kmodules.xyz/offshoot-api/api/v1"
@@ -41,6 +45,10 @@ func (_ MySQL) CustomResourceDefinition() *apiextensions.CustomResourceDefinitio
 	return crds.MustCustomResourceDefinition(SchemeGroupVersion.WithResource(ResourcePluralMySQL))
 }
 
+func (m *MySQL) AsOwner() *metav1.OwnerReference {
+	return metav1.NewControllerRef(m, SchemeGroupVersion.WithKind(ResourceKindMySQL))
+}
+
 var _ apis.ResourceInfo = &MySQL{}
 
 func (m MySQL) OffshootName() string {
@@ -48,11 +56,11 @@ func (m MySQL) OffshootName() string {
 }
 
 func (m MySQL) OffshootSelectors() map[string]string {
-	return m.offshootSelectors(MySQLComponentDB)
+	return m.offshootSelectors(kubedb.MySQLComponentDB)
 }
 
 func (m MySQL) RouterOffshootSelectors() map[string]string {
-	return m.offshootSelectors(MySQLComponentRouter)
+	return m.offshootSelectors(kubedb.MySQLComponentRouter)
 }
 
 func (m MySQL) offshootSelectors(component string) map[string]string {
@@ -62,7 +70,7 @@ func (m MySQL) offshootSelectors(component string) map[string]string {
 		meta_util.ManagedByLabelKey: kubedb.GroupName,
 	}
 	if m.IsInnoDBCluster() {
-		selectors[MySQLComponentKey] = component
+		selectors[kubedb.MySQLComponentKey] = component
 	}
 	return selectors
 }
@@ -97,7 +105,7 @@ func (m MySQL) ServiceLabels(alias ServiceAlias, extraLabels ...map[string]strin
 }
 
 func (m MySQL) offshootLabels(selector, override map[string]string) map[string]string {
-	selector[meta_util.ComponentLabelKey] = ComponentDatabase
+	selector[meta_util.ComponentLabelKey] = kubedb.ComponentDatabase
 	return meta_util.FilterKeys(kubedb.GroupName, selector, meta_util.OverwriteKeys(nil, m.Labels, override))
 }
 
@@ -158,10 +166,10 @@ func (m MySQL) PeerName(idx int) string {
 }
 
 func (m MySQL) GetAuthSecretName() string {
-	if m.Spec.AuthSecret != nil {
+	if m.Spec.AuthSecret != nil && m.Spec.AuthSecret.Name != "" {
 		return m.Spec.AuthSecret.Name
 	}
-	return meta_util.NameWithSuffix(m.Name, "auth")
+	return meta_util.NameWithSuffix(m.OffshootName(), "auth")
 }
 
 type mysqlApp struct {
@@ -205,11 +213,15 @@ func (m mysqlStatsService) ServiceMonitorAdditionalLabels() map[string]string {
 }
 
 func (m mysqlStatsService) Path() string {
-	return DefaultStatsPath
+	return kubedb.DefaultStatsPath
 }
 
 func (m mysqlStatsService) Scheme() string {
 	return ""
+}
+
+func (m mysqlStatsService) TLSConfig() *promapi.TLSConfig {
+	return nil
 }
 
 func (m MySQL) StatsService() mona.StatsAccessor {
@@ -217,7 +229,7 @@ func (m MySQL) StatsService() mona.StatsAccessor {
 }
 
 func (m MySQL) StatsServiceLabels() map[string]string {
-	return m.ServiceLabels(StatsServiceAlias, map[string]string{LabelRole: RoleStats})
+	return m.ServiceLabels(StatsServiceAlias, map[string]string{kubedb.LabelRole: kubedb.RoleStats})
 }
 
 func (m *MySQL) UsesGroupReplication() bool {
@@ -232,10 +244,10 @@ func (m *MySQL) IsInnoDBCluster() bool {
 		*m.Spec.Topology.Mode == MySQLModeInnoDBCluster
 }
 
-func (m *MySQL) IsReadReplica() bool {
+func (m *MySQL) IsRemoteReplica() bool {
 	return m.Spec.Topology != nil &&
 		m.Spec.Topology.Mode != nil &&
-		*m.Spec.Topology.Mode == MySQLModeReadReplica
+		*m.Spec.Topology.Mode == MySQLModeRemoteReplica
 }
 
 func (m *MySQL) IsSemiSync() bool {
@@ -244,7 +256,7 @@ func (m *MySQL) IsSemiSync() bool {
 		*m.Spec.Topology.Mode == MySQLModeSemiSync
 }
 
-func (m *MySQL) SetDefaults(topology *core_util.Topology) {
+func (m *MySQL) SetDefaults(myVersion *v1alpha1.MySQLVersion, topology *core_util.Topology) {
 	if m == nil {
 		return
 	}
@@ -256,8 +268,24 @@ func (m *MySQL) SetDefaults(topology *core_util.Topology) {
 	}
 
 	if m.UsesGroupReplication() {
+		if m.Spec.Topology.Group == nil {
+			m.Spec.Topology.Group = &MySQLGroupSpec{}
+		}
+
+		if m.Spec.Topology.Group.Name == "" {
+			grName, _ := uuid.NewRandom()
+			m.Spec.Topology.Group.Name = grName.String()
+		}
+	}
+
+	if m.UsesGroupReplication() || m.IsInnoDBCluster() || m.IsSemiSync() {
 		if m.Spec.Replicas == nil {
-			m.Spec.Replicas = pointer.Int32P(MySQLDefaultGroupSize)
+			m.Spec.Replicas = pointer.Int32P(kubedb.MySQLDefaultGroupSize)
+		} else {
+			if m.Spec.Coordinator.SecurityContext == nil {
+				m.Spec.Coordinator.SecurityContext = &core.SecurityContext{}
+			}
+			m.assignDefaultContainerSecurityContext(myVersion, m.Spec.Coordinator.SecurityContext)
 		}
 	} else {
 		if m.Spec.Replicas == nil {
@@ -265,15 +293,25 @@ func (m *MySQL) SetDefaults(topology *core_util.Topology) {
 		}
 	}
 
+	m.setDefaultContainerSecurityContext(myVersion, &m.Spec.PodTemplate)
+
 	if m.Spec.PodTemplate.Spec.ServiceAccountName == "" {
 		m.Spec.PodTemplate.Spec.ServiceAccountName = m.OffshootName()
 	}
 
-	m.Spec.Monitor.SetDefaults()
 	m.setDefaultAffinity(&m.Spec.PodTemplate, m.OffshootSelectors(), topology)
 	m.SetTLSDefaults()
 	m.SetHealthCheckerDefaults()
-	apis.SetDefaultResourceLimits(&m.Spec.PodTemplate.Spec.Resources, DefaultResources)
+	apis.SetDefaultResourceLimits(&m.Spec.PodTemplate.Spec.Resources, kubedb.DefaultResources)
+	m.Spec.Monitor.SetDefaults()
+	if m.Spec.Monitor != nil && m.Spec.Monitor.Prometheus != nil {
+		if m.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsUser == nil {
+			m.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsUser = myVersion.Spec.SecurityContext.RunAsUser
+		}
+		if m.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsGroup == nil {
+			m.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsGroup = myVersion.Spec.SecurityContext.RunAsUser
+		}
+	}
 }
 
 // setDefaultAffinity
@@ -395,4 +433,55 @@ func (m *MySQL) MySQLTLSArgs() []string {
 
 func (m *MySQL) GetRouterName() string {
 	return fmt.Sprintf("%s-router", m.Name)
+}
+
+func (m *MySQL) setDefaultContainerSecurityContext(myVersion *v1alpha1.MySQLVersion, podTemplate *ofst.PodTemplateSpec) {
+	if podTemplate == nil {
+		podTemplate = &ofst.PodTemplateSpec{}
+	}
+	if podTemplate.Spec.ContainerSecurityContext == nil {
+		podTemplate.Spec.ContainerSecurityContext = &core.SecurityContext{}
+	}
+	if podTemplate.Spec.SecurityContext == nil {
+		podTemplate.Spec.SecurityContext = &core.PodSecurityContext{}
+	}
+	if podTemplate.Spec.SecurityContext.FSGroup == nil {
+		podTemplate.Spec.SecurityContext.FSGroup = myVersion.Spec.SecurityContext.RunAsUser
+	}
+	m.assignDefaultContainerSecurityContext(myVersion, podTemplate.Spec.ContainerSecurityContext)
+
+	initContainer := core_util.GetContainerByName(podTemplate.Spec.InitContainers, kubedb.MySQLInitContainerName)
+	if initContainer == nil {
+		initContainer = &core.Container{
+			Name: kubedb.MySQLInitContainerName,
+		}
+	}
+	if initContainer.SecurityContext == nil {
+		initContainer.SecurityContext = &core.SecurityContext{}
+	}
+	m.assignDefaultContainerSecurityContext(myVersion, initContainer.SecurityContext)
+	podTemplate.Spec.InitContainers = core_util.UpsertContainer(podTemplate.Spec.InitContainers, *initContainer)
+}
+
+func (m *MySQL) assignDefaultContainerSecurityContext(myVersion *v1alpha1.MySQLVersion, sc *core.SecurityContext) {
+	if sc.AllowPrivilegeEscalation == nil {
+		sc.AllowPrivilegeEscalation = pointer.BoolP(false)
+	}
+	if sc.Capabilities == nil {
+		sc.Capabilities = &core.Capabilities{
+			Drop: []core.Capability{"ALL"},
+		}
+	}
+	if sc.RunAsNonRoot == nil {
+		sc.RunAsNonRoot = pointer.BoolP(true)
+	}
+	if sc.RunAsUser == nil {
+		sc.RunAsUser = myVersion.Spec.SecurityContext.RunAsUser
+	}
+	if sc.RunAsGroup == nil {
+		sc.RunAsGroup = myVersion.Spec.SecurityContext.RunAsUser
+	}
+	if sc.SeccompProfile == nil {
+		sc.SeccompProfile = secomp.DefaultSeccompProfile()
+	}
 }

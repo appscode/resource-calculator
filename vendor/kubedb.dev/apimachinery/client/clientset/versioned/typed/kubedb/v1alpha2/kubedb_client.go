@@ -29,23 +29,46 @@ import (
 
 type KubedbV1alpha2Interface interface {
 	RESTClient() rest.Interface
+	CassandrasGetter
+	ClickHousesGetter
+	DruidsGetter
 	ElasticsearchesGetter
 	EtcdsGetter
+	FerretDBsGetter
+	KafkasGetter
+	MSSQLServersGetter
 	MariaDBsGetter
 	MemcachedsGetter
 	MongoDBsGetter
 	MySQLsGetter
 	PerconaXtraDBsGetter
 	PgBouncersGetter
+	PgpoolsGetter
 	PostgresesGetter
 	ProxySQLsGetter
+	RabbitMQsGetter
 	RedisesGetter
 	RedisSentinelsGetter
+	SinglestoresGetter
+	SolrsGetter
+	ZooKeepersGetter
 }
 
 // KubedbV1alpha2Client is used to interact with features provided by the kubedb.com group.
 type KubedbV1alpha2Client struct {
 	restClient rest.Interface
+}
+
+func (c *KubedbV1alpha2Client) Cassandras(namespace string) CassandraInterface {
+	return newCassandras(c, namespace)
+}
+
+func (c *KubedbV1alpha2Client) ClickHouses(namespace string) ClickHouseInterface {
+	return newClickHouses(c, namespace)
+}
+
+func (c *KubedbV1alpha2Client) Druids(namespace string) DruidInterface {
+	return newDruids(c, namespace)
 }
 
 func (c *KubedbV1alpha2Client) Elasticsearches(namespace string) ElasticsearchInterface {
@@ -54,6 +77,18 @@ func (c *KubedbV1alpha2Client) Elasticsearches(namespace string) ElasticsearchIn
 
 func (c *KubedbV1alpha2Client) Etcds(namespace string) EtcdInterface {
 	return newEtcds(c, namespace)
+}
+
+func (c *KubedbV1alpha2Client) FerretDBs(namespace string) FerretDBInterface {
+	return newFerretDBs(c, namespace)
+}
+
+func (c *KubedbV1alpha2Client) Kafkas(namespace string) KafkaInterface {
+	return newKafkas(c, namespace)
+}
+
+func (c *KubedbV1alpha2Client) MSSQLServers(namespace string) MSSQLServerInterface {
+	return newMSSQLServers(c, namespace)
 }
 
 func (c *KubedbV1alpha2Client) MariaDBs(namespace string) MariaDBInterface {
@@ -80,6 +115,10 @@ func (c *KubedbV1alpha2Client) PgBouncers(namespace string) PgBouncerInterface {
 	return newPgBouncers(c, namespace)
 }
 
+func (c *KubedbV1alpha2Client) Pgpools(namespace string) PgpoolInterface {
+	return newPgpools(c, namespace)
+}
+
 func (c *KubedbV1alpha2Client) Postgreses(namespace string) PostgresInterface {
 	return newPostgreses(c, namespace)
 }
@@ -88,12 +127,28 @@ func (c *KubedbV1alpha2Client) ProxySQLs(namespace string) ProxySQLInterface {
 	return newProxySQLs(c, namespace)
 }
 
+func (c *KubedbV1alpha2Client) RabbitMQs(namespace string) RabbitMQInterface {
+	return newRabbitMQs(c, namespace)
+}
+
 func (c *KubedbV1alpha2Client) Redises(namespace string) RedisInterface {
 	return newRedises(c, namespace)
 }
 
 func (c *KubedbV1alpha2Client) RedisSentinels(namespace string) RedisSentinelInterface {
 	return newRedisSentinels(c, namespace)
+}
+
+func (c *KubedbV1alpha2Client) Singlestores(namespace string) SinglestoreInterface {
+	return newSinglestores(c, namespace)
+}
+
+func (c *KubedbV1alpha2Client) Solrs(namespace string) SolrInterface {
+	return newSolrs(c, namespace)
+}
+
+func (c *KubedbV1alpha2Client) ZooKeepers(namespace string) ZooKeeperInterface {
+	return newZooKeepers(c, namespace)
 }
 
 // NewForConfig creates a new KubedbV1alpha2Client for the given config.

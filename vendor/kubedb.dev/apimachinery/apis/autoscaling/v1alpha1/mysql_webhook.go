@@ -26,6 +26,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // log is for logging in this package.
@@ -78,28 +79,24 @@ func (in *MySQLAutoscaler) SetDefaults() {
 var _ webhook.Validator = &MySQLAutoscaler{}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (in *MySQLAutoscaler) ValidateCreate() error {
+func (in *MySQLAutoscaler) ValidateCreate() (admission.Warnings, error) {
 	mysqlLog.Info("validate create", "name", in.Name)
-	return in.validate()
+	return nil, in.validate()
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (in *MySQLAutoscaler) ValidateUpdate(old runtime.Object) error {
+func (in *MySQLAutoscaler) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
 	mysqlLog.Info("validate create", "name", in.Name)
-	return in.validate()
+	return nil, in.validate()
 }
 
-func (_ MySQLAutoscaler) ValidateDelete() error {
-	return nil
+func (_ MySQLAutoscaler) ValidateDelete() (admission.Warnings, error) {
+	return nil, nil
 }
 
 func (in *MySQLAutoscaler) validate() error {
 	if in.Spec.DatabaseRef == nil {
 		return errors.New("databaseRef can't be empty")
 	}
-	return nil
-}
-
-func (in *MySQLAutoscaler) ValidateFields() error {
 	return nil
 }

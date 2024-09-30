@@ -21,9 +21,11 @@ import (
 	"path/filepath"
 
 	"kubedb.dev/apimachinery/apis"
+	"kubedb.dev/apimachinery/apis/catalog/v1alpha1"
 	"kubedb.dev/apimachinery/apis/kubedb"
 	"kubedb.dev/apimachinery/crds"
 
+	promapi "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"gomodules.xyz/pointer"
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,6 +35,7 @@ import (
 	"kmodules.xyz/client-go/apiextensions"
 	core_util "kmodules.xyz/client-go/core/v1"
 	meta_util "kmodules.xyz/client-go/meta"
+	"kmodules.xyz/client-go/policy/secomp"
 	appcat "kmodules.xyz/custom-resources/apis/appcatalog/v1alpha1"
 	mona "kmodules.xyz/monitoring-agent-api/api/v1"
 	ofst "kmodules.xyz/offshoot-api/api/v1"
@@ -40,6 +43,10 @@ import (
 
 func (_ PerconaXtraDB) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
 	return crds.MustCustomResourceDefinition(SchemeGroupVersion.WithResource(ResourcePluralPerconaXtraDB))
+}
+
+func (p *PerconaXtraDB) AsOwner() *metav1.OwnerReference {
+	return metav1.NewControllerRef(p, SchemeGroupVersion.WithKind(ResourceKindPerconaXtraDB))
 }
 
 var _ apis.ResourceInfo = &PerconaXtraDB{}
@@ -74,7 +81,7 @@ func (p PerconaXtraDB) ServiceLabels(alias ServiceAlias, extraLabels ...map[stri
 }
 
 func (p PerconaXtraDB) offshootLabels(selector, override map[string]string) map[string]string {
-	selector[meta_util.ComponentLabelKey] = ComponentDatabase
+	selector[meta_util.ComponentLabelKey] = kubedb.ComponentDatabase
 	return meta_util.FilterKeys(kubedb.GroupName, selector, meta_util.OverwriteKeys(nil, p.Labels, override))
 }
 
@@ -111,7 +118,28 @@ func (p PerconaXtraDB) PeerName(idx int) string {
 }
 
 func (p PerconaXtraDB) GetAuthSecretName() string {
-	return p.Spec.AuthSecret.Name
+	if p.Spec.AuthSecret != nil && p.Spec.AuthSecret.Name != "" {
+		return p.Spec.AuthSecret.Name
+	}
+	return meta_util.NameWithSuffix(p.OffshootName(), "auth")
+}
+
+func (p PerconaXtraDB) GetReplicationSecretName() string {
+	if p.Spec.SystemUserSecrets != nil &&
+		p.Spec.SystemUserSecrets.ReplicationUserSecret != nil &&
+		p.Spec.SystemUserSecrets.ReplicationUserSecret.Name != "" {
+		return p.Spec.SystemUserSecrets.ReplicationUserSecret.Name
+	}
+	return meta_util.NameWithSuffix(p.OffshootName(), "replication")
+}
+
+func (p PerconaXtraDB) GetMonitorSecretName() string {
+	if p.Spec.SystemUserSecrets != nil &&
+		p.Spec.SystemUserSecrets.MonitorUserSecret != nil &&
+		p.Spec.SystemUserSecrets.MonitorUserSecret.Name != "" {
+		return p.Spec.SystemUserSecrets.MonitorUserSecret.Name
+	}
+	return meta_util.NameWithSuffix(p.OffshootName(), "monitor")
 }
 
 func (p PerconaXtraDB) ClusterName() string {
@@ -155,11 +183,15 @@ func (p perconaXtraDBStatsService) ServiceMonitorAdditionalLabels() map[string]s
 }
 
 func (p perconaXtraDBStatsService) Path() string {
-	return DefaultStatsPath
+	return kubedb.DefaultStatsPath
 }
 
 func (p perconaXtraDBStatsService) Scheme() string {
 	return ""
+}
+
+func (p perconaXtraDBStatsService) TLSConfig() *promapi.TLSConfig {
+	return nil
 }
 
 func (p PerconaXtraDB) StatsService() mona.StatsAccessor {
@@ -167,20 +199,20 @@ func (p PerconaXtraDB) StatsService() mona.StatsAccessor {
 }
 
 func (p PerconaXtraDB) StatsServiceLabels() map[string]string {
-	return p.ServiceLabels(StatsServiceAlias, map[string]string{LabelRole: RoleStats})
+	return p.ServiceLabels(StatsServiceAlias, map[string]string{kubedb.LabelRole: kubedb.RoleStats})
 }
 
 func (p PerconaXtraDB) PrimaryServiceDNS() string {
 	return fmt.Sprintf("%s.%s.svc", p.ServiceName(), p.Namespace)
 }
 
-func (p *PerconaXtraDB) SetDefaults(topology *core_util.Topology) {
+func (p *PerconaXtraDB) SetDefaults(pVersion *v1alpha1.PerconaXtraDBVersion, topology *core_util.Topology) {
 	if p == nil {
 		return
 	}
 
 	if p.Spec.Replicas == nil {
-		p.Spec.Replicas = pointer.Int32P(PerconaXtraDBDefaultClusterSize)
+		p.Spec.Replicas = pointer.Int32P(kubedb.PerconaXtraDBDefaultClusterSize)
 	}
 
 	if p.Spec.StorageType == "" {
@@ -194,28 +226,62 @@ func (p *PerconaXtraDB) SetDefaults(topology *core_util.Topology) {
 		p.Spec.PodTemplate.Spec.ServiceAccountName = p.OffshootName()
 	}
 
-	if p.Spec.PodTemplate.Spec.SecurityContext == nil {
-		p.Spec.PodTemplate.Spec.SecurityContext = &core.PodSecurityContext{
-			RunAsUser:  pointer.Int64P(PerconaXtraDBMySQLUserGroupID),
-			RunAsGroup: pointer.Int64P(PerconaXtraDBMySQLUserGroupID),
-		}
-	} else {
-		if p.Spec.PodTemplate.Spec.SecurityContext.RunAsUser == nil {
-			p.Spec.PodTemplate.Spec.SecurityContext.RunAsUser = pointer.Int64P(PerconaXtraDBMySQLUserGroupID)
-		}
-		if p.Spec.PodTemplate.Spec.SecurityContext.RunAsGroup == nil {
-			p.Spec.PodTemplate.Spec.SecurityContext.RunAsGroup = pointer.Int64P(PerconaXtraDBMySQLUserGroupID)
-		}
-	}
 	// Need to set FSGroup equal to  p.Spec.PodTemplate.Spec.ContainerSecurityContext.RunAsGroup.
 	// So that /var/pv directory have the group permission for the RunAsGroup user GID.
 	// Otherwise, We will get write permission denied.
-	p.Spec.PodTemplate.Spec.SecurityContext.FSGroup = p.Spec.PodTemplate.Spec.SecurityContext.RunAsGroup
+	p.setDefaultContainerSecurityContext(pVersion, &p.Spec.PodTemplate)
 
-	p.Spec.Monitor.SetDefaults()
 	p.setDefaultAffinity(&p.Spec.PodTemplate, p.OffshootSelectors(), topology)
 	p.SetTLSDefaults()
-	apis.SetDefaultResourceLimits(&p.Spec.PodTemplate.Spec.Resources, DefaultResources)
+	apis.SetDefaultResourceLimits(&p.Spec.PodTemplate.Spec.Resources, kubedb.DefaultResources)
+	p.Spec.Monitor.SetDefaults()
+	if p.Spec.Monitor != nil && p.Spec.Monitor.Prometheus != nil {
+		if p.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsUser == nil {
+			p.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsUser = pVersion.Spec.SecurityContext.RunAsUser
+		}
+		if p.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsGroup == nil {
+			p.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsGroup = pVersion.Spec.SecurityContext.RunAsUser
+		}
+	}
+}
+
+func (p *PerconaXtraDB) setDefaultContainerSecurityContext(pVersion *v1alpha1.PerconaXtraDBVersion, podTemplate *ofst.PodTemplateSpec) {
+	if podTemplate == nil {
+		return
+	}
+	if podTemplate.Spec.ContainerSecurityContext == nil {
+		podTemplate.Spec.ContainerSecurityContext = &core.SecurityContext{}
+	}
+	if podTemplate.Spec.SecurityContext == nil {
+		podTemplate.Spec.SecurityContext = &core.PodSecurityContext{}
+	}
+	if podTemplate.Spec.SecurityContext.FSGroup == nil {
+		podTemplate.Spec.SecurityContext.FSGroup = pVersion.Spec.SecurityContext.RunAsUser
+	}
+	p.assignDefaultContainerSecurityContext(pVersion, podTemplate.Spec.ContainerSecurityContext)
+}
+
+func (p *PerconaXtraDB) assignDefaultContainerSecurityContext(pVersion *v1alpha1.PerconaXtraDBVersion, sc *core.SecurityContext) {
+	if sc.AllowPrivilegeEscalation == nil {
+		sc.AllowPrivilegeEscalation = pointer.BoolP(false)
+	}
+	if sc.Capabilities == nil {
+		sc.Capabilities = &core.Capabilities{
+			Drop: []core.Capability{"ALL"},
+		}
+	}
+	if sc.RunAsNonRoot == nil {
+		sc.RunAsNonRoot = pointer.BoolP(true)
+	}
+	if sc.RunAsUser == nil {
+		sc.RunAsUser = pVersion.Spec.SecurityContext.RunAsUser
+	}
+	if sc.RunAsGroup == nil {
+		sc.RunAsGroup = pVersion.Spec.SecurityContext.RunAsUser
+	}
+	if sc.SeccompProfile == nil {
+		sc.SeccompProfile = secomp.DefaultSeccompProfile()
+	}
 }
 
 // setDefaultAffinity
@@ -289,6 +355,12 @@ func (p *PerconaXtraDBSpec) GetPersistentSecrets() []string {
 	if p.AuthSecret != nil {
 		secrets = append(secrets, p.AuthSecret.Name)
 	}
+	if p.SystemUserSecrets != nil && p.SystemUserSecrets.ReplicationUserSecret != nil {
+		secrets = append(secrets, p.SystemUserSecrets.ReplicationUserSecret.Name)
+	}
+	if p.SystemUserSecrets != nil && p.SystemUserSecrets.MonitorUserSecret != nil {
+		secrets = append(secrets, p.SystemUserSecrets.MonitorUserSecret.Name)
+	}
 	return secrets
 }
 
@@ -309,18 +381,6 @@ func (p *PerconaXtraDB) GetCertSecretName(alias PerconaXtraDBCertificateAlias) s
 	return p.CertificateName(alias)
 }
 
-func (p *PerconaXtraDB) AuthSecretName() string {
-	return meta_util.NameWithSuffix(p.Name, "auth")
-}
-
-func (p *PerconaXtraDB) ReplicationSecretName() string {
-	return meta_util.NameWithSuffix(p.Name, "replication")
-}
-
-func (p *PerconaXtraDB) MonitorSecretName() string {
-	return meta_util.NameWithSuffix(p.Name, "monitor")
-}
-
 func (p *PerconaXtraDB) ReplicasAreReady(lister appslister.StatefulSetLister) (bool, string, error) {
 	// Desire number of statefulSets
 	expectedItems := 1
@@ -328,7 +388,7 @@ func (p *PerconaXtraDB) ReplicasAreReady(lister appslister.StatefulSetLister) (b
 }
 
 func (p *PerconaXtraDB) CertMountPath(alias PerconaXtraDBCertificateAlias) string {
-	return filepath.Join(PerconaXtraDBCertMountPath, string(alias))
+	return filepath.Join(kubedb.PerconaXtraDBCertMountPath, string(alias))
 }
 
 func (p *PerconaXtraDB) CertFilePath(certAlias PerconaXtraDBCertificateAlias, certFileName string) string {

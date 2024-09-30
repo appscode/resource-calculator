@@ -9,7 +9,7 @@ spec:
   group: catalog.kubedb.com
   names:
     categories:
-    - datastore
+    - catalog
     - kubedb
     - appscode
     kind: PostgresVersion
@@ -48,6 +48,65 @@ spec:
             type: object
           spec:
             properties:
+              archiver:
+                properties:
+                  addon:
+                    properties:
+                      name:
+                        enum:
+                        - mongodb-addon
+                        - postgres-addon
+                        - mysql-addon
+                        - mariadb-addon
+                        - mssqlserver-addon
+                        type: string
+                      tasks:
+                        properties:
+                          fullBackup:
+                            properties:
+                              name:
+                                type: string
+                            required:
+                            - name
+                            type: object
+                          fullBackupRestore:
+                            properties:
+                              name:
+                                type: string
+                            required:
+                            - name
+                            type: object
+                          manifestBackup:
+                            properties:
+                              name:
+                                type: string
+                            required:
+                            - name
+                            type: object
+                          manifestRestore:
+                            properties:
+                              name:
+                                type: string
+                            required:
+                            - name
+                            type: object
+                          volumeSnapshot:
+                            properties:
+                              name:
+                                type: string
+                            required:
+                            - name
+                            type: object
+                        type: object
+                    type: object
+                  walg:
+                    properties:
+                      image:
+                        type: string
+                    required:
+                    - image
+                    type: object
+                type: object
               coordinator:
                 properties:
                   image:
@@ -75,6 +134,13 @@ spec:
                 - PostgreSQL
                 type: string
               exporter:
+                properties:
+                  image:
+                    type: string
+                required:
+                - image
+                type: object
+              gitSyncer:
                 properties:
                   image:
                     type: string
@@ -150,7 +216,22 @@ spec:
                     - restoreTask
                     type: object
                 type: object
-              upgradeConstraints:
+              ui:
+                items:
+                  properties:
+                    disable:
+                      type: boolean
+                    name:
+                      type: string
+                    values:
+                      x-kubernetes-preserve-unknown-fields: true
+                    version:
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
+              updateConstraints:
                 properties:
                   allowlist:
                     items:

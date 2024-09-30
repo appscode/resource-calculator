@@ -63,12 +63,12 @@ func (e *ElasticsearchOpsRequest) GetObjectMeta() metav1.ObjectMeta {
 	return e.ObjectMeta
 }
 
-func (e *ElasticsearchOpsRequest) GetRequestType() OpsRequestType {
-	return e.Spec.Type
-}
-
 func (e *ElasticsearchOpsRequest) GetDBRefName() string {
 	return e.Spec.DatabaseRef.Name
+}
+
+func (e *ElasticsearchOpsRequest) GetRequestType() any {
+	return e.Spec.Type
 }
 
 func (e *ElasticsearchOpsRequest) GetStatus() OpsRequestStatus {

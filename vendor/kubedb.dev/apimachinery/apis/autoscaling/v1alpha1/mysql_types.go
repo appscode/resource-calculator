@@ -39,7 +39,7 @@ const (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:path=mysqlautoscalers,singular=mysqlautoscaler,shortName=myscaler,categories={datastore,kubedb,appscode}
+// +kubebuilder:resource:path=mysqlautoscalers,singular=mysqlautoscaler,shortName=myscaler,categories={autoscaler,kubedb,appscode}
 // +kubebuilder:subresource:status
 type MySQLAutoscaler struct {
 	metav1.TypeMeta `json:",inline"`
@@ -70,6 +70,9 @@ type MySQLAutoscalerSpec struct {
 }
 
 type MySQLComputeAutoscalerSpec struct {
+	// +optional
+	NodeTopology *NodeTopology `json:"nodeTopology,omitempty"`
+
 	MySQL *ComputeAutoscalerSpec `json:"mysql,omitempty"`
 }
 

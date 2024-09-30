@@ -129,6 +129,10 @@ const (
 	SubscriberMessageDBServerCritical     SubscriberMessage       = "Database Server is critical"
 	SubscriberMessageDBServerReady        SubscriberMessage       = "Database Server is Ready"
 
+	SubscriberConditionTypeDatabaseIsFound SubscriberConditionType = "DatabaseIsFound"
+	SubscriberMessageDatabaseIsFound       SubscriberMessage       = "Database is found"
+	SubscriberMessageDatabaseIsNotFound    SubscriberMessage       = "Database is not found"
+
 	SubscriberConditionTypeAllPublisherReady SubscriberConditionType = "AllPublisherReady"
 	SubscriberMessageAllPublisherAreReady    SubscriberMessage       = "All Publisher are ready"
 	SubscriberMessageAllPublisherAreNotReady SubscriberMessage       = "All Publisher are not ready"
@@ -139,7 +143,7 @@ const (
 
 	SubscriberConditionTypeAllTablesFound SubscriberConditionType = "AllTablesFound"
 	SubscriberMessageAllTablesNotFound    SubscriberMessage       = "All tables are not found"
-	SubscriberMessageAllTablesFound       SubscriberMessage       = "All tables are not found"
+	SubscriberMessageAllTablesFound       SubscriberMessage       = "All tables are found"
 
 	SubscriberConditionTypeSubscriptionIsSuccessful SubscriberConditionType = "SubscriptionIsSuccessful"
 	SubscriberMessageSubscriptionIsSuccessful       SubscriberMessage       = "Subscription is successful"
@@ -158,7 +162,7 @@ const (
 // +k8s:openapi-gen=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:path=subscribers,singular=subsriber,shortName=sub,categories={datastore,kubedb,appscode,all}
+// +kubebuilder:resource:path=subscribers,singular=subscriber,shortName=sub,categories={pgstore,kubedb,appscode}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.phase"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"

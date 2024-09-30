@@ -9,16 +9,15 @@ spec:
   group: postgres.kubedb.com
   names:
     categories:
-    - datastore
+    - pgstore
     - kubedb
     - appscode
-    - all
     kind: Subscriber
     listKind: SubscriberList
     plural: subscribers
     shortNames:
     - sub
-    singular: subsriber
+    singular: subscriber
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
@@ -105,6 +104,7 @@ spec:
                         items:
                           properties:
                             name:
+                              default: ""
                               type: string
                           type: object
                           x-kubernetes-map-type: atomic
@@ -116,6 +116,7 @@ spec:
               serverRef:
                 properties:
                   name:
+                    default: ""
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
@@ -140,14 +141,14 @@ spec:
                       type: integer
                     reason:
                       type: string
+                    severity:
+                      type: string
                     status:
                       type: string
                     type:
                       type: string
                   required:
                   - lastTransitionTime
-                  - message
-                  - reason
                   - status
                   - type
                   type: object

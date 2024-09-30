@@ -20,9 +20,11 @@ import (
 	"fmt"
 
 	"kubedb.dev/apimachinery/apis"
+	catalog "kubedb.dev/apimachinery/apis/catalog/v1alpha1"
 	"kubedb.dev/apimachinery/apis/kubedb"
 	"kubedb.dev/apimachinery/crds"
 
+	promapi "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"gomodules.xyz/pointer"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,6 +34,7 @@ import (
 	"kmodules.xyz/client-go/apiextensions"
 	core_util "kmodules.xyz/client-go/core/v1"
 	meta_util "kmodules.xyz/client-go/meta"
+	"kmodules.xyz/client-go/policy/secomp"
 	appcat "kmodules.xyz/custom-resources/apis/appcatalog/v1alpha1"
 	mona "kmodules.xyz/monitoring-agent-api/api/v1"
 	ofst "kmodules.xyz/offshoot-api/api/v1"
@@ -43,6 +46,10 @@ const (
 
 func (r Redis) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
 	return crds.MustCustomResourceDefinition(SchemeGroupVersion.WithResource(ResourcePluralRedis))
+}
+
+func (r *Redis) AsOwner() *metav1.OwnerReference {
+	return metav1.NewControllerRef(r, SchemeGroupVersion.WithKind(ResourceKindRedis))
 }
 
 var _ apis.ResourceInfo = &Redis{}
@@ -78,7 +85,7 @@ func (r Redis) ServiceLabels(alias ServiceAlias, extraLabels ...map[string]strin
 }
 
 func (r Redis) offshootLabels(selector, overrides map[string]string) map[string]string {
-	selector[meta_util.ComponentLabelKey] = ComponentDatabase
+	selector[meta_util.ComponentLabelKey] = kubedb.ComponentDatabase
 	return meta_util.FilterKeys(kubedb.GroupName, selector, meta_util.OverwriteKeys(nil, r.Labels, overrides))
 }
 
@@ -100,6 +107,13 @@ func (r Redis) ResourceSingular() string {
 
 func (r Redis) ResourcePlural() string {
 	return ResourcePluralRedis
+}
+
+func (r Redis) GetAuthSecretName() string {
+	if r.Spec.AuthSecret != nil && r.Spec.AuthSecret.Name != "" {
+		return r.Spec.AuthSecret.Name
+	}
+	return meta_util.NameWithSuffix(r.OffshootName(), "auth")
 }
 
 func (r Redis) ServiceName() string {
@@ -131,7 +145,7 @@ func (r Redis) StatefulSetNameWithShard(i int) string {
 }
 
 func (r Redis) Address() string {
-	return fmt.Sprintf("%v.%v.svc:%d", r.Name, r.Namespace, RedisDatabasePort)
+	return fmt.Sprintf("%v.%v.svc:%d", r.Name, r.Namespace, kubedb.RedisDatabasePort)
 }
 
 type redisApp struct {
@@ -171,11 +185,15 @@ func (p redisStatsService) ServiceMonitorAdditionalLabels() map[string]string {
 }
 
 func (r redisStatsService) Path() string {
-	return DefaultStatsPath
+	return kubedb.DefaultStatsPath
 }
 
 func (r redisStatsService) Scheme() string {
 	return ""
+}
+
+func (r redisStatsService) TLSConfig() *promapi.TLSConfig {
+	return nil
 }
 
 func (r Redis) StatsService() mona.StatsAccessor {
@@ -183,10 +201,10 @@ func (r Redis) StatsService() mona.StatsAccessor {
 }
 
 func (r Redis) StatsServiceLabels() map[string]string {
-	return r.ServiceLabels(StatsServiceAlias, map[string]string{LabelRole: RoleStats})
+	return r.ServiceLabels(StatsServiceAlias, map[string]string{kubedb.LabelRole: kubedb.RoleStats})
 }
 
-func (r *Redis) SetDefaults(topology *core_util.Topology) {
+func (r *Redis) SetDefaults(rdVersion *catalog.RedisVersion, topology *core_util.Topology) {
 	if r == nil {
 		return
 	}
@@ -211,21 +229,29 @@ func (r *Redis) SetDefaults(topology *core_util.Topology) {
 	if r.Spec.TerminationPolicy == "" {
 		r.Spec.TerminationPolicy = TerminationPolicyDelete
 	}
-
+	r.setDefaultContainerSecurityContext(rdVersion, &r.Spec.PodTemplate)
 	if r.Spec.PodTemplate.Spec.ServiceAccountName == "" {
 		r.Spec.PodTemplate.Spec.ServiceAccountName = r.OffshootName()
 	}
 
 	labels := r.OffshootSelectors()
 	if r.Spec.Mode == RedisModeCluster {
-		labels[RedisShardKey] = r.ShardNodeTemplate()
+		labels[kubedb.RedisShardKey] = r.ShardNodeTemplate()
 	}
 	r.setDefaultAffinity(&r.Spec.PodTemplate, labels, topology)
 
 	r.Spec.Monitor.SetDefaults()
+	if r.Spec.Monitor != nil && r.Spec.Monitor.Prometheus != nil {
+		if r.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsUser == nil {
+			r.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsUser = rdVersion.Spec.SecurityContext.RunAsUser
+		}
+		if r.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsGroup == nil {
+			r.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsGroup = rdVersion.Spec.SecurityContext.RunAsUser
+		}
+	}
 	r.SetTLSDefaults()
 	r.SetHealthCheckerDefaults()
-	apis.SetDefaultResourceLimits(&r.Spec.PodTemplate.Spec.Resources, DefaultResources)
+	apis.SetDefaultResourceLimits(&r.Spec.PodTemplate.Spec.Resources, kubedb.DefaultResources)
 }
 
 func (r *Redis) SetHealthCheckerDefaults() {
@@ -297,6 +323,45 @@ func (r *Redis) setDefaultAffinity(podTemplate *ofst.PodTemplateSpec, labels map
 				},
 			},
 		},
+	}
+}
+
+func (r *Redis) setDefaultContainerSecurityContext(rdVersion *catalog.RedisVersion, podTemplate *ofst.PodTemplateSpec) {
+	if podTemplate == nil {
+		return
+	}
+	if podTemplate.Spec.ContainerSecurityContext == nil {
+		podTemplate.Spec.ContainerSecurityContext = &corev1.SecurityContext{}
+	}
+	if podTemplate.Spec.SecurityContext == nil {
+		podTemplate.Spec.SecurityContext = &corev1.PodSecurityContext{}
+	}
+	if podTemplate.Spec.SecurityContext.FSGroup == nil {
+		podTemplate.Spec.SecurityContext.FSGroup = rdVersion.Spec.SecurityContext.RunAsUser
+	}
+	r.assignDefaultContainerSecurityContext(rdVersion, podTemplate.Spec.ContainerSecurityContext)
+}
+
+func (r *Redis) assignDefaultContainerSecurityContext(rdVersion *catalog.RedisVersion, sc *corev1.SecurityContext) {
+	if sc.AllowPrivilegeEscalation == nil {
+		sc.AllowPrivilegeEscalation = pointer.BoolP(false)
+	}
+	if sc.Capabilities == nil {
+		sc.Capabilities = &corev1.Capabilities{
+			Drop: []corev1.Capability{"ALL"},
+		}
+	}
+	if sc.RunAsNonRoot == nil {
+		sc.RunAsNonRoot = pointer.BoolP(true)
+	}
+	if sc.RunAsUser == nil {
+		sc.RunAsUser = rdVersion.Spec.SecurityContext.RunAsUser
+	}
+	if sc.RunAsGroup == nil {
+		sc.RunAsGroup = rdVersion.Spec.SecurityContext.RunAsUser
+	}
+	if sc.SeccompProfile == nil {
+		sc.SeccompProfile = secomp.DefaultSeccompProfile()
 	}
 }
 

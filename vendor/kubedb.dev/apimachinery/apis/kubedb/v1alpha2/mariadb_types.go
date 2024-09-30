@@ -68,13 +68,20 @@ type MariaDBSpec struct {
 	Storage *core.PersistentVolumeClaimSpec `json:"storage,omitempty"`
 
 	// Database authentication secret
-	AuthSecret *core.LocalObjectReference `json:"authSecret,omitempty"`
+	// +optional
+	AuthSecret *SecretReference `json:"authSecret,omitempty"`
+
+	// WsrepSSTMethod is used to define the STATE-SNAPSHOT-TRANSFER method to be used in the Galera cluster
+	// default value : rsync
+	// +kubebuilder:default:=rsync
+	// +optional
+	WsrepSSTMethod GaleraWsrepSSTMethod `json:"wsrepSSTMethod,omitempty"`
 
 	// Init is used to initialize database
 	// +optional
 	Init *InitSpec `json:"init,omitempty"`
 
-	// Monitor is used monitor database instance
+	// Monitor is used to monitor database instance
 	// +optional
 	Monitor *mona.AgentSpec `json:"monitor,omitempty"`
 
@@ -122,6 +129,10 @@ type MariaDBSpec struct {
 	// +optional
 	// +kubebuilder:default={periodSeconds: 10, timeoutSeconds: 10, failureThreshold: 1}
 	HealthChecker kmapi.HealthCheckSpec `json:"healthChecker"`
+
+	// Archiver controls database backup using Archiver CR
+	// +optional
+	Archiver *Archiver `json:"archiver,omitempty"`
 }
 
 // +kubebuilder:validation:Enum=server;archiver;metrics-exporter
@@ -131,6 +142,14 @@ const (
 	MariaDBServerCert   MariaDBCertificateAlias = "server"
 	MariaDBClientCert   MariaDBCertificateAlias = "client"
 	MariaDBExporterCert MariaDBCertificateAlias = "metrics-exporter"
+)
+
+// +kubebuilder:validation:Enum=rsync;mariabackup
+type GaleraWsrepSSTMethod string
+
+const (
+	GaleraWsrepSSTMethodRsync       GaleraWsrepSSTMethod = "rsync"
+	GaleraWsrepSSTMethodMariabackup GaleraWsrepSSTMethod = "mariabackup"
 )
 
 type MariaDBStatus struct {
@@ -144,6 +163,8 @@ type MariaDBStatus struct {
 	// Conditions applied to the database, such as approval or denial.
 	// +optional
 	Conditions []kmapi.Condition `json:"conditions,omitempty"`
+	// +optional
+	AuthSecret *Age `json:"authSecret,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

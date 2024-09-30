@@ -1,0 +1,72 @@
+apiVersion: catalog.kubedb.com/v1alpha1
+kind: PostgresVersion
+metadata:
+  name: "10.23"
+spec:
+  coordinator:
+    image: ghcr.io/kubedb/pg-coordinator:v0.32.0
+  db:
+    baseOS: alpine
+    image: ghcr.io/appscode-images/postgres:10.23-alpine
+  distribution: Official
+  exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+  initContainer:
+    image: ghcr.io/kubedb/postgres-init:0.15.0
+  podSecurityPolicies:
+    databasePolicyName: postgres-db
+  securityContext:
+    runAsAnyNonRoot: false
+    runAsUser: 70
+  stash:
+    addon:
+      backupTask:
+        name: postgres-backup-10.14
+      restoreTask:
+        name: postgres-restore-10.14
+  ui:
+  - name: pgadmin
+    version: v2024.4.27
+  - name: dbgate
+    version: v2024.4.27
+  updateConstraints:
+    allowlist:
+    - '>= 11.22, <= 16.4'
+  version: "10.23"
+
+---
+apiVersion: catalog.kubedb.com/v1alpha1
+kind: PostgresVersion
+metadata:
+  name: 10.23-bullseye
+spec:
+  coordinator:
+    image: ghcr.io/kubedb/pg-coordinator:v0.32.0
+  db:
+    baseOS: bullseye
+    image: ghcr.io/appscode-images/postgres:10.23-bullseye
+  distribution: Official
+  exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+  initContainer:
+    image: ghcr.io/kubedb/postgres-init:0.15.0
+  podSecurityPolicies:
+    databasePolicyName: postgres-db
+  securityContext:
+    runAsAnyNonRoot: true
+    runAsUser: 999
+  stash:
+    addon:
+      backupTask:
+        name: postgres-backup-10.14
+      restoreTask:
+        name: postgres-restore-10.14
+  ui:
+  - name: pgadmin
+    version: v2024.4.27
+  - name: dbgate
+    version: v2024.4.27
+  updateConstraints:
+    allowlist:
+    - '>= 11.22, <= 16.4'
+  version: "10.23"

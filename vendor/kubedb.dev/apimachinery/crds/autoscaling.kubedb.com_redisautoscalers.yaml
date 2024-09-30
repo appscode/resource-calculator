@@ -9,7 +9,7 @@ spec:
   group: autoscaling.kubedb.com
   names:
     categories:
-    - datastore
+    - autoscaler
     - kubedb
     - appscode
     kind: RedisAutoscaler
@@ -77,6 +77,19 @@ spec:
                         type: integer
                       trigger:
                         type: string
+                    type: object
+                  nodeTopology:
+                    properties:
+                      name:
+                        type: string
+                      scaleDownDiffPercentage:
+                        default: 25
+                        format: int32
+                        type: integer
+                      scaleUpDiffPercentage:
+                        default: 15
+                        format: int32
+                        type: integer
                     type: object
                   sentinel:
                     properties:
@@ -170,6 +183,7 @@ spec:
               databaseRef:
                 properties:
                   name:
+                    default: ""
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
@@ -193,14 +207,34 @@ spec:
                         - Offline
                         - Online
                         type: string
+                      scalingRules:
+                        items:
+                          properties:
+                            appliesUpto:
+                              type: string
+                            threshold:
+                              type: string
+                          required:
+                          - appliesUpto
+                          - threshold
+                          type: object
+                        type: array
                       scalingThreshold:
                         format: int32
                         type: integer
                       trigger:
                         type: string
+                      upperBound:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
                       usageThreshold:
                         format: int32
                         type: integer
+                    required:
+                    - expansionMode
                     type: object
                   sentinel:
                     properties:
@@ -209,14 +243,34 @@ spec:
                         - Offline
                         - Online
                         type: string
+                      scalingRules:
+                        items:
+                          properties:
+                            appliesUpto:
+                              type: string
+                            threshold:
+                              type: string
+                          required:
+                          - appliesUpto
+                          - threshold
+                          type: object
+                        type: array
                       scalingThreshold:
                         format: int32
                         type: integer
                       trigger:
                         type: string
+                      upperBound:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
                       usageThreshold:
                         format: int32
                         type: integer
+                    required:
+                    - expansionMode
                     type: object
                   standalone:
                     properties:
@@ -225,14 +279,34 @@ spec:
                         - Offline
                         - Online
                         type: string
+                      scalingRules:
+                        items:
+                          properties:
+                            appliesUpto:
+                              type: string
+                            threshold:
+                              type: string
+                          required:
+                          - appliesUpto
+                          - threshold
+                          type: object
+                        type: array
                       scalingThreshold:
                         format: int32
                         type: integer
                       trigger:
                         type: string
+                      upperBound:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
                       usageThreshold:
                         format: int32
                         type: integer
+                    required:
+                    - expansionMode
                     type: object
                 type: object
             required:
@@ -329,14 +403,14 @@ spec:
                       type: integer
                     reason:
                       type: string
+                    severity:
+                      type: string
                     status:
                       type: string
                     type:
                       type: string
                   required:
                   - lastTransitionTime
-                  - message
-                  - reason
                   - status
                   - type
                   type: object

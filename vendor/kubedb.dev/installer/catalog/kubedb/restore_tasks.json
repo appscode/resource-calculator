@@ -1,0 +1,145 @@
+{
+  "elasticsearch-restore-6.8.0": [
+    "xpack-6.8.23"
+  ],
+  "elasticsearch-restore-7.14.0": [
+    "xpack-7.17.23",
+    "xpack-7.17.15",
+    "xpack-7.16.3",
+    "opensearch-2.16.0",
+    "opensearch-2.14.0",
+    "opensearch-2.11.1",
+    "opensearch-2.8.0",
+    "opensearch-2.5.0",
+    "opensearch-2.0.1",
+    "opensearch-1.3.18",
+    "opensearch-1.3.13",
+    "opensearch-1.2.4",
+    "opensearch-1.1.0"
+  ],
+  "elasticsearch-restore-7.3.2": [
+    "xpack-7.14.2",
+    "xpack-7.13.4",
+    "searchguard-7.9.3"
+  ],
+  "elasticsearch-restore-8.2.0": [
+    "xpack-8.15.0",
+    "xpack-8.14.3",
+    "xpack-8.14.1",
+    "xpack-8.13.4",
+    "xpack-8.11.4",
+    "xpack-8.11.1",
+    "xpack-8.8.2",
+    "xpack-8.6.2",
+    "xpack-8.5.3",
+    "xpack-8.2.3"
+  ],
+  "mariadb-restore-10.5.8": [
+    "11.5.2",
+    "11.4.3",
+    "11.3.2",
+    "11.2.2",
+    "11.1.3",
+    "11.0.4",
+    "10.11.6",
+    "10.10.7",
+    "10.6.16",
+    "10.5.23",
+    "10.4.32"
+  ],
+  "mongodb-restore-4.2.3": [
+    "4.2.24"
+  ],
+  "mongodb-restore-4.4.6": [
+    "percona-4.4.26",
+    "percona-4.2.24",
+    "4.4.26"
+  ],
+  "mongodb-restore-5.0.15": [
+    "5.0.26",
+    "5.0.23"
+  ],
+  "mongodb-restore-6.0.5": [
+    "percona-7.0.4",
+    "percona-6.0.12",
+    "percona-5.0.23",
+    "7.0.8",
+    "7.0.5",
+    "6.0.12"
+  ],
+  "mysql-restore-5.7.25": [
+    "5.7.44",
+    "5.7.42-debian"
+  ],
+  "mysql-restore-8.0.21": [
+    "8.4.2",
+    "8.2.0",
+    "8.1.0",
+    "8.0.36",
+    "8.0.35",
+    "8.0.31-innodb"
+  ],
+  "perconaxtradb-restore-5.7": [
+    "8.0.31",
+    "8.0.28",
+    "8.0.26"
+  ],
+  "postgres-restore-10.14": [
+    "10.23-bullseye",
+    "10.23"
+  ],
+  "postgres-restore-11.9": [
+    "11.22-bookworm",
+    "11.22",
+    "11-bullseye-postgis"
+  ],
+  "postgres-restore-12.4": [
+    "12.17-bookworm",
+    "12.17",
+    "12-bullseye-postgis"
+  ],
+  "postgres-restore-13.1": [
+    "timescaledb-2.14.2-pg13",
+    "13.13-bookworm",
+    "13.13",
+    "13-bullseye-postgis"
+  ],
+  "postgres-restore-14.0": [
+    "timescaledb-2.14.2-pg14",
+    "14.13-bookworm",
+    "14.13",
+    "14.10-bookworm",
+    "14.10",
+    "14-bullseye-postgis"
+  ],
+  "postgres-restore-15.1": [
+    "timescaledb-2.14.2-pg15",
+    "15.8-bookworm",
+    "15.8",
+    "15.5-bookworm",
+    "15.5",
+    "15-bullseye-postgis"
+  ],
+  "postgres-restore-16.1": [
+    "timescaledb-2.14.2-pg16",
+    "16.4-bookworm",
+    "16.4",
+    "16.2-bullseye-postgis",
+    "16.1-bookworm",
+    "16.1"
+  ],
+  "redis-restore-5.0.13": [
+    "5.0.14"
+  ],
+  "redis-restore-6.2.5": [
+    "6.2.14",
+    "6.0.20"
+  ],
+  "redis-restore-7.0.5": [
+    "7.4.0",
+    "7.2.4",
+    "7.2.3",
+    "7.0.15",
+    "7.0.14"
+  ]
+}

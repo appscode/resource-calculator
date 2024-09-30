@@ -36,22 +36,23 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/metadata"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
+	"kmodules.xyz/apiversion"
 	core_util "kmodules.xyz/client-go/core/v1"
 	du "kmodules.xyz/client-go/dynamic"
 	"kmodules.xyz/client-go/tools/parser"
 	resourcemetrics "kmodules.xyz/resource-metrics"
 	"kmodules.xyz/resource-metrics/api"
 	catalogv1alpha1 "kubedb.dev/apimachinery/apis/catalog/v1alpha1"
-	"kubedb.dev/apimachinery/apis/kubedb"
 	kubedbv1alpha1 "kubedb.dev/apimachinery/apis/kubedb/v1alpha1"
 	kubedbv1alpha2 "kubedb.dev/apimachinery/apis/kubedb/v1alpha2"
 	cs "kubedb.dev/apimachinery/client/clientset/versioned"
-	"kubedb.dev/installer/catalog"
-	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+	catalog "kubedb.dev/installer/catalog/kubedb"
 	"sigs.k8s.io/yaml"
 )
 
@@ -80,7 +81,7 @@ func NewCmdCalculate(clientGetter genericclioptions.RESTClientGetter) *cobra.Com
 					if err != nil {
 						return err
 					}
-					stats, err := calculate(ctx, cfg, groups, format)
+					stats, err := calculate(ctx, cfg, sets.Set[string](groups), format)
 					if err != nil {
 						return err
 					}
@@ -91,7 +92,7 @@ func NewCmdCalculate(clientGetter genericclioptions.RESTClientGetter) *cobra.Com
 				if err != nil {
 					return err
 				}
-				stats, err := calculate(kubecfg.CurrentContext, cfg, groups, format)
+				stats, err := calculate(kubecfg.CurrentContext, cfg, sets.Set[string](groups), format)
 				if err != nil {
 					return err
 				}
@@ -144,20 +145,13 @@ type ResourceStats struct {
 	Stats      `json:",inline"`
 }
 
-func calculate(ctxName string, cfg *rest.Config, apiGroups sets.String, format string) (*ClusterStats, error) {
+func calculate(ctxName string, cfg *rest.Config, apiGroups sets.Set[string], format string) (*ClusterStats, error) {
 	client, err := dynamic.NewForConfig(cfg)
 	if err != nil {
 		return nil, err
 	}
-	mapper, err := apiutil.NewDiscoveryRESTMapper(cfg)
-	if err != nil {
-		return nil, err
-	}
-	topology, err := core_util.DetectTopology(context.TODO(), metadata.NewForConfigOrDie(cfg))
-	if err != nil {
-		return nil, err
-	}
-	kubedbclient, err := cs.NewForConfig(cfg)
+	kc, err := kubernetes.NewForConfig(cfg)
+	mapper := restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(kc))
 	if err != nil {
 		return nil, err
 	}
@@ -167,39 +161,38 @@ func calculate(ctxName string, cfg *rest.Config, apiGroups sets.String, format s
 		return nil, err
 	}
 
-	catalogmap, err := LoadCatalog(kubedbclient, false)
-	if err != nil {
-		return nil, err
-	}
-
 	rsmap := map[schema.GroupVersionKind]Stats{}
 	var (
 		totalCount int
 		rrTotal    core.ResourceList
 	)
+
+	gks := make(map[schema.GroupKind]string)
 	for _, gvk := range api.RegisteredTypes() {
-		if apiGroups.Len() > 0 && !apiGroups.Has(gvk.Group) {
+		if !isResourceAvailable(mapper, gvk) {
 			continue
 		}
 
-		var mapping *meta.RESTMapping
-		if gvk.Group == kubedb.GroupName {
-			mapping, err = mapper.RESTMapping(gvk.GroupKind())
-			if meta.IsNoMatchError(err) {
-				rsmap[gvk] = Stats{} // keep track
-				continue
-			} else if err != nil {
-				return nil, err
-			}
-			gvk = mapping.GroupVersionKind // v1alpha1 or v1alpha2
-		} else {
-			mapping, err = mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
-			if meta.IsNoMatchError(err) {
-				rsmap[gvk] = Stats{} // keep track
-				continue
-			} else if err != nil {
-				return nil, err
-			}
+		gk := gvk.GroupKind()
+		if v, exists := gks[gk]; !exists || apiversion.MustCompare(v, gvk.Version) < 0 {
+			gks[gk] = gvk.Version
+		}
+	}
+	for gk, v := range gks {
+		if apiGroups.Len() > 0 && !apiGroups.Has(gk.Group) {
+			continue
+		}
+		gvk := schema.GroupVersionKind{
+			Group:   gk.Group,
+			Version: v,
+			Kind:    gk.Kind,
+		}
+		mapping, err := mapper.RESTMapping(gk, v)
+		if meta.IsNoMatchError(err) {
+			rsmap[gvk] = Stats{} // keep track
+			continue
+		} else if err != nil {
+			return nil, err
 		}
 
 		var ri dynamic.ResourceInterface
@@ -214,14 +207,6 @@ func calculate(ctxName string, cfg *rest.Config, apiGroups sets.String, format s
 			var summary core.ResourceList
 			for _, item := range result.Items {
 				content := item.UnstructuredContent()
-
-				if gvk.Group == kubedb.GroupName && gvk.Version == kubedbv1alpha1.SchemeGroupVersion.Version {
-					content, err = Convert_kubedb_v1alpha1_To_v1alpha2(item, catalogmap, topology)
-					if err != nil {
-						return nil, err
-					}
-				}
-
 				rr, err := resourcemetrics.AppResourceLimits(content)
 				if err != nil {
 					return nil, err
@@ -288,6 +273,11 @@ func calculate(ctxName string, cfg *rest.Config, apiGroups sets.String, format s
 	return nil, w.Flush()
 }
 
+func isResourceAvailable(mapper *restmapper.DeferredDiscoveryRESTMapper, gvk schema.GroupVersionKind) bool {
+	_, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	return err == nil
+}
+
 const TerminationPolicyPause kubedbv1alpha2.TerminationPolicy = "Pause"
 
 func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalogmap map[KindVersion]interface{}, topology *core_util.Topology) (map[string]interface{}, error) {
@@ -351,8 +341,8 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 		if out.Annotations != nil {
 			delete(out.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
 		}
-		if out.Spec.TerminationPolicy == TerminationPolicyPause {
-			out.Spec.TerminationPolicy = kubedbv1alpha2.TerminationPolicyHalt
+		if out.Spec.DeletionPolicy == TerminationPolicyPause {
+			out.Spec.DeletionPolicy = kubedbv1alpha2.TerminationPolicyHalt
 		}
 
 		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
@@ -368,7 +358,15 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 		}
 		out.APIVersion = kubedbv1alpha2.SchemeGroupVersion.String()
 		out.Kind = in.Kind
-		out.SetDefaults(topology)
+
+		if cv, ok := catalogmap[KindVersion{
+			Kind:    gvk.Kind,
+			Version: out.Spec.Version,
+		}]; ok {
+			out.SetDefaults(cv.(*catalogv1alpha1.MariaDBVersion), topology)
+		} else {
+			return nil, fmt.Errorf("unknown %v version %s", gvk, out.Spec.Version)
+		}
 		out.ObjectMeta = metav1.ObjectMeta{
 			Name:            out.GetName(),
 			Namespace:       out.GetNamespace(),
@@ -396,7 +394,15 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 		}
 		out.APIVersion = kubedbv1alpha2.SchemeGroupVersion.String()
 		out.Kind = in.Kind
-		out.SetDefaults()
+
+		if cv, ok := catalogmap[KindVersion{
+			Kind:    gvk.Kind,
+			Version: out.Spec.Version,
+		}]; ok {
+			out.SetDefaults(cv.(*catalogv1alpha1.MemcachedVersion))
+		} else {
+			return nil, fmt.Errorf("unknown %v version %s", gvk, out.Spec.Version)
+		}
 		out.ObjectMeta = metav1.ObjectMeta{
 			Name:            out.GetName(),
 			Namespace:       out.GetNamespace(),
@@ -459,7 +465,15 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 		}
 		out.APIVersion = kubedbv1alpha2.SchemeGroupVersion.String()
 		out.Kind = in.Kind
-		out.SetDefaults(topology)
+
+		if cv, ok := catalogmap[KindVersion{
+			Kind:    gvk.Kind,
+			Version: out.Spec.Version,
+		}]; ok {
+			out.SetDefaults(cv.(*catalogv1alpha1.MySQLVersion), topology)
+		} else {
+			return nil, fmt.Errorf("unknown %v version %s", gvk, out.Spec.Version)
+		}
 		out.ObjectMeta = metav1.ObjectMeta{
 			Name:            out.GetName(),
 			Namespace:       out.GetNamespace(),
@@ -487,7 +501,15 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 		}
 		out.APIVersion = kubedbv1alpha2.SchemeGroupVersion.String()
 		out.Kind = in.Kind
-		out.SetDefaults(topology)
+
+		if cv, ok := catalogmap[KindVersion{
+			Kind:    gvk.Kind,
+			Version: out.Spec.Version,
+		}]; ok {
+			out.SetDefaults(cv.(*catalogv1alpha1.PerconaXtraDBVersion), topology)
+		} else {
+			return nil, fmt.Errorf("unknown %v version %s", gvk, out.Spec.Version)
+		}
 		out.ObjectMeta = metav1.ObjectMeta{
 			Name:            out.GetName(),
 			Namespace:       out.GetNamespace(),
@@ -553,7 +575,15 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 		}
 		out.APIVersion = kubedbv1alpha2.SchemeGroupVersion.String()
 		out.Kind = in.Kind
-		out.SetDefaults(topology)
+
+		if cv, ok := catalogmap[KindVersion{
+			Kind:    gvk.Kind,
+			Version: out.Spec.Version,
+		}]; ok {
+			out.SetDefaults(cv.(*catalogv1alpha1.RedisVersion), topology)
+		} else {
+			return nil, fmt.Errorf("unknown %v version %s", gvk, out.Spec.Version)
+		}
 		out.ObjectMeta = metav1.ObjectMeta{
 			Name:            out.GetName(),
 			Namespace:       out.GetNamespace(),
