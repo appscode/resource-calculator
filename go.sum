@@ -604,8 +604,8 @@ k8s.io/utils v0.0.0-20240502163921-fe8a2dddb1d0 h1:jgGTlFYnhF1PM1Ax/lAlxUPE+KfCI
 k8s.io/utils v0.0.0-20240502163921-fe8a2dddb1d0/go.mod h1:OLgZIPagt7ERELqWJFomSt595RzquPNLL48iOWgYOg0=
 kmodules.xyz/apiversion v0.2.0 h1:vAQYqZFm4xu4pbB1cAdHbFEPES6EQkcR4wc06xdTOWk=
 kmodules.xyz/apiversion v0.2.0/go.mod h1:oPX8g8LvlPdPX3Yc5YvCzJHQnw3YF/X4/jdW0b1am80=
-kmodules.xyz/client-go v0.30.17 h1:Ec22XIkAsN8Fwd001P0EzRTsfeibIFkzkZ6oYjLe5LQ=
-kmodules.xyz/client-go v0.30.17/go.mod h1:CAu+JlA8RVGtj6LQHu0Q1w2mnFUajuti49c7T1AvGdM=
+kmodules.xyz/client-go v0.30.31 h1:P+ZslW5QcgMnMoxo1ZMJrNNcwRwA1BiFct1JvcRQEj0=
+kmodules.xyz/client-go v0.30.31/go.mod h1:CAu+JlA8RVGtj6LQHu0Q1w2mnFUajuti49c7T1AvGdM=
 kmodules.xyz/custom-resources v0.30.0 h1:vR3CbseHMLwR4GvtcJJuRuwIV8voKqFqNii27rMcm1o=
 kmodules.xyz/custom-resources v0.30.0/go.mod h1:ZsTuI2mLG2s3byre7bHmpxJ9w0HDqAkRTL1+izGFI24=
 kmodules.xyz/monitoring-agent-api v0.30.1 h1:OdYucfl7OblBqVhCyEcOC3HvUrOKtDh8lcMHmV58yxA=

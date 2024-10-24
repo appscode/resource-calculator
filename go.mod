@@ -15,7 +15,7 @@ require (
 	k8s.io/component-base v0.30.2
 	k8s.io/kubectl v0.30.2
 	kmodules.xyz/apiversion v0.2.0
-	kmodules.xyz/client-go v0.30.17
+	kmodules.xyz/client-go v0.30.31
 	kmodules.xyz/resource-metrics v0.30.4
 	kubedb.dev/apimachinery v0.48.1-0.20240927052546-9a3f8cf03a27
 	kubedb.dev/installer v0.17.2-0.20240930041620-aaea12511085
