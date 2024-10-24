@@ -17,16 +17,20 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"context"
 	"errors"
+	"fmt"
 
-	dbapi "kubedb.dev/apimachinery/apis/kubedb/v1alpha2"
+	dbapi "kubedb.dev/apimachinery/apis/kubedb/v1"
 	opsapi "kubedb.dev/apimachinery/apis/ops/v1alpha1"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // log is for logging in this package.
@@ -75,37 +79,41 @@ func (in *RedisAutoscaler) setOpsReqOptsDefaults() {
 	}
 }
 
-func (in *RedisAutoscaler) SetDefaults() {
-}
-
 // +kubebuilder:webhook:path=/validate-schema-kubedb-com-v1alpha1-redisautoscaler,mutating=false,failurePolicy=fail,sideEffects=None,groups=schema.kubedb.com,resources=redisautoscalers,verbs=create;update;delete,versions=v1alpha1,name=vredisautoscaler.kb.io,admissionReviewVersions={v1,v1beta1}
 
 var _ webhook.Validator = &RedisAutoscaler{}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (in *RedisAutoscaler) ValidateCreate() error {
+func (in *RedisAutoscaler) ValidateCreate() (admission.Warnings, error) {
 	redisLog.Info("validate create", "name", in.Name)
-	return in.validate()
+	return nil, in.validate()
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (in *RedisAutoscaler) ValidateUpdate(old runtime.Object) error {
-	redisLog.Info("validate create", "name", in.Name)
-	return in.validate()
+func (in *RedisAutoscaler) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
+	redisLog.Info("validate update", "name", in.Name)
+	return nil, in.validate()
 }
 
-func (_ RedisAutoscaler) ValidateDelete() error {
-	return nil
+func (_ RedisAutoscaler) ValidateDelete() (admission.Warnings, error) {
+	return nil, nil
 }
 
 func (in *RedisAutoscaler) validate() error {
 	if in.Spec.DatabaseRef == nil {
 		return errors.New("databaseRef can't be empty")
 	}
-	return nil
-}
 
-func (in *RedisAutoscaler) ValidateFields(rd *dbapi.Redis) error {
+	var rd dbapi.Redis
+	err := DefaultClient.Get(context.TODO(), types.NamespacedName{
+		Name:      in.Spec.DatabaseRef.Name,
+		Namespace: in.Namespace,
+	}, &rd)
+	if err != nil {
+		_ = fmt.Errorf("can't get Redis %s/%s \n", in.Namespace, in.Spec.DatabaseRef.Name)
+		return err
+	}
+
 	if in.Spec.Compute != nil {
 		cm := in.Spec.Compute
 		if rd.Spec.Mode == dbapi.RedisModeCluster {

@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+//go:generate go-enum --mustparse --names --values
 package v1alpha1
 
 import (
@@ -25,6 +26,7 @@ import (
 )
 
 const (
+	ResourceCodeProxySQLOpsRequest     = "prxops"
 	ResourceKindProxySQLOpsRequest     = "ProxySQLOpsRequest"
 	ResourceSingularProxySQLOpsRequest = "proxysqlopsrequest"
 	ResourcePluralProxySQLOpsRequest   = "proxysqlopsrequests"
@@ -37,7 +39,7 @@ const (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:path=proxysqlopsrequests,singular=proxysqlopsrequest,shortName=proxyops,categories={datastore,kubedb,appscode}
+// +kubebuilder:resource:path=proxysqlopsrequests,singular=proxysqlopsrequest,shortName=prxops,categories={ops,kubedb,appscode}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Type",type="string",JSONPath=".spec.type"
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.phase"
@@ -54,15 +56,13 @@ type ProxySQLOpsRequestSpec struct {
 	// Specifies the ProxySQL reference
 	ProxyRef core.LocalObjectReference `json:"proxyRef"`
 	// Specifies the ops request type: Upgrade, HorizontalScaling, VerticalScaling etc.
-	Type OpsRequestType `json:"type"`
+	Type ProxySQLOpsRequestType `json:"type"`
 	// Specifies information necessary for upgrading ProxySQL
-	Upgrade *ProxySQLUpgradeSpec `json:"upgrade,omitempty"`
+	UpdateVersion *ProxySQLUpdateVersionSpec `json:"updateVersion,omitempty"`
 	// Specifies information necessary for horizontal scaling
 	HorizontalScaling *ProxySQLHorizontalScalingSpec `json:"horizontalScaling,omitempty"`
 	// Specifies information necessary for vertical scaling
 	VerticalScaling *ProxySQLVerticalScalingSpec `json:"verticalScaling,omitempty"`
-	// Specifies information necessary for volume expansion
-	VolumeExpansion *ProxySQLVolumeExpansionSpec `json:"volumeExpansion,omitempty"`
 	// Specifies information necessary for custom configuration of ProxySQL
 	Configuration *ProxySQLCustomConfigurationSpec `json:"configuration,omitempty"`
 	// Specifies information necessary for configuring TLS
@@ -76,11 +76,15 @@ type ProxySQLOpsRequestSpec struct {
 	Apply ApplyOption `json:"apply,omitempty"`
 }
 
+// +kubebuilder:validation:Enum=UpdateVersion;HorizontalScaling;VerticalScaling;Restart;Reconfigure;ReconfigureTLS
+// ENUM(UpdateVersion, HorizontalScaling, VerticalScaling, Restart, Reconfigure, ReconfigureTLS)
+type ProxySQLOpsRequestType string
+
 // ProxySQLReplicaReadinessCriteria is the criteria for checking readiness of a ProxySQL pod
 // after updating, horizontal scaling etc.
 type ProxySQLReplicaReadinessCriteria struct{}
 
-type ProxySQLUpgradeSpec struct {
+type ProxySQLUpdateVersionSpec struct {
 	// Specifies the target version name from catalog
 	TargetVersion     string                            `json:"targetVersion,omitempty"`
 	ReadinessCriteria *ProxySQLReplicaReadinessCriteria `json:"readinessCriteria,omitempty"`
@@ -94,11 +98,8 @@ type ProxySQLHorizontalScalingSpec struct {
 
 // ProxySQLVerticalScalingSpec is the spec for ProxySQL vertical scaling
 type ProxySQLVerticalScalingSpec struct {
-	ReadinessCriteria *ProxySQLReplicaReadinessCriteria `json:"readinessCriteria,omitempty"`
+	ProxySQL *PodResources `json:"proxysql,omitempty"`
 }
-
-// ProxySQLVolumeExpansionSpec is the spec for ProxySQL volume expansion
-type ProxySQLVolumeExpansionSpec struct{}
 
 type ProxySQLCustomConfiguration struct {
 	ConfigMap *core.LocalObjectReference `json:"configMap,omitempty"`
