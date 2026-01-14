@@ -1,0 +1,17 @@
+apiVersion: catalog.kubedb.com/v1alpha1
+kind: ProxySQLVersion
+metadata:
+  name: 3.0.1-debian
+spec:
+  exporter:
+    image: ghcr.io/kubedb/proxysql-exporter:v1.1.0
+  podSecurityPolicies:
+    databasePolicyName: proxysql-db
+  proxysql:
+    image: ghcr.io/kubedb/proxysql:3.0.1-debian
+  securityContext:
+    runAsUser: 999
+  updateConstraints:
+    allowlist:
+    - '>= 3.0.1-debian, <= 3.0.1-debian'
+  version: 3.0.1-debian

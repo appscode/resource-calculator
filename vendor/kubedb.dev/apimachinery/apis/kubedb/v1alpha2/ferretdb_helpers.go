@@ -26,6 +26,7 @@ import (
 	"kubedb.dev/apimachinery/apis/kubedb"
 	"kubedb.dev/apimachinery/crds"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/fatih/structs"
 	v1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"gomodules.xyz/pointer"
@@ -43,6 +44,7 @@ import (
 	mona "kmodules.xyz/monitoring-agent-api/api/v1"
 	ofst "kmodules.xyz/offshoot-api/api/v2"
 	pslister "kubeops.dev/petset/client/listers/apps/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func (f *FerretDB) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
@@ -98,8 +100,31 @@ func (f *FerretDB) OffshootLabels() map[string]string {
 	return f.offshootLabels(f.OffshootSelectors(), nil)
 }
 
-func (r *FerretDB) PetSetName() string {
-	return r.OffshootName()
+func (f *FerretDB) SecondaryServerName() string {
+	if f.Spec.Server.Secondary == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s-%s", f.OffshootName(), kubedb.FerretDBServerTypeSecondary)
+}
+
+func (f *FerretDB) PrimaryServerSelectors() map[string]string {
+	return meta_util.OverwriteKeys(f.OffshootSelectors(), map[string]string{
+		kubedb.FerretDBPrimaryLabelKey: f.OffshootName(),
+	})
+}
+
+func (f *FerretDB) PrimaryServerLabels() map[string]string {
+	return meta_util.OverwriteKeys(f.OffshootLabels(), f.PrimaryServerSelectors())
+}
+
+func (f *FerretDB) SecondaryServerSelectors() map[string]string {
+	return meta_util.OverwriteKeys(f.OffshootSelectors(), map[string]string{
+		kubedb.FerretDBSecondaryLabelKey: f.SecondaryServerName(),
+	})
+}
+
+func (f *FerretDB) SecondaryServerLabels() map[string]string {
+	return meta_util.OverwriteKeys(f.OffshootLabels(), f.SecondaryServerSelectors())
 }
 
 func (f *FerretDB) offshootLabels(selector, override map[string]string) map[string]string {
@@ -117,7 +142,7 @@ func (f *FerretDB) GetAuthSecretName() string {
 func (f *FerretDB) GetPersistentSecrets() []string {
 	var secrets []string
 	if f.Spec.AuthSecret != nil {
-		secrets = append(secrets, f.Spec.AuthSecret.Name)
+		secrets = append(secrets, f.GetAuthSecretName())
 	}
 	return secrets
 }
@@ -156,6 +181,10 @@ func (f *FerretDB) GetExternalBackendClientSecretName() string {
 	return f.Name + "-ext-pg-client-cert"
 }
 
+func (f *FerretDB) GetBackendConnectionSecretName() string {
+	return f.OffshootName() + "-backend-connection"
+}
+
 func (f *FerretDB) GetSecretVolumeName(secretName string) string {
 	return secretName + "-vol"
 }
@@ -172,60 +201,78 @@ func (f *FerretDB) SetHealthCheckerDefaults() {
 	}
 }
 
-func (f *FerretDB) SetDefaults() {
+func (f *FerretDB) SetDefaults(kc client.Client) {
 	if f == nil {
 		return
 	}
-	if f.Spec.StorageType == "" {
-		f.Spec.StorageType = StorageTypeDurable
+
+	if f.Spec.Backend == nil {
+		f.Spec.Backend = &FerretDBBackendSpec{}
+	}
+
+	if f.Spec.Backend.Replicas == nil {
+		f.Spec.Backend.Replicas = pointer.Int32P(3)
+	}
+
+	if f.Spec.Backend.PodTemplate == nil {
+		f.Spec.Backend.PodTemplate = &ofst.PodTemplateSpec{}
+	}
+
+	if f.Spec.Backend.StorageType == "" {
+		f.Spec.Backend.StorageType = StorageTypeDurable
 	}
 
 	if f.Spec.DeletionPolicy == "" {
-		f.Spec.DeletionPolicy = TerminationPolicyWipeOut
+		f.Spec.DeletionPolicy = DeletionPolicyWipeOut
 	}
 
 	if f.Spec.SSLMode == "" {
 		f.Spec.SSLMode = SSLModeDisabled
 	}
 
-	if f.Spec.Replicas == nil {
-		f.Spec.Replicas = pointer.Int32P(1)
+	if f.Spec.AuthSecret == nil {
+		f.Spec.AuthSecret = &SecretReference{}
 	}
-
-	if f.Spec.PodTemplate == nil {
-		f.Spec.PodTemplate = &ofst.PodTemplateSpec{}
+	if f.Spec.AuthSecret.Kind == "" {
+		f.Spec.AuthSecret.Kind = kubedb.ResourceKindSecret
 	}
 
 	var frVersion catalog.FerretDBVersion
-	err := DefaultClient.Get(context.TODO(), types.NamespacedName{
+	err := kc.Get(context.TODO(), types.NamespacedName{
 		Name: f.Spec.Version,
 	}, &frVersion)
 	if err != nil {
 		klog.Errorf("can't get the FerretDB version object %s for %s \n", err.Error(), f.Spec.Version)
 		return
 	}
-	dbContainer := coreutil.GetContainerByName(f.Spec.PodTemplate.Spec.Containers, kubedb.FerretDBContainerName)
-	if dbContainer == nil {
-		dbContainer = &core.Container{
-			Name: kubedb.FerretDBContainerName,
-		}
-		f.Spec.PodTemplate.Spec.Containers = append(f.Spec.PodTemplate.Spec.Containers, *dbContainer)
-	}
-	if structs.IsZero(dbContainer.Resources) {
-		apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResources)
-	}
-	if dbContainer.SecurityContext == nil {
-		dbContainer.SecurityContext = &core.SecurityContext{}
-	}
-	f.setDefaultContainerSecurityContext(&frVersion, dbContainer.SecurityContext)
-	f.setDefaultPodTemplateSecurityContext(&frVersion, f.Spec.PodTemplate)
 
-	if f.Spec.Backend.LinkedDB == "" {
-		if f.Spec.Backend.ExternallyManaged {
-			f.Spec.Backend.LinkedDB = "postgres"
-		} else {
-			f.Spec.Backend.LinkedDB = "ferretdb"
+	if f.Spec.Server == nil {
+		f.Spec.Server = &FerretDBServer{
+			Primary: &FerretDBServerSpec{
+				Replicas:    pointer.Int32P(1),
+				PodTemplate: &ofst.PodTemplateSpec{},
+			},
 		}
+	}
+
+	if f.Spec.Server.Primary != nil {
+		if f.Spec.Server.Primary.Replicas == nil {
+			f.Spec.Server.Primary.Replicas = pointer.Int32P(1)
+		}
+		if f.Spec.Server.Primary.PodTemplate == nil {
+			f.Spec.Server.Primary.PodTemplate = &ofst.PodTemplateSpec{}
+		}
+		f.setDefaultPodTemplateValues(f.Spec.Server.Primary.PodTemplate, &frVersion)
+	}
+
+	if f.Spec.Server.Secondary != nil {
+		if f.Spec.Server.Secondary.Replicas == nil {
+			f.Spec.Server.Secondary.Replicas = pointer.Int32P(1)
+		}
+		if f.Spec.Server.Secondary.PodTemplate == nil {
+			f.Spec.Server.Secondary.PodTemplate = &ofst.PodTemplateSpec{}
+		}
+		f.setDefaultPodTemplateValues(f.Spec.Server.Secondary.PodTemplate, &frVersion)
 	}
 
 	if f.Spec.AuthSecret == nil {
@@ -244,14 +291,31 @@ func (f *FerretDB) SetDefaults() {
 		}
 	}
 
-	defaultVersion := "13.13"
-	if !f.Spec.Backend.ExternallyManaged {
-		if f.Spec.Backend.Version == nil {
-			f.Spec.Backend.Version = &defaultVersion
-		}
-	}
 	f.SetTLSDefaults()
 	f.SetHealthCheckerDefaults()
+}
+
+func (f *FerretDB) setDefaultPodTemplateValues(podTemplate *ofst.PodTemplateSpec, frVersion *catalog.FerretDBVersion) {
+	dbContainer := coreutil.GetContainerByName(podTemplate.Spec.Containers, kubedb.FerretDBContainerName)
+	if dbContainer == nil {
+		dbContainer = &core.Container{
+			Name: kubedb.FerretDBContainerName,
+		}
+		podTemplate.Spec.Containers = append(podTemplate.Spec.Containers, *dbContainer)
+	}
+	if structs.IsZero(dbContainer.Resources) {
+		apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResources)
+	}
+	if dbContainer.SecurityContext == nil {
+		dbContainer.SecurityContext = &core.SecurityContext{}
+	}
+	f.setDefaultContainerSecurityContext(frVersion, dbContainer.SecurityContext)
+	f.setDefaultPodTemplateSecurityContext(frVersion, podTemplate)
+}
+
+func (f *FerretDB) IsVersionAtLeast(frVersion *catalog.FerretDBVersion, version uint64) bool {
+	v, _ := semver.NewVersion(frVersion.Spec.Version)
+	return v.Major() >= version
 }
 
 func (f *FerretDB) setDefaultPodTemplateSecurityContext(frVersion *catalog.FerretDBVersion, podTemplate *ofst.PodTemplateSpec) {
@@ -367,6 +431,14 @@ func (fs FerretDBStatsService) ServiceName() string {
 
 func (f *FerretDB) StatsService() mona.StatsAccessor {
 	return &FerretDBStatsService{f}
+}
+
+func (f *FerretDB) GoverningServiceName() string {
+	return f.OffshootName() + "-pods"
+}
+
+func (f *FerretDB) SecondaryGoverningServiceName() string {
+	return f.SecondaryServerName() + "-pods"
 }
 
 func (f *FerretDB) ServiceLabels(alias ServiceAlias, extraLabels ...map[string]string) map[string]string {

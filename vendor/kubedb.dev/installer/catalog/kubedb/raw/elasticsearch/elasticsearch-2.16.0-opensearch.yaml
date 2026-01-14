@@ -7,15 +7,15 @@ spec:
   dashboard:
     image: ghcr.io/appscode-images/opensearch-dashboards:2.16.0
   dashboardInitContainer:
-    yqImage: ghcr.io/kubedb/elasticsearch-dashboard-init:2.16.0-opensearch-v2024.08.21
+    yqImage: ghcr.io/kubedb/elasticsearch-dashboard-init:2.16.0-opensearch-v2024.12.14
   db:
     image: ghcr.io/appscode-images/opensearch:2.16.0
   distribution: OpenSearch
   exporter:
     image: prometheuscommunity/elasticsearch-exporter:v1.7.0
   initContainer:
-    image: tianon/toybox:0.8.4
-    yqImage: ghcr.io/kubedb/elasticsearch-init:2.16.0-opensearch-v2024.08.21
+    image: tianon/toybox:0.8.11
+    yqImage: ghcr.io/kubedb/elasticsearch-init:2.16.0-opensearch-v2024.12.14
   podSecurityPolicies:
     databasePolicyName: elasticsearch-db
   securityContext:
@@ -35,5 +35,5 @@ spec:
           value: --match=^(?![.])(?!security-auditlog)(?!kubedb-system).+
   updateConstraints:
     allowlist:
-    - '> 2.16.0, < 3.0.0'
+    - '>= 2.16.0, < 2.19.1'
   version: 2.16.0

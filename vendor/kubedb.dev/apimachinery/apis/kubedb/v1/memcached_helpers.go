@@ -27,9 +27,9 @@ import (
 	promapi "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"gomodules.xyz/pointer"
 	core "k8s.io/api/core/v1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	kmapi "kmodules.xyz/client-go/api/v1"
 	"kmodules.xyz/client-go/apiextensions"
 	core_util "kmodules.xyz/client-go/core/v1"
 	meta_util "kmodules.xyz/client-go/meta"
@@ -42,7 +42,7 @@ import (
 
 func (*Memcached) Hub() {}
 
-func (_ Memcached) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
+func (Memcached) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
 	return crds.MustCustomResourceDefinition(SchemeGroupVersion.WithResource(ResourcePluralMemcached))
 }
 
@@ -62,6 +62,18 @@ func (m Memcached) OffshootSelectors() map[string]string {
 		meta_util.InstanceLabelKey:  m.Name,
 		meta_util.ManagedByLabelKey: kubedb.GroupName,
 	}
+}
+
+func (m Memcached) GetMemcachedAuthSecretName() string {
+	if m.Spec.AuthSecret != nil && m.Spec.AuthSecret.Name != "" {
+		return m.Spec.AuthSecret.Name
+	}
+	return meta_util.NameWithSuffix(m.OffshootName(), "auth")
+}
+
+// Owner returns owner reference to resources
+func (m *Memcached) Owner() *metav1.OwnerReference {
+	return metav1.NewControllerRef(m, SchemeGroupVersion.WithKind(m.ResourceKind()))
 }
 
 func (m Memcached) OffshootLabels() map[string]string {
@@ -196,6 +208,15 @@ func (m *Memcached) SetDefaults(mcVersion *catalog.MemcachedVersion) {
 		m.Spec.PodTemplate.Spec.ServiceAccountName = m.OffshootName()
 	}
 
+	if !m.Spec.DisableAuth {
+		if m.Spec.AuthSecret == nil {
+			m.Spec.AuthSecret = &SecretReference{}
+		}
+		if m.Spec.AuthSecret.Kind == "" {
+			m.Spec.AuthSecret.Kind = kubedb.ResourceKindSecret
+		}
+	}
+
 	m.setDefaultContainerSecurityContext(mcVersion, &m.Spec.PodTemplate)
 	m.setDefaultContainerResourceLimits(&m.Spec.PodTemplate)
 
@@ -254,8 +275,8 @@ func (m *Memcached) assignDefaultContainerSecurityContext(mcVersion *catalog.Mem
 		sc.AllowPrivilegeEscalation = pointer.BoolP(false)
 	}
 	if sc.Capabilities == nil {
-		sc.Capabilities = &corev1.Capabilities{
-			Drop: []corev1.Capability{"ALL"},
+		sc.Capabilities = &core.Capabilities{
+			Drop: []core.Capability{"ALL"},
 		}
 	}
 	if sc.RunAsNonRoot == nil {
@@ -279,6 +300,23 @@ func (m *Memcached) setDefaultContainerResourceLimits(podTemplate *ofstv2.PodTem
 	}
 }
 
+// CertificateName returns the default certificate name and/or certificate secret name for a certificate alias
+func (m *Memcached) CertificateName(alias MemcachedCertificateAlias) string {
+	return meta_util.NameWithSuffix(m.Name, fmt.Sprintf("%s-cert", string(alias)))
+}
+
+// GetCertSecretName returns the secret name for a certificate alias if any provide,
+// otherwise returns default certificate secret name for the given alias.
+func (m *Memcached) GetCertSecretName(alias MemcachedCertificateAlias) string {
+	if m.Spec.TLS != nil {
+		name, ok := kmapi.GetCertificateSecretName(m.Spec.TLS.Certificates, string(alias))
+		if ok {
+			return name
+		}
+	}
+	return m.CertificateName(alias)
+}
+
 func (m *MemcachedSpec) GetPersistentSecrets() []string {
 	return nil
 }
@@ -287,4 +325,13 @@ func (m *Memcached) ReplicasAreReady(lister pslister.PetSetLister) (bool, string
 	// Desire number of statefulSets
 	expectedItems := 1
 	return checkReplicas(lister.PetSets(m.Namespace), labels.SelectorFromSet(m.OffshootLabels()), expectedItems)
+}
+
+func (m *Memcached) SetTLSDefaults() {
+	if m.Spec.TLS == nil || m.Spec.TLS.IssuerRef == nil {
+		return
+	}
+	m.Spec.TLS.Certificates = kmapi.SetMissingSecretNameForCertificate(m.Spec.TLS.Certificates, string(MemcachedServerCert), m.CertificateName(MemcachedServerCert))
+	m.Spec.TLS.Certificates = kmapi.SetMissingSecretNameForCertificate(m.Spec.TLS.Certificates, string(MemcachedClientCert), m.CertificateName(MemcachedClientCert))
+	m.Spec.TLS.Certificates = kmapi.SetMissingSecretNameForCertificate(m.Spec.TLS.Certificates, string(MemcachedMetricsExporterCert), m.CertificateName(MemcachedMetricsExporterCert))
 }

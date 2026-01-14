@@ -30,6 +30,8 @@ const (
 	ResourceDatabaseConnections    = "databaseconnections"
 )
 
+// +genclient
+// +k8s:openapi-gen=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type DatabaseConnection struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -39,15 +41,34 @@ type DatabaseConnection struct {
 	Status dbapi.MariaDBStatus    `json:"status,omitempty"`
 }
 
-// TODO: Need to pass the Type information in the ObjectMeta. For example: MongoDB, MySQL etc.
-
 // DatabaseConnectionSpec defines the desired state of DatabaseConnection
 type DatabaseConnectionSpec struct {
-	// Public Connections are exposed via Gateway
-	Public []PublicConnection `json:"public,omitempty"`
+	Public    []PublicInfo        `json:"public,omitempty"`
+	InCluster InClusterConnection `json:"inCluster,omitempty"`
 
-	// Private Connections are in-cluster. Accessible from another pod in the same cluster.
-	Private []PrivateConnection `json:"private,omitempty"`
+	// Databases already present on the referred database server
+	Databases []string `json:"databases,omitempty"`
+}
+
+type PublicInfo struct {
+	Gateway        []GatewayConnection `json:"gateway,omitempty"`
+	ConnectOptions map[string]string   `json:"connectOptions,omitempty"`
+}
+
+type GatewayConnection struct {
+	*ofst.Gateway `json:",inline"`
+	SecretRef     *kmapi.ObjectReference `json:"secretRef,omitempty"`
+	CACert        []byte                 `json:"caCert,omitempty"`
+}
+
+type InClusterConnection struct {
+	Host string `json:"host,omitempty"`
+	Port int32  `json:"port,omitempty"`
+	// Command for exec-ing into the db pod
+	// Example: kubectl exec -it -n default service/mongo-test1  -c mongodb -- bash -c '<the actual command>'
+	Exec      string                 `json:"exec,omitempty"`
+	SecretRef *kmapi.ObjectReference `json:"secretRef,omitempty"`
+	CACert    []byte                 `json:"caCert,omitempty"`
 
 	// Parameters: `username = <username>\n
 	// password = <password>\n
@@ -63,42 +84,10 @@ type DatabaseConnectionSpec struct {
 	ConnectOptions map[string]string `json:"connectOptions,omitempty"`
 }
 
-//type ConnectOption struct {
-//	// username = <username>
-//	// password = <password>
-//	// host = <host>
-//	// database = <database>
-//	// sslmode = REQUIRED
-//	Parameters []string `json:"parameters,omitempty"`
-//
-//	// Actual: mongodb+srv://doadmin:show-password@arnob-a013a268.mongo.ondigitalocean.com/admin?authSource=admin&tls=true&replicaSet=arnob
-//	// Template: `mongodb+srv://<username>:<password>@<host>:<port>/<database>?authSource=<authSource>&tls=true&replicaSet=arnob`
-//	ConnectionString string `json:"connectionString,omitempty"`
-//
-//	// Actual: mongo "mongodb+srv://doadmin:show-password@private-arnob-aa409eb4.mongo.ondigitalocean.com/admin?authSource=admin&replicaSet=arnob" --tls
-//	// Template: `mongo "mongodb+srv://<username>:<password>@<host>:<port>/<database>?authSource=<authsource>&replicaSet=arnob" --tls`
-//	Flags string `json:"flags,omitempty"`
-//}
-
-type PublicConnection struct {
-	*ofst.Gateway `json:",inline"`
-	SecretRef     *kmapi.ObjectReference `json:"secretRef,omitempty"`
-}
-
-type PrivateConnection struct {
-	Host      string                 `json:"host,omitempty"`
-	Port      int32                  `json:"port,omitempty"`
-	SecretRef *kmapi.ObjectReference `json:"secretRef,omitempty"`
-}
-
 // DatabaseConnectionList contains a list of DatabaseConnection
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type DatabaseConnectionList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []DatabaseConnection `json:"items"`
-}
-
-func init() {
-	SchemeBuilder.Register(&DatabaseConnection{}, &DatabaseConnectionList{})
 }

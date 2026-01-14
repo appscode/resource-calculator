@@ -40,7 +40,6 @@ const (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=druids,singular=druid,shortName=dr,categories={datastore,kubedb,appscode,all}
-// +kubebuilder:printcolumn:name="Type",type="string",JSONPath=".apiVersion"
 // +kubebuilder:printcolumn:name="Version",type="string",JSONPath=".spec.version"
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.phase"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
@@ -54,6 +53,10 @@ type Druid struct {
 
 // DruidSpec defines the desired state of Druid
 type DruidSpec struct {
+	// AutoOps contains configuration of automatic ops-request-recommendation generation
+	// +optional
+	AutoOps AutoOpsSpec `json:"autoOps,omitempty"`
+
 	// Version of Druid to be deployed.
 	Version string `json:"version"`
 
@@ -64,11 +67,11 @@ type DruidSpec struct {
 	// disable security. It disables authentication security of user.
 	// If unset, default is false
 	// +optional
-	DisableSecurity *bool `json:"disableSecurity,omitempty"`
+	DisableSecurity bool `json:"disableSecurity,omitempty"`
 
 	// Database authentication secret
 	// +optional
-	AuthSecret *core.LocalObjectReference `json:"authSecret,omitempty"`
+	AuthSecret *SecretReference `json:"authSecret,omitempty"`
 
 	// Init is used to initialize database
 	// +optional
@@ -79,9 +82,16 @@ type DruidSpec struct {
 	// +optional
 	ConfigSecret *core.LocalObjectReference `json:"configSecret,omitempty"`
 
-	//// TLS contains tls configurations
-	//// +optional
-	//TLS *kmapi.TLSConfig `json:"tls,omitempty"`
+	// To enable ssl for http layer
+	EnableSSL bool `json:"enableSSL,omitempty"`
+
+	// Keystore encryption secret
+	// +optional
+	KeystoreCredSecret *SecretReference `json:"keystoreCredSecret,omitempty"`
+
+	// TLS contains tls configurations
+	// +optional
+	TLS *kmapi.TLSConfig `json:"tls,omitempty"`
 
 	// MetadataStorage contains information for Druid to connect to external dependency metadata storage
 	// +optional
@@ -108,7 +118,7 @@ type DruidSpec struct {
 
 	// DeletionPolicy controls the delete operation for database
 	// +optional
-	DeletionPolicy TerminationPolicy `json:"deletionPolicy,omitempty"`
+	DeletionPolicy DeletionPolicy `json:"deletionPolicy,omitempty"`
 
 	// HealthChecker defines attributes of the health checker
 	// +optional
@@ -216,7 +226,7 @@ type ZookeeperRef struct {
 type DruidStatus struct {
 	// Specifies the current phase of the database
 	// +optional
-	Phase DruidPhase `json:"phase,omitempty"`
+	Phase DatabasePhase `json:"phase,omitempty"`
 	// observedGeneration is the most recent generation observed for this resource. It corresponds to the
 	// resource's generation, which is updated on mutation by the API Server.
 	// +optional
@@ -234,16 +244,6 @@ type DruidList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Druid `json:"items"`
 }
-
-// +kubebuilder:validation:Enum=Provisioning;Ready;NotReady;Critical
-type DruidPhase string
-
-const (
-	DruidPhaseProvisioning DruidPhase = "Provisioning"
-	DruidPhaseReady        DruidPhase = "Ready"
-	DruidPhaseNotReady     DruidPhase = "NotReady"
-	DruidPhaseCritical     DruidPhase = "Critical"
-)
 
 // +kubebuilder:validation:Enum=coordinators;overlords;brokers;routers;middleManagers;historicals
 type DruidNodeRoleType string
@@ -273,4 +273,12 @@ const (
 	DruidDeepStorageGoogle DruidDeepStorageType = "google"
 	DruidDeepStorageAzure  DruidDeepStorageType = "azure"
 	DruidDeepStorageHDFS   DruidDeepStorageType = "hdfs"
+)
+
+// +kubebuilder:validation:Enum=server;client
+type DruidCertificateAlias string
+
+const (
+	DruidServerCert DruidCertificateAlias = "server"
+	DruidClientCert DruidCertificateAlias = "client"
 )

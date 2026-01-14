@@ -17,25 +17,12 @@ limitations under the License.
 package v1
 
 import (
-	"sync"
-
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kmapi "kmodules.xyz/client-go/api/v1"
+	appcat "kmodules.xyz/custom-resources/apis/appcatalog/v1alpha1"
 	ofstv1 "kmodules.xyz/offshoot-api/api/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
-
-var (
-	once          sync.Once
-	DefaultClient client.Client
-)
-
-func SetDefaultClient(kc client.Client) {
-	once.Do(func() {
-		DefaultClient = kc
-	})
-}
 
 type InitSpec struct {
 	// Initialized indicates that this database has been initialized.
@@ -133,6 +120,21 @@ const (
 	StatsServiceAlias   ServiceAlias = "stats"
 )
 
+// +kubebuilder:validation:Enum=fscopy;clone;sync;none
+type PITRReplicationStrategy string
+
+const (
+	// ReplicationStrategySync means data will be synced from primary to secondary
+	ReplicationStrategySync PITRReplicationStrategy = "sync"
+	// ReplicationStrategyFSCopy means data will be copied from filesystem
+	ReplicationStrategyFSCopy PITRReplicationStrategy = "fscopy"
+	// ReplicationStrategyClone means volumeSnapshot will be used to create pvc's
+	ReplicationStrategyClone PITRReplicationStrategy = "clone"
+	// ReplicationStrategyNone means no replication will be used
+	// data will be fully restored in every replicas instead of replication
+	ReplicationStrategyNone PITRReplicationStrategy = "none"
+)
+
 // +kubebuilder:validation:Enum=DNS;IP;IPv4;IPv6
 type AddressType string
 
@@ -189,8 +191,18 @@ type SystemUserSecretsSpec struct {
 }
 
 type SecretReference struct {
-	core.LocalObjectReference `json:",inline,omitempty"`
-	ExternallyManaged         bool `json:"externallyManaged,omitempty"`
+	// +optional
+	// SecretSource references the secret manager used for virtual secret
+	SecretStoreName string `json:"secretStoreName,omitempty"`
+
+	appcat.TypedLocalObjectReference `json:",inline,omitempty"`
+	// Recommendation engine will generate RotateAuth opsReq using this field
+	// +optional
+	RotateAfter *metav1.Duration `json:"rotateAfter,omitempty"`
+	// ActiveFrom holds the RFC3339 time. The referred authSecret is in-use from this timestamp.
+	// +optional
+	ActiveFrom        *metav1.Time `json:"activeFrom,omitempty"`
+	ExternallyManaged bool         `json:"externallyManaged,omitempty"`
 }
 
 type Age struct {
@@ -214,5 +226,26 @@ type ArchiverRecovery struct {
 	ManifestRepository *kmapi.ObjectReference `json:"manifestRepository,omitempty"`
 
 	// FullDBRepository means db restore + manifest restore
-	FullDBRepository *kmapi.ObjectReference `json:"fullDBRepository,omitempty"`
+	FullDBRepository    *kmapi.ObjectReference   `json:"fullDBRepository,omitempty"`
+	ReplicationStrategy *PITRReplicationStrategy `json:"replicationStrategy,omitempty"`
+
+	// ManifestOptions provide options to select particular manifest object to restore
+	// +optional
+	ManifestOptions *ManifestOptions `json:"manifestOptions,omitempty"`
+}
+
+type ManifestOptions struct {
+	// Archiver specifies whether to restore the Archiver manifest or not
+	// +kubebuilder:default=false
+	// +optional
+	Archiver *bool `json:"archiver,omitempty"`
+
+	// ArchiverRef specifies the new name and namespace of the Archiver yaml after restore
+	// +optional
+	ArchiverRef *kmapi.ObjectReference `json:"archiverRef,omitempty"`
+
+	// InitScript specifies whether to restore the InitScript or not
+	// +kubebuilder:default=false
+	// +optional
+	InitScript *bool `json:"initScript,omitempty"`
 }

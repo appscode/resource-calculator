@@ -40,7 +40,6 @@ const (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=kafkas,singular=kafka,shortName=kf,categories={datastore,kubedb,appscode,all}
-// +kubebuilder:printcolumn:name="Type",type="string",JSONPath=".apiVersion"
 // +kubebuilder:printcolumn:name="Version",type="string",JSONPath=".spec.version"
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.phase"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
@@ -54,6 +53,10 @@ type Kafka struct {
 
 // KafkaSpec defines the desired state of Kafka
 type KafkaSpec struct {
+	// AutoOps contains configuration of automatic ops-request-recommendation generation
+	// +optional
+	AutoOps AutoOpsSpec `json:"autoOps,omitempty"`
+
 	// Version of Kafka to be deployed.
 	Version string `json:"version"`
 
@@ -73,6 +76,9 @@ type KafkaSpec struct {
 
 	// To enable ssl for http layer
 	EnableSSL bool `json:"enableSSL,omitempty"`
+
+	// Broker Rack defines the rack awareness configuration for Kafka brokers
+	BrokerRack *BrokerRack `json:"brokerRack,omitempty"`
 
 	// disable security. It disables authentication security of user.
 	// If unset, default is false
@@ -110,7 +116,7 @@ type KafkaSpec struct {
 
 	// DeletionPolicy controls the delete operation for database
 	// +optional
-	DeletionPolicy TerminationPolicy `json:"deletionPolicy,omitempty"`
+	DeletionPolicy DeletionPolicy `json:"deletionPolicy,omitempty"`
 
 	// HealthChecker defines attributes of the health checker
 	// +optional
@@ -160,6 +166,11 @@ type KafkaNode struct {
 	// If specified, the pod's tolerations.
 	// +optional
 	Tolerations []core.Toleration `json:"tolerations,omitempty"`
+}
+
+type BrokerRack struct {
+	// TopologyKey is the node label key which is used to identify the rack of a broker
+	TopologyKey string `json:"topologyKey,omitempty"`
 }
 
 // KafkaStatus defines the observed state of Kafka

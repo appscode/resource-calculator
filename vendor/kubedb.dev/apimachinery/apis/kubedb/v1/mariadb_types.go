@@ -31,6 +31,14 @@ const (
 	ResourcePluralMariaDB   = "mariadbs"
 )
 
+// +kubebuilder:validation:Enum=MariaDBReplication;GaleraCluster
+type MariaDBMode string
+
+const (
+	MariaDBModeReplication   MariaDBMode = "MariaDBReplication"
+	MariaDBModeGaleraCluster MariaDBMode = "GaleraCluster"
+)
+
 // MariaDB defines a MariaDB database.
 
 // +genclient
@@ -61,6 +69,9 @@ type MariaDBSpec struct {
 
 	// Number of instances to deploy for a MariaDB database.
 	Replicas *int32 `json:"replicas,omitempty"`
+
+	// MariaDB cluster topology
+	Topology *MariaDBTopology `json:"topology,omitempty"`
 
 	// StorageType can be durable (default) or ephemeral
 	StorageType StorageType `json:"storageType,omitempty"`
@@ -130,6 +141,10 @@ type MariaDBSpec struct {
 	// Archiver controls database backup using Archiver CR
 	// +optional
 	Archiver *Archiver `json:"archiver,omitempty"`
+
+	// specify if the database deployment distributed or not
+	// +optional
+	Distributed bool `json:"distributed,omitempty"`
 }
 
 // +kubebuilder:validation:Enum=server;archiver;metrics-exporter
@@ -171,4 +186,32 @@ type MariaDBList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	// Items is a list of MariaDB TPR objects
 	Items []MariaDB `json:"items,omitempty"`
+}
+
+type MariaDBTopology struct {
+	// If set to -
+	// mode of the topology, possible values MariaDBReplication,GaleraCluster.
+	// Must be set for topology set up
+	Mode *MariaDBMode `json:"mode,omitempty"`
+	// must set for MariaDBReplication mode
+	// +optional
+	MaxScale *MaxScaleSpec `json:"maxscale,omitempty"`
+}
+
+type MaxScaleSpec struct {
+	// Number of instances to deploy for a MariaDB database.
+	Replicas *int32 `json:"replicas,omitempty"`
+	// PodTemplate is an optional configuration for pods used to expose database
+	// +optional
+	PodTemplate ofstv2.PodTemplateSpec `json:"podTemplate,omitempty"`
+	// Storage spec to specify how storage shall be used.
+	Storage *core.PersistentVolumeClaimSpec `json:"storage,omitempty"`
+	// StorageType can be durable (default) or ephemeral
+	StorageType StorageType `json:"storageType,omitempty"`
+	// enable/disable MaxscaleUI
+	// +optional
+	EnableUI *bool `json:"enableUI,omitempty"`
+	// ConfigSecret is an optional field to provide custom configuration file for maxscale (i.e custom-maxscale.cnf).
+	// If specified, this file will be merged with default configuration file.
+	ConfigSecret *core.LocalObjectReference `json:"configSecret,omitempty"`
 }

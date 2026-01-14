@@ -29,6 +29,10 @@ const (
 	ResourceSingularClickHouse = "clickhouse"
 	ResourcePluralClickHouse   = "clickhouses"
 	ResourceCodeClickHouse     = "ch"
+
+	ClickHouseCACert     ClickHouseCertificateAlias = "ca"
+	ClickHouseClientCert ClickHouseCertificateAlias = "client"
+	ClickHouseServerCert ClickHouseCertificateAlias = "server"
 )
 
 // +genclient
@@ -38,7 +42,6 @@ const (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=clickhouses,singular=clickhouse,shortName=ch,categories={datastore,kubedb,appscode,all}
-// +kubebuilder:printcolumn:name="Type",type="string",JSONPath=".apiVersion"
 // +kubebuilder:printcolumn:name="Version",type="string",JSONPath=".spec.version"
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.phase"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
@@ -52,6 +55,10 @@ type ClickHouse struct {
 
 // ClickHouseSpec defines the desired state of ClickHouse
 type ClickHouseSpec struct {
+	// AutoOps contains configuration of automatic ops-request-recommendation generation
+	// +optional
+	AutoOps AutoOpsSpec `json:"autoOps,omitempty"`
+
 	// Version of ClickHouse to be deployed.
 	Version string `json:"version"`
 
@@ -68,6 +75,10 @@ type ClickHouseSpec struct {
 
 	// Storage to specify how storage shall be used.
 	Storage *core.PersistentVolumeClaimSpec `json:"storage,omitempty"`
+
+	// Init is used to initialize database
+	// +optional
+	Init *InitSpec `json:"init,omitempty"`
 
 	// disable security. It disables authentication security of user.
 	// If unset, default is false
@@ -87,6 +98,14 @@ type ClickHouseSpec struct {
 	// +optional
 	PodTemplate *ofst.PodTemplateSpec `json:"podTemplate,omitempty"`
 
+	// Indicates how SSL/TLS certificate verification will be handled for both the server and client sides.
+	// +optional
+	SSLVerificationMode SSLVerificationMode `json:"sslVerificationMode,omitempty"`
+
+	// TLS contains tls configurations for client and server.
+	// +optional
+	TLS *ClickHouseTLSConfig `json:"tls,omitempty"`
+
 	// ServiceTemplates is an optional configuration for services used to expose database
 	// +optional
 	ServiceTemplates []NamedServiceTemplateSpec `json:"serviceTemplates,omitempty"`
@@ -101,7 +120,7 @@ type ClickHouseSpec struct {
 
 	// DeletionPolicy controls the delete operation for database
 	// +optional
-	DeletionPolicy TerminationPolicy `json:"deletionPolicy,omitempty"`
+	DeletionPolicy DeletionPolicy `json:"deletionPolicy,omitempty"`
 
 	// HealthChecker defines attributes of the health checker
 	// +optional
@@ -111,7 +130,7 @@ type ClickHouseSpec struct {
 
 type ClusterTopology struct {
 	// Clickhouse Cluster Structure
-	Cluster []ClusterSpec `json:"cluster,omitempty"`
+	Cluster ClusterSpec `json:"cluster,omitempty"`
 
 	// ClickHouse Keeper server name
 	ClickHouseKeeper *ClickHouseKeeper `json:"clickHouseKeeper,omitempty"`
@@ -193,3 +212,23 @@ type ClickHouseList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []ClickHouse `json:"items"`
 }
+
+type ClickHouseTLSConfig struct {
+	// TLS contains tls configurations for client and server.
+	// +optional
+	kmapi.TLSConfig `json:",omitempty"`
+
+	// Specifies the external ca certificate secrets, which clickhouse will use as a client.
+	// +optional
+	ClientCACertificateRefs []core.SecretKeySelector `json:"clientCaCertificateRefs,omitempty"`
+}
+
+// +kubebuilder:validation:Enum=none;relaxed;strict;once
+type SSLVerificationMode string
+
+const (
+	SSLVerificationModeNone    SSLVerificationMode = "none"
+	SSLVerificationModeRelaxed SSLVerificationMode = "relaxed"
+	SSLVerificationModeStrict  SSLVerificationMode = "strict"
+	SSLVerificationModeOnce    SSLVerificationMode = "once"
+)

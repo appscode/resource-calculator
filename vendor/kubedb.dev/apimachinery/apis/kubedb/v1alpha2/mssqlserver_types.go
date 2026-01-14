@@ -31,12 +31,12 @@ const (
 	ResourcePluralMSSQLServer   = "mssqlservers"
 )
 
-// +kubebuilder:validation:Enum=AvailabilityGroup;RemoteReplica
+// +kubebuilder:validation:Enum=AvailabilityGroup;DistributedAG
 type MSSQLServerMode string
 
 const (
 	MSSQLServerModeAvailabilityGroup MSSQLServerMode = "AvailabilityGroup"
-	MSSQLServerModeRemoteReplica     MSSQLServerMode = "RemoteReplica"
+	MSSQLServerModeDistributedAG     MSSQLServerMode = "DistributedAG"
 )
 
 // +kubebuilder:validation:Enum=server;client;endpoint
@@ -46,6 +46,26 @@ const (
 	MSSQLServerServerCert   MSSQLServerCertificateAlias = "server"
 	MSSQLServerClientCert   MSSQLServerCertificateAlias = "client"
 	MSSQLServerEndpointCert MSSQLServerCertificateAlias = "endpoint"
+)
+
+// +kubebuilder:validation:Enum=Passive;ReadOnly;All
+type SecondaryAccessMode string
+
+const (
+	// Passive  = secondary is passive, no connections allowed
+	SecondaryAccessModePassive SecondaryAccessMode = "Passive"
+	// ReadOnly = secondary allows read-intent only
+	SecondaryAccessModeReadOnly SecondaryAccessMode = "ReadOnly"
+	// All = secondary allows any connections
+	SecondaryAccessModeAll SecondaryAccessMode = "All"
+)
+
+// +kubebuilder:validation:Enum=Primary;Secondary
+type DistributedAGRole string
+
+const (
+	DistributedAGRolePrimary   DistributedAGRole = "Primary"
+	DistributedAGRoleSecondary DistributedAGRole = "Secondary"
 )
 
 // MSSQLServer defines a MSSQLServer database.
@@ -70,6 +90,10 @@ type MSSQLServer struct {
 
 // MSSQLServerSpec defines the desired state of MSSQLServer
 type MSSQLServerSpec struct {
+	// AutoOps contains configuration of automatic ops-request-recommendation generation
+	// +optional
+	AutoOps AutoOpsSpec `json:"autoOps,omitempty"`
+
 	// Version of MSSQLServer to be deployed.
 	Version string `json:"version"`
 
@@ -90,17 +114,12 @@ type MSSQLServerSpec struct {
 	// +optional
 	AuthSecret *SecretReference `json:"authSecret,omitempty"`
 
-	// ConfigSecret is an optional field to provide custom configuration file for database (i.e mssql.conf).
-	// If specified, this file will be used as configuration file otherwise default configuration file will be used.
+	// ConfigSecret is an optional field to provide a custom configuration file for the database (i.e., mssql.conf).
+	// If specified, this file will be used as a configuration file, otherwise a default configuration file will be used.
 	// +optional
 	ConfigSecret *core.LocalObjectReference `json:"configSecret,omitempty"`
 
-	// InternalAuth is used to authenticate endpoint
-	// +optional
-	// +nullable
-	InternalAuth *InternalAuthentication `json:"internalAuth,omitempty"`
-
-	// Init is used to initialize database
+	// Init is used to initialize a database
 	// +optional
 	Init *InitSpec `json:"init,omitempty"`
 
@@ -109,7 +128,7 @@ type MSSQLServerSpec struct {
 	PodTemplate *ofst.PodTemplateSpec `json:"podTemplate,omitempty"`
 
 	// TLS contains tls configurations for client and server.
-	TLS *SQLServerTLSConfig `json:"tls,omitempty"`
+	TLS *MSSQLServerTLSConfig `json:"tls,omitempty"`
 
 	// ServiceTemplates is an optional configuration for services used to expose database
 	// +optional
@@ -121,15 +140,7 @@ type MSSQLServerSpec struct {
 
 	// DeletionPolicy controls the delete operation for database
 	// +optional
-	DeletionPolicy TerminationPolicy `json:"deletionPolicy,omitempty"`
-
-	// Coordinator defines attributes of the coordinator container
-	// +optional
-	Coordinator CoordinatorSpec `json:"coordinator,omitempty"`
-
-	// Leader election configuration
-	// +optional
-	LeaderElection *MSSQLServerLeaderElectionConfig `json:"leaderElection,omitempty"`
+	DeletionPolicy DeletionPolicy `json:"deletionPolicy,omitempty"`
 
 	// HealthChecker defines attributes of the health checker
 	// +optional
@@ -143,34 +154,107 @@ type MSSQLServerSpec struct {
 	// Archiver controls database backup using Archiver CR
 	// +optional
 	Archiver *Archiver `json:"archiver,omitempty"`
+
+	// Arbiter controls spec for arbiter pods
+	// +optional
+	Arbiter *ArbiterSpec `json:"arbiter,omitempty"`
 }
 
-// InternalAuthentication provides different way of endpoint authentication
-type InternalAuthentication struct {
-	// EndpointCert is used for endpoint authentication of MSSql Server
-	EndpointCert *kmapi.TLSConfig `json:"endpointCert"`
-}
-
-type SQLServerTLSConfig struct {
+type MSSQLServerTLSConfig struct {
 	kmapi.TLSConfig `json:",inline"`
-	ClientTLS       bool `json:"clientTLS"`
+
+	// +optional
+	ClientTLS *bool `json:"clientTLS"`
 }
 
 type MSSQLServerTopology struct {
 	// If set to -
 	// "AvailabilityGroup", MSSQLAvailabilityGroupSpec is required and MSSQLServer servers will start an Availability Group
+	// "DistributedAG", MSSQLServerDistributedAGSpec is required, and MSSQLServer servers will start a Distributed Availability Group
 	Mode *MSSQLServerMode `json:"mode,omitempty"`
 
-	// AvailabilityGroup info for MSSQLServer
+	// AvailabilityGroup info for MSSQLServer (used when Mode is "AvailabilityGroup" or "DistributedAG").
 	// +optional
 	AvailabilityGroup *MSSQLServerAvailabilityGroupSpec `json:"availabilityGroup,omitempty"`
+
+	// DistributedAG contains information of the DAG (Distributed Availability Group) configuration.
+	// Used when Mode is "DistributedAG".
+	// +optional
+	DistributedAG *MSSQLServerDistributedAGSpec `json:"distributedAG,omitempty"`
 }
 
 // MSSQLServerAvailabilityGroupSpec defines the availability group spec for MSSQLServer
 type MSSQLServerAvailabilityGroupSpec struct {
 	// AvailabilityDatabases is an array of databases to be included in the availability group
 	// +optional
-	Databases []string `json:"databases"`
+	Databases []string `json:"databases,omitempty"`
+
+	// Leader election configuration
+	// +optional
+	LeaderElection *MSSQLServerLeaderElectionConfig `json:"leaderElection,omitempty"`
+
+	// SecondaryAccessMode controls which connections are allowed to secondary replicas.
+	// https://learn.microsoft.com/en-us/sql/t-sql/statements/create-availability-group-transact-sql?view=sql-server-ver16#secondary_role---
+	// +optional
+	// +kubebuilder:default=Passive
+	SecondaryAccessMode SecondaryAccessMode `json:"secondaryAccessMode,omitempty"`
+
+	// LoginSecretName is the name of the secret containing the password for the 'dbm_login' user.
+	// For a Distributed AG, both the primary and secondary AGs must use the same login and password.
+	// This secret must be created by the user.
+	// +optional
+	LoginSecretName string `json:"loginSecretName,omitempty"`
+
+	// MasterKeySecretName is the name of the secret containing the password for the database master key.
+	// For a Distributed AG, both sides must use the same master key password.
+	// This secret must be created by the user.
+	// +optional
+	MasterKeySecretName string `json:"masterKeySecretName,omitempty"`
+
+	// EndpointCertSecretName is the name of the secret containing the certificate and private key for the database mirroring endpoint.
+	// For a Distributed AG, both sides must use the same certificate. The secret should contain `tls.crt` and `tls.key`.
+	// This secret must be created by the user.
+	// +optional
+	EndpointCertSecretName string `json:"endpointCertSecretName,omitempty"`
+}
+
+// MSSQLServerDistributedAGSpec defines the configuration for a Distributed Availability Group.
+type MSSQLServerDistributedAGSpec struct {
+	// Self defines the configuration for the local Availability Group's participation in the DAG.
+	// +kubebuilder:validation:Required
+	Self MSSQLServerDistributedAGSelfSpec `json:"self"`
+
+	// Remote defines the connection details and name of the remote Availability Group.
+	// +kubebuilder:validation:Required
+	Remote MSSQLServerDistributedAGRemoteSpec `json:"remote"`
+}
+
+// MSSQLServerDistributedAGSelfSpec defines the configuration for the local AG's role in the DAG.
+type MSSQLServerDistributedAGSelfSpec struct {
+	// Role indicates if the local Availability Group (defined in spec.topology.availabilityGroup)
+	// is acting as Primary or Secondary in this Distributed Availability Group (DAG).
+	// +kubebuilder:validation:Required
+	Role DistributedAGRole `json:"role"`
+
+	// URL is the listener endpoint URL of the *local* Availability Group that will participate in this DAG.
+	// This must be reachable by the SQL Server instance.
+	// Example: "ag1-listener.my-namespace.svc:5022" or an externally reachable IP:Port.
+	// +kubebuilder:validation:Required
+	URL string `json:"url"`
+}
+
+// MSSQLServerDistributedAGRemoteSpec defines the connection details for the remote AG.
+type MSSQLServerDistributedAGRemoteSpec struct {
+	// Name is the actual name of the Availability Group on the remote cluster.
+	// +kubebuilder:validation:Required
+	Name string `json:"name"` // Name of the remote cluster's local AG.
+
+	// URL is the listener endpoint URL of the *remote* Availability Group that will be the other member of this DAG.
+	// This URL must be reachable from the SQL Server instances in this cluster.
+	// Example: Use the external LoadBalancer IP or hostname
+	// e.g., "external-ip-of-remote-ag-listener:5022" or 10.2.0.64:5022 (instead of an internal cluster DNS name)
+	// +kubebuilder:validation:Required
+	URL string `json:"url"`
 }
 
 // MSSQLServerStatus defines the observed state of MSSQLServer

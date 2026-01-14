@@ -80,17 +80,29 @@ type PostgresOpsRequestSpec struct {
 	Configuration *PostgresCustomConfigurationSpec `json:"configuration,omitempty"`
 	// Specifies information necessary for configuring TLS
 	TLS *PostgresTLSSpec `json:"tls,omitempty"`
+	// Specifies information necessary for configuring authSecret of the database
+	Authentication *AuthSpec `json:"authentication,omitempty"`
 	// Specifies information necessary for restarting database
 	Restart *RestartSpec `json:"restart,omitempty"`
+	// Try to reconnect standby's with primary
+	ReconnectStandby *PostgresReconnectStandby `json:"reconnectStandby,omitempty"`
+	// Forcefully do a failover to the given candidate
+	ForceFailOver *PostgresForceFailOver `json:"forceFailOver,omitempty"`
+	// Set given key pairs to raft storage
+	SetRaftKeyPair *PostgresSetRaftKeyPair `json:"setRaftKeyPair,omitempty"`
+	// Specifies information necessary for migrating storageClass or data
+	Migration *PostgresMigrationSpec `json:"migration,omitempty"`
 	// Timeout for each step of the ops request in second. If a step doesn't finish within the specified timeout, the ops request will result in failure.
 	Timeout *metav1.Duration `json:"timeout,omitempty"`
 	// ApplyOption is to control the execution of OpsRequest depending on the database state.
 	// +kubebuilder:default="IfReady"
 	Apply ApplyOption `json:"apply,omitempty"`
+	// +kubebuilder:default=1
+	MaxRetries int32 `json:"maxRetries,omitempty"`
 }
 
-// +kubebuilder:validation:Enum=Upgrade;UpdateVersion;HorizontalScaling;VerticalScaling;VolumeExpansion;Restart;Reconfigure;ReconfigureTLS
-// ENUM(UpdateVersion, HorizontalScaling, VerticalScaling, VolumeExpansion, Restart, Reconfigure, ReconfigureTLS)
+// +kubebuilder:validation:Enum=Upgrade;UpdateVersion;HorizontalScaling;VerticalScaling;VolumeExpansion;Restart;Reconfigure;ReconfigureTLS;RotateAuth;ReconnectStandby;ForceFailOver;SetRaftKeyPair;StorageMigration
+// ENUM(UpdateVersion, HorizontalScaling, VerticalScaling, VolumeExpansion, Restart, Reconfigure, ReconfigureTLS, RotateAuth, ReconnectStandby, ForceFailOver, SetRaftKeyPair, StorageMigration)
 type PostgresOpsRequestType string
 
 type PostgresUpdateVersionSpec struct {
@@ -114,11 +126,13 @@ const (
 	WarmPostgresStandbyMode PostgresStandbyMode = "Warm"
 )
 
+type PostgresPrimaryCandidate string
+
 // HorizontalScaling is the spec for Postgres horizontal scaling
 type PostgresHorizontalScalingSpec struct {
 	Replicas *int32 `json:"replicas,omitempty"`
 	// Standby mode
-	// +kubebuilder:default="Warm"
+	// +kubebuilder:default="Hot"
 	StandbyMode *PostgresStandbyMode `json:"standbyMode,omitempty"`
 
 	// Streaming mode
@@ -132,6 +146,11 @@ type PostgresVerticalScalingSpec struct {
 	Exporter    *ContainerResources `json:"exporter,omitempty"`
 	Coordinator *ContainerResources `json:"coordinator,omitempty"`
 	Arbiter     *PodResources       `json:"arbiter,omitempty"`
+}
+
+type PostgresMigrationSpec struct {
+	StorageClassName   *string                            `json:"storageClassName"`
+	OldPVReclaimPolicy core.PersistentVolumeReclaimPolicy `json:"oldPVReclaimPolicy,omitempty"`
 }
 
 // PostgresVolumeExpansionSpec is the spec for Postgres volume expansion
@@ -152,6 +171,20 @@ type PostgresCustomConfiguration struct {
 	ConfigMap *core.LocalObjectReference `json:"configMap,omitempty"`
 	Data      map[string]string          `json:"data,omitempty"`
 	Remove    bool                       `json:"remove,omitempty"`
+}
+
+type PostgresReconnectStandby struct {
+	// ReadyTimeOut is the time to wait for standby`s to become ready
+	// +optional
+	ReadyTimeOut *metav1.Duration `json:"readyTimeOut,omitempty"`
+}
+
+type PostgresForceFailOver struct {
+	Candidates []PostgresPrimaryCandidate `json:"candidates,omitempty"`
+}
+
+type PostgresSetRaftKeyPair struct {
+	KeyPair map[string]string `json:"keyPair,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

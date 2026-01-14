@@ -66,6 +66,8 @@ type PgpoolOpsRequestSpec struct {
 	Configuration *PgpoolCustomConfigurationSpec `json:"configuration,omitempty"`
 	// Specifies information necessary for configuring TLS
 	TLS *PgpoolTLSSpec `json:"tls,omitempty"`
+	// Specifies information necessary for configuring authSecret of the database
+	Authentication *AuthSpec `json:"authentication,omitempty"`
 	// Specifies information necessary for restarting database
 	Restart *RestartSpec `json:"restart,omitempty"`
 	// Timeout for each step of the ops request in second. If a step doesn't finish within the specified timeout, the ops request will result in failure.
@@ -73,6 +75,8 @@ type PgpoolOpsRequestSpec struct {
 	// ApplyOption is to control the execution of OpsRequest depending on the database state.
 	// +kubebuilder:default="IfReady"
 	Apply ApplyOption `json:"apply,omitempty"`
+	// +kubebuilder:default=1
+	MaxRetries int32 `json:"maxRetries,omitempty"`
 }
 
 type PgpoolTLSSpec struct {
@@ -87,8 +91,8 @@ type PgpoolTLSSpec struct {
 	ClientAuthMode v1alpha2.PgpoolClientAuthMode `json:"clientAuthMode,omitempty"`
 }
 
-// +kubebuilder:validation:Enum=UpdateVersion;VerticalScaling;Reconfigure;Restart;HorizontalScaling;ReconfigureTLS
-// ENUM(UpdateVersion, Restart, Reconfigure, VerticalScaling, HorizontalScaling, ReconfigureTLS)
+// +kubebuilder:validation:Enum=UpdateVersion;VerticalScaling;Reconfigure;Restart;HorizontalScaling;ReconfigureTLS;RotateAuth
+// ENUM(UpdateVersion, Restart, Reconfigure, VerticalScaling, HorizontalScaling, ReconfigureTLS, RotateAuth)
 type PgpoolOpsRequestType string
 
 // PgpoolUpdateVersionSpec contains the update version information of a pgpool cluster

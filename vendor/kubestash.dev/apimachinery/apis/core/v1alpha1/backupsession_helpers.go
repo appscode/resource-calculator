@@ -18,21 +18,20 @@ package v1alpha1
 
 import (
 	"fmt"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kmapi "kmodules.xyz/client-go/api/v1"
-	"kubestash.dev/apimachinery/apis"
 	"time"
 
+	"kubestash.dev/apimachinery/apis"
 	storageapi "kubestash.dev/apimachinery/apis/storage/v1alpha1"
 	"kubestash.dev/apimachinery/crds"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kmapi "kmodules.xyz/client-go/api/v1"
 	"kmodules.xyz/client-go/apiextensions"
 	cutil "kmodules.xyz/client-go/conditions"
-	"kmodules.xyz/client-go/meta"
 	meta_util "kmodules.xyz/client-go/meta"
 )
 
-func (_ BackupSession) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
+func (BackupSession) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
 	return crds.MustCustomResourceDefinition(GroupVersion.WithResource(ResourcePluralBackupSession))
 }
 
@@ -63,7 +62,6 @@ func (b *BackupSession) CalculatePhase() BackupSessionPhase {
 			b.failedToExecutePreBackupHooks() ||
 			b.failedToExecutePostBackupHooks() ||
 			b.failedToApplyRetentionPolicy() ||
-			b.verificationsFailed() ||
 			b.sessionHistoryCleanupFailed() ||
 			b.snapshotCleanupIncomplete()) {
 		return BackupSessionFailed
@@ -115,16 +113,6 @@ func (b *BackupSession) failedToApplyRetentionPolicy() bool {
 	return false
 }
 
-func (b *BackupSession) verificationsFailed() bool {
-	for _, v := range b.Status.Verifications {
-		if v.Phase == VerificationFailed {
-			return true
-		}
-	}
-
-	return false
-}
-
 func (b *BackupSession) calculateBackupSessionPhaseFromSnapshots() BackupSessionPhase {
 	status := b.Status.Snapshots
 	if len(status) == 0 {
@@ -163,7 +151,7 @@ func (b *BackupSession) calculateBackupSessionPhaseFromSnapshots() BackupSession
 }
 
 func GenerateBackupSessionName(invokerName, sessionName string) string {
-	return meta.ValidNameWithPrefixNSuffix(invokerName, sessionName, fmt.Sprintf("%d", time.Now().Unix()))
+	return meta_util.ValidNameWithPrefixNSuffix(invokerName, sessionName, fmt.Sprintf("%d", time.Now().Unix()))
 }
 
 func (b *BackupSession) OffshootLabels() map[string]string {

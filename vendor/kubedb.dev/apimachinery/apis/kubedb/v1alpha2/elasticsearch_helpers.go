@@ -50,7 +50,7 @@ const (
 	ElasticsearchNodeAffinityTemplateVar = "NODE_ROLE"
 )
 
-func (_ Elasticsearch) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
+func (Elasticsearch) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
 	return crds.MustCustomResourceDefinition(SchemeGroupVersion.WithResource(ResourcePluralElasticsearch))
 }
 
@@ -436,7 +436,7 @@ func (e *Elasticsearch) SetDefaults(esVersion *catalog.ElasticsearchVersion, top
 	}
 
 	if e.Spec.TerminationPolicy == "" {
-		e.Spec.TerminationPolicy = TerminationPolicyDelete
+		e.Spec.TerminationPolicy = DeletionPolicyDelete
 	}
 
 	if e.Spec.PodTemplate.Spec.ServiceAccountName == "" {
@@ -788,7 +788,8 @@ func (e *Elasticsearch) setDefaultInternalUsersAndRoleMappings(esVersion *catalo
 				rolesMapping = make(map[string]ElasticsearchRoleMapSpec)
 			}
 			var monitorRole string
-			if esVersion.Spec.AuthPlugin == catalog.ElasticsearchAuthPluginSearchGuard {
+			switch esVersion.Spec.AuthPlugin {
+			case catalog.ElasticsearchAuthPluginSearchGuard:
 				// readall_and_monitor role name varies in ES version
 				// 	V7        = "SGS_READALL_AND_MONITOR"
 				//	V6        = "sg_readall_and_monitor"
@@ -802,9 +803,9 @@ func (e *Elasticsearch) setDefaultInternalUsersAndRoleMappings(esVersion *catalo
 					// Required during upgrade process, from v6 --> v7
 					delete(rolesMapping, string(kubedb.ElasticsearchSearchGuardReadallMonitorRoleV6))
 				}
-			} else if esVersion.Spec.AuthPlugin == catalog.ElasticsearchAuthPluginOpenDistro {
+			case catalog.ElasticsearchAuthPluginOpenDistro:
 				monitorRole = kubedb.ElasticsearchOpendistroReadallMonitorRole
-			} else {
+			default:
 				monitorRole = kubedb.ElasticsearchOpenSearchReadallMonitorRole
 			}
 
@@ -834,7 +835,8 @@ func (e *Elasticsearch) setDefaultInternalUsersAndRoleMappings(esVersion *catalo
 					userSpec.SecretName = e.DefaultUserCredSecretName(username)
 				}
 				e.Spec.AuthSecret = &SecretReference{
-					LocalObjectReference: core.LocalObjectReference{
+					TypedLocalObjectReference: appcat.TypedLocalObjectReference{
+						Kind: "Secret",
 						Name: userSpec.SecretName,
 					},
 				}

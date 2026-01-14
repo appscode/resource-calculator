@@ -18,9 +18,9 @@ spec:
         volumeSnapshot:
           name: volume-snapshot
     walg:
-      image: ghcr.io/kubedb/postgres-archiver:(v0.9.0)_14.10-alpine
+      image: ghcr.io/kubedb/postgres-archiver:(v0.21.0-rc.1)_14.10-alpine
   coordinator:
-    image: ghcr.io/kubedb/pg-coordinator:v0.32.0
+    image: ghcr.io/kubedb/pg-coordinator:v0.44.0-rc.1
   db:
     baseOS: alpine
     image: ghcr.io/appscode-images/postgres:14.13-alpine
@@ -28,7 +28,7 @@ spec:
   exporter:
     image: prometheuscommunity/postgres-exporter:v0.15.0
   initContainer:
-    image: ghcr.io/kubedb/postgres-init:0.15.0
+    image: ghcr.io/kubedb/postgres-init:0.18.0
   podSecurityPolicies:
     databasePolicyName: postgres-db
   securityContext:
@@ -40,6 +40,8 @@ spec:
         name: postgres-backup-14.0
       restoreTask:
         name: postgres-restore-14.0
+  tls:
+    disableSSLSessionResumption: true
   ui:
   - name: pgadmin
     version: v2024.4.27
@@ -47,7 +49,7 @@ spec:
     version: v2024.4.27
   updateConstraints:
     allowlist:
-    - '>= 15.5, <= 16.4'
+    - '>= 14.13'
   version: "14.13"
 
 ---
@@ -71,9 +73,9 @@ spec:
         volumeSnapshot:
           name: volume-snapshot
     walg:
-      image: ghcr.io/kubedb/postgres-archiver:(v0.9.0)_14.10-bookworm
+      image: ghcr.io/kubedb/postgres-archiver:(v0.21.0-rc.1)_14.10-bookworm
   coordinator:
-    image: ghcr.io/kubedb/pg-coordinator:v0.32.0
+    image: ghcr.io/kubedb/pg-coordinator:v0.44.0-rc.1
   db:
     baseOS: bookworm
     image: ghcr.io/appscode-images/postgres:14.13-bookworm
@@ -81,7 +83,7 @@ spec:
   exporter:
     image: prometheuscommunity/postgres-exporter:v0.15.0
   initContainer:
-    image: ghcr.io/kubedb/postgres-init:0.15.0
+    image: ghcr.io/kubedb/postgres-init:0.18.0
   podSecurityPolicies:
     databasePolicyName: postgres-db
   securityContext:
@@ -93,6 +95,8 @@ spec:
         name: postgres-backup-14.0
       restoreTask:
         name: postgres-restore-14.0
+  tls:
+    disableSSLSessionResumption: true
   ui:
   - name: pgadmin
     version: v2024.4.27
@@ -100,5 +104,5 @@ spec:
     version: v2024.4.27
   updateConstraints:
     allowlist:
-    - '>= 15.5, <= 16.4'
+    - '>= 14.13'
   version: "14.13"

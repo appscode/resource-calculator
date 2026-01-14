@@ -33,7 +33,7 @@ const (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:path=proxysqlversions,singular=proxysqlversion,scope=Cluster,categories={catalog,kubedb,appscode}
+// +kubebuilder:resource:path=proxysqlversions,singular=proxysqlversion,scope=Cluster,shortName=prxversion,categories={catalog,kubedb,appscode}
 // +kubebuilder:printcolumn:name="Version",type="string",JSONPath=".spec.version"
 // +kubebuilder:printcolumn:name="ProxySQL_IMAGE",type="string",JSONPath=".spec.proxysql.image"
 // +kubebuilder:printcolumn:name="Deprecated",type="boolean",JSONPath=".spec.deprecated"
@@ -48,6 +48,11 @@ type ProxySQLVersion struct {
 type ProxySQLVersionSpec struct {
 	// Version
 	Version string `json:"version"`
+
+	// EndOfLife refers if this version reached into its end of the life or not, based on https://endoflife.date/
+	// +optional
+	EndOfLife bool `json:"endOfLife"`
+
 	// Proxysql Image
 	Proxysql ProxySQLVersionProxysql `json:"proxysql"`
 	// Exporter Image

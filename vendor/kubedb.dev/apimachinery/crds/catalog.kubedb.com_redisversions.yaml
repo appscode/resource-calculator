@@ -61,6 +61,13 @@ spec:
                 type: object
               deprecated:
                 type: boolean
+              distribution:
+                enum:
+                - Official
+                - Valkey
+                type: string
+              endOfLife:
+                type: boolean
               exporter:
                 properties:
                   image:

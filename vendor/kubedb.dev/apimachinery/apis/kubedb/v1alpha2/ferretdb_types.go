@@ -51,11 +51,18 @@ type FerretDB struct {
 }
 
 type FerretDBSpec struct {
+	// AutoOps contains configuration of automatic ops-request-recommendation generation
+	// +optional
+	AutoOps AutoOpsSpec `json:"autoOps,omitempty"`
+
 	// Version of FerretDB to be deployed.
 	Version string `json:"version"`
 
-	// Number of instances to deploy for a FerretDB database.
-	Replicas *int32 `json:"replicas,omitempty"`
+	// FerretDB primary and secondary server configuration
+	Server *FerretDBServer `json:"server,omitempty"`
+
+	// FerretDB backend configuration
+	Backend *FerretDBBackendSpec `json:"backend,omitempty"`
 
 	// Database authentication secret.
 	// Use this only when backend is internally managed.
@@ -66,10 +73,6 @@ type FerretDBSpec struct {
 	// See more options: https://docs.ferretdb.io/security/tls-connections/
 	// +optional
 	SSLMode SSLMode `json:"sslMode,omitempty"`
-
-	// PodTemplate is an optional configuration for pods used to expose database
-	// +optional
-	PodTemplate *ofst.PodTemplateSpec `json:"podTemplate,omitempty"`
 
 	// ServiceTemplates is an optional configuration for services used to expose database
 	// +optional
@@ -83,16 +86,9 @@ type FerretDBSpec struct {
 	// +optional
 	Halted bool `json:"halted,omitempty"`
 
-	// StorageType can be durable (default) or ephemeral for KubeDB Backend
-	// +optional
-	StorageType StorageType `json:"storageType,omitempty"`
-
-	// Storage to specify how storage shall be used for KubeDB Backend.
-	Storage *core.PersistentVolumeClaimSpec `json:"storage,omitempty"`
-
 	// DeletionPolicy controls the delete operation for database
 	// +optional
-	DeletionPolicy TerminationPolicy `json:"deletionPolicy,omitempty"`
+	DeletionPolicy DeletionPolicy `json:"deletionPolicy,omitempty"`
 
 	// HealthChecker defines attributes of the health checker
 	// +optional
@@ -102,8 +98,6 @@ type FerretDBSpec struct {
 	// Monitor is used monitor database instance and KubeDB Backend
 	// +optional
 	Monitor *mona.AgentSpec `json:"monitor,omitempty"`
-
-	Backend *FerretDBBackend `json:"backend"`
 }
 
 type FerretDBStatus struct {
@@ -119,17 +113,29 @@ type FerretDBStatus struct {
 	Conditions []kmapi.Condition `json:"conditions,omitempty"`
 }
 
-type FerretDBBackend struct {
-	// PostgresRef refers to the AppBinding of the backend Postgres server
+type FerretDBServer struct {
+	Primary   *FerretDBServerSpec `json:"primary,omitempty"`
+	Secondary *FerretDBServerSpec `json:"secondary,omitempty"`
+}
+
+type FerretDBServerSpec struct {
+	Replicas *int32 `json:"replicas,omitempty"`
+	// PodTemplate is an optional configuration for pods used to expose database
 	// +optional
-	PostgresRef *kmapi.ObjectReference `json:"postgresRef,omitempty"`
-	// Which versions pg will be used as backend of ferretdb. default 13.13 when backend internally managed
+	PodTemplate *ofst.PodTemplateSpec `json:"podTemplate,omitempty"`
+}
+
+type FerretDBBackendSpec struct {
+	Replicas *int32 `json:"replicas,omitempty"`
+	// PodTemplate is an optional configuration for pods used to expose database
 	// +optional
-	Version *string `json:"version,omitempty"`
-	// A DB inside backend specifically made for ferretdb
+	PodTemplate *ofst.PodTemplateSpec `json:"podTemplate,omitempty"`
+	// StorageType can be durable (default) or ephemeral for KubeDB Backend
 	// +optional
-	LinkedDB          string `json:"linkedDB,omitempty"`
-	ExternallyManaged bool   `json:"externallyManaged"`
+	StorageType StorageType `json:"storageType,omitempty"`
+
+	// Storage to specify how storage shall be used for KubeDB Backend.
+	Storage *core.PersistentVolumeClaimSpec `json:"storage,omitempty"`
 }
 
 // +kubebuilder:validation:Enum=server;client

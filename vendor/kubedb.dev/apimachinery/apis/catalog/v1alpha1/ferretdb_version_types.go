@@ -48,8 +48,15 @@ type FerretDBVersionSpec struct {
 	// Version
 	Version string `json:"version"`
 
+	// EndOfLife refers if this version reached into its end of the life or not, based on https://endoflife.date/
+	// +optional
+	EndOfLife bool `json:"endOfLife"`
+
 	// Database Image
 	DB FerretDBVersionDatabase `json:"db"`
+
+	// Postgres version
+	Postgres FerretDBVersionPostgres `json:"postgres"`
 
 	// Deprecated versions usable but regarded as obsolete and best avoided, typically due to having been superseded.
 	// +optional
@@ -70,6 +77,11 @@ type FerretDBVersionSpec struct {
 // FerretDBVersionDatabase is the FerretDB Database image
 type FerretDBVersionDatabase struct {
 	Image string `json:"image"`
+}
+
+type FerretDBVersionPostgres struct {
+	// Which versions pg will be used as backend of ferretdb. default 13.13 when backend internally managed
+	Version string `json:"version"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

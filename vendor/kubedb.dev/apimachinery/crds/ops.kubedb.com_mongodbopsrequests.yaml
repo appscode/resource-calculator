@@ -68,6 +68,24 @@ spec:
                 - operation
                 - ref
                 type: object
+              authentication:
+                properties:
+                  secretRef:
+                    properties:
+                      apiGroup:
+                        default: ""
+                        type: string
+                      kind:
+                        default: Secret
+                        type: string
+                      name:
+                        type: string
+                    required:
+                    - kind
+                    - name
+                    type: object
+                    x-kubernetes-map-type: atomic
+                type: object
               configuration:
                 properties:
                   arbiter:
@@ -190,6 +208,17 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              horizons:
+                properties:
+                  dns:
+                    type: string
+                  pods:
+                    items:
+                      type: string
+                    type: array
+                required:
+                - dns
+                type: object
               horizontalScaling:
                 properties:
                   configServer:
@@ -223,6 +252,10 @@ spec:
                         type: integer
                     type: object
                 type: object
+              maxRetries:
+                default: 1
+                format: int32
+                type: integer
               readinessCriteria:
                 properties:
                   objectsCountDiffPercentage:
@@ -357,6 +390,8 @@ spec:
                 - Reconfigure
                 - ReconfigureTLS
                 - Reprovision
+                - RotateAuth
+                - Horizons
                 type: string
               updateVersion:
                 properties:
@@ -375,6 +410,8 @@ spec:
                             items:
                               properties:
                                 name:
+                                  type: string
+                                request:
                                   type: string
                               required:
                               - name
@@ -422,6 +459,8 @@ spec:
                               properties:
                                 name:
                                   type: string
+                                request:
+                                  type: string
                               required:
                               - name
                               type: object
@@ -466,6 +505,8 @@ spec:
                               properties:
                                 name:
                                   type: string
+                                request:
+                                  type: string
                               required:
                               - name
                               type: object
@@ -499,6 +540,8 @@ spec:
                             items:
                               properties:
                                 name:
+                                  type: string
+                                request:
                                   type: string
                               required:
                               - name
@@ -535,6 +578,8 @@ spec:
                             items:
                               properties:
                                 name:
+                                  type: string
+                                request:
                                   type: string
                               required:
                               - name
@@ -582,6 +627,8 @@ spec:
                               properties:
                                 name:
                                   type: string
+                                request:
+                                  type: string
                               required:
                               - name
                               type: object
@@ -627,6 +674,8 @@ spec:
                             items:
                               properties:
                                 name:
+                                  type: string
+                                request:
                                   type: string
                               required:
                               - name
@@ -674,6 +723,8 @@ spec:
                               properties:
                                 name:
                                   type: string
+                                request:
+                                  type: string
                               required:
                               - name
                               type: object
@@ -719,6 +770,8 @@ spec:
                             items:
                               properties:
                                 name:
+                                  type: string
+                                request:
                                   type: string
                               required:
                               - name

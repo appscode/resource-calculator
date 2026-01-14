@@ -87,6 +87,10 @@ type PgBouncerSpec struct {
 	// If specified, this file will be used as configuration file otherwise default configuration file will be used.
 	ConfigSecret *core.LocalObjectReference `json:"configSecret,omitempty"`
 
+	// Init is used to initialize database
+	// +optional
+	Init *InitSpec `json:"init,omitempty"`
+
 	// Monitor is used monitor database instance.
 	// +optional
 	Monitor *mona.AgentSpec `json:"monitor,omitempty"`
@@ -232,8 +236,8 @@ const (
 )
 
 // PgBouncerClientAuthMode represents the ClientAuthMode of PgBouncer clusters ( replicaset )
-// We are allowing md5, scram-sha-256, cert as ClientAuthMode
-// +kubebuilder:validation:Enum=md5;scram-sha-256;cert;
+// We are allowing md5, scram-sha-256 as ClientAuthMode
+// +kubebuilder:validation:Enum=md5;scram-sha-256;
 type PgBouncerClientAuthMode string
 
 const (
@@ -248,9 +252,4 @@ const (
 	// and supports storing passwords on the server in a cryptographically hashed form that is thought to be secure.
 	// This is the most secure of the currently provided methods, but it is not supported by older client libraries.
 	PgBouncerClientAuthModeScram PgBouncerClientAuthMode = "scram-sha-256"
-
-	// ClientAuthModeCert represents `cert clientcert=1` auth mode where client need to provide cert and private key for authentication.
-	// When server is config with this auth method. Client can't connect with pgbouncer server with password. They need
-	// to Send the client cert and client key certificate for authentication.
-	PgBouncerClientAuthModeCert PgBouncerClientAuthMode = "cert"
 )

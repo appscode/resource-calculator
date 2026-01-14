@@ -29,11 +29,14 @@ import (
 
 type OpsV1alpha1Interface interface {
 	RESTClient() rest.Interface
+	CassandraOpsRequestsGetter
 	ClickHouseOpsRequestsGetter
 	DruidOpsRequestsGetter
 	ElasticsearchOpsRequestsGetter
 	EtcdOpsRequestsGetter
 	FerretDBOpsRequestsGetter
+	HazelcastOpsRequestsGetter
+	IgniteOpsRequestsGetter
 	KafkaOpsRequestsGetter
 	MSSQLServerOpsRequestsGetter
 	MariaDBOpsRequestsGetter
@@ -58,6 +61,10 @@ type OpsV1alpha1Client struct {
 	restClient rest.Interface
 }
 
+func (c *OpsV1alpha1Client) CassandraOpsRequests(namespace string) CassandraOpsRequestInterface {
+	return newCassandraOpsRequests(c, namespace)
+}
+
 func (c *OpsV1alpha1Client) ClickHouseOpsRequests(namespace string) ClickHouseOpsRequestInterface {
 	return newClickHouseOpsRequests(c, namespace)
 }
@@ -76,6 +83,14 @@ func (c *OpsV1alpha1Client) EtcdOpsRequests(namespace string) EtcdOpsRequestInte
 
 func (c *OpsV1alpha1Client) FerretDBOpsRequests(namespace string) FerretDBOpsRequestInterface {
 	return newFerretDBOpsRequests(c, namespace)
+}
+
+func (c *OpsV1alpha1Client) HazelcastOpsRequests(namespace string) HazelcastOpsRequestInterface {
+	return newHazelcastOpsRequests(c, namespace)
+}
+
+func (c *OpsV1alpha1Client) IgniteOpsRequests(namespace string) IgniteOpsRequestInterface {
+	return newIgniteOpsRequests(c, namespace)
 }
 
 func (c *OpsV1alpha1Client) KafkaOpsRequests(namespace string) KafkaOpsRequestInterface {

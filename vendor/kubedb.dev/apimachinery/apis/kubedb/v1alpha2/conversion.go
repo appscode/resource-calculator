@@ -183,7 +183,7 @@ func Convert_v1_MariaDBSpec_To_v1alpha2_MariaDBSpec(in *v1.MariaDBSpec, out *Mar
 	out.RequireSSL = in.RequireSSL
 	out.TLS = (*clientgoapiv1.TLSConfig)(unsafe.Pointer(in.TLS))
 	out.Halted = in.Halted
-	out.TerminationPolicy = TerminationPolicy(in.DeletionPolicy)
+	out.TerminationPolicy = DeletionPolicy(in.DeletionPolicy)
 	out.AllowedSchemas = (*AllowedConsumers)(unsafe.Pointer(in.AllowedSchemas))
 	out.HealthChecker = in.HealthChecker
 	out.Archiver = (*Archiver)(unsafe.Pointer(in.Archiver))
@@ -264,7 +264,7 @@ func Convert_v1_PostgresSpec_To_v1alpha2_PostgresSpec(in *v1.PostgresSpec, out *
 	out.ServiceTemplates = *(*[]NamedServiceTemplateSpec)(unsafe.Pointer(&in.ServiceTemplates))
 	out.TLS = (*clientgoapiv1.TLSConfig)(unsafe.Pointer(in.TLS))
 	out.Halted = in.Halted
-	out.TerminationPolicy = TerminationPolicy(in.DeletionPolicy)
+	out.TerminationPolicy = DeletionPolicy(in.DeletionPolicy)
 	out.EnforceFsGroup = in.EnforceFsGroup
 	out.AllowedSchemas = (*AllowedConsumers)(unsafe.Pointer(in.AllowedSchemas))
 	out.HealthChecker = in.HealthChecker
@@ -369,7 +369,7 @@ func Convert_v1_MySQLSpec_To_v1alpha2_MySQLSpec(in *v1.MySQLSpec, out *MySQLSpec
 	out.RequireSSL = in.RequireSSL
 	out.TLS = (*clientgoapiv1.TLSConfig)(unsafe.Pointer(in.TLS))
 	out.Halted = in.Halted
-	out.TerminationPolicy = TerminationPolicy(in.DeletionPolicy)
+	out.TerminationPolicy = DeletionPolicy(in.DeletionPolicy)
 	out.UseAddressType = AddressType(in.UseAddressType)
 	out.AllowedSchemas = (*AllowedConsumers)(unsafe.Pointer(in.AllowedSchemas))
 	out.AllowedReadReplicas = (*AllowedConsumers)(unsafe.Pointer(in.AllowedReadReplicas))
@@ -470,13 +470,27 @@ func initializeMongoDBReplicationModeDetectorContainer(in *CoordinatorSpec, podT
 	return nil
 }
 
+func Convert_v1_MongoDBReplicaSet_To_v1alpha2_MongoDBReplicaSet(newRepl *v1.MongoDBReplicaSet, oldRepl *MongoDBReplicaSet, s conversion.Scope) error {
+	oldRepl.Name = newRepl.Name
+	return nil
+}
+
 func Convert_v1alpha2_MongoDBSpec_To_v1_MongoDBSpec(in *MongoDBSpec, out *v1.MongoDBSpec, s conversion.Scope) error {
 	if err := Convert_v1alpha2_AutoOpsSpec_To_v1_AutoOpsSpec(&in.AutoOps, &out.AutoOps, s); err != nil {
 		return err
 	}
 	out.Version = in.Version
 	out.Replicas = (*int32)(unsafe.Pointer(in.Replicas))
-	out.ReplicaSet = (*v1.MongoDBReplicaSet)(unsafe.Pointer(in.ReplicaSet))
+	if in.ReplicaSet != nil {
+		i, o := in.ReplicaSet, out.ReplicaSet
+		if o == nil {
+			o = new(v1.MongoDBReplicaSet)
+		}
+		if err := Convert_v1alpha2_MongoDBReplicaSet_To_v1_MongoDBReplicaSet(i, o, s); err != nil {
+			return err
+		}
+		out.ReplicaSet = o
+	}
 	out.StorageType = v1.StorageType(in.StorageType)
 	out.Storage = (*corev1.PersistentVolumeClaimSpec)(unsafe.Pointer(in.Storage))
 	out.EphemeralStorage = (*corev1.EmptyDirVolumeSource)(unsafe.Pointer(in.EphemeralStorage))
@@ -571,7 +585,16 @@ func Convert_v1_MongoDBSpec_To_v1alpha2_MongoDBSpec(in *v1.MongoDBSpec, out *Mon
 	}
 	out.Version = in.Version
 	out.Replicas = (*int32)(unsafe.Pointer(in.Replicas))
-	out.ReplicaSet = (*MongoDBReplicaSet)(unsafe.Pointer(in.ReplicaSet))
+	if in.ReplicaSet != nil {
+		i, o := in.ReplicaSet, out.ReplicaSet
+		if o == nil {
+			o = new(MongoDBReplicaSet)
+		}
+		if err := Convert_v1_MongoDBReplicaSet_To_v1alpha2_MongoDBReplicaSet(i, o, s); err != nil {
+			return err
+		}
+		out.ReplicaSet = o
+	}
 	if in.ShardTopology != nil {
 		inSt, outSt := &in.ShardTopology, &out.ShardTopology
 		*outSt = new(MongoDBShardingTopology)
@@ -611,7 +634,7 @@ func Convert_v1_MongoDBSpec_To_v1alpha2_MongoDBSpec(in *v1.MongoDBSpec, out *Mon
 	out.TLS = (*clientgoapiv1.TLSConfig)(unsafe.Pointer(in.TLS))
 	out.KeyFileSecret = (*corev1.LocalObjectReference)(unsafe.Pointer(in.KeyFileSecret))
 	out.Halted = in.Halted
-	out.TerminationPolicy = TerminationPolicy(in.DeletionPolicy)
+	out.TerminationPolicy = DeletionPolicy(in.DeletionPolicy)
 	out.StorageEngine = StorageEngine(in.StorageEngine)
 	out.AllowedSchemas = (*AllowedConsumers)(unsafe.Pointer(in.AllowedSchemas))
 	if in.Arbiter != nil {
@@ -761,7 +784,7 @@ func Convert_v1_RedisSpec_To_v1alpha2_RedisSpec(in *v1.RedisSpec, out *RedisSpec
 	out.ServiceTemplates = *(*[]NamedServiceTemplateSpec)(unsafe.Pointer(&in.ServiceTemplates))
 	out.TLS = (*clientgoapiv1.TLSConfig)(unsafe.Pointer(in.TLS))
 	out.Halted = in.Halted
-	out.TerminationPolicy = TerminationPolicy(in.DeletionPolicy)
+	out.TerminationPolicy = DeletionPolicy(in.DeletionPolicy)
 	out.AllowedSchemas = (*AllowedConsumers)(unsafe.Pointer(in.AllowedSchemas))
 	out.HealthChecker = in.HealthChecker
 	return nil
@@ -829,7 +852,7 @@ func Convert_v1_PerconaXtraDBSpec_To_v1alpha2_PerconaXtraDBSpec(in *v1.PerconaXt
 	out.RequireSSL = in.RequireSSL
 	out.TLS = (*clientgoapiv1.TLSConfig)(unsafe.Pointer(in.TLS))
 	out.Halted = in.Halted
-	out.TerminationPolicy = TerminationPolicy(in.DeletionPolicy)
+	out.TerminationPolicy = DeletionPolicy(in.DeletionPolicy)
 	out.AllowedSchemas = (*AllowedConsumers)(unsafe.Pointer(in.AllowedSchemas))
 	out.HealthChecker = in.HealthChecker
 	out.SystemUserSecrets = (*SystemUserSecretsSpec)(unsafe.Pointer(in.SystemUserSecrets))
@@ -958,7 +981,7 @@ func Convert_v1_ElasticsearchSpec_To_v1alpha2_ElasticsearchSpec(in *v1.Elasticse
 	out.InternalUsers = *(*map[string]ElasticsearchUserSpec)(unsafe.Pointer(&in.InternalUsers))
 	out.RolesMapping = *(*map[string]ElasticsearchRoleMapSpec)(unsafe.Pointer(&in.RolesMapping))
 	out.Halted = in.Halted
-	out.TerminationPolicy = TerminationPolicy(in.DeletionPolicy)
+	out.TerminationPolicy = DeletionPolicy(in.DeletionPolicy)
 	out.KernelSettings = (*KernelSettings)(unsafe.Pointer(in.KernelSettings))
 	out.HeapSizePercentage = (*int32)(unsafe.Pointer(in.HeapSizePercentage))
 	out.HealthChecker = in.HealthChecker
@@ -977,7 +1000,7 @@ func Convert_v1_MemcachedSpec_To_v1alpha2_MemcachedSpec(in *v1.MemcachedSpec, ou
 	out.ServiceTemplates = *(*[]NamedServiceTemplateSpec)(unsafe.Pointer(&in.ServiceTemplates))
 	out.TLS = (*clientgoapiv1.TLSConfig)(unsafe.Pointer(in.TLS))
 	out.Halted = in.Halted
-	out.TerminationPolicy = TerminationPolicy(in.DeletionPolicy)
+	out.TerminationPolicy = DeletionPolicy(in.DeletionPolicy)
 	out.HealthChecker = in.HealthChecker
 	return nil
 }
@@ -1025,7 +1048,7 @@ func Convert_v1_PgBouncerSpec_To_v1alpha2_PgBouncerSpec(in *v1.PgBouncerSpec, ou
 	out.Monitor = (*monitoringagentapiapiv1.AgentSpec)(unsafe.Pointer(in.Monitor))
 	out.SSLMode = PgBouncerSSLMode(in.SSLMode)
 	out.TLS = (*clientgoapiv1.TLSConfig)(unsafe.Pointer(in.TLS))
-	out.TerminationPolicy = PgBouncerTerminationPolicy(in.DeletionPolicy)
+	out.TerminationPolicy = DeletionPolicy(in.DeletionPolicy)
 	out.HealthChecker = in.HealthChecker
 	return nil
 }
@@ -1069,7 +1092,7 @@ func Convert_v1_ProxySQLSpec_To_v1alpha2_ProxySQLSpec(in *v1.ProxySQLSpec, out *
 	}
 	out.ServiceTemplates = *(*[]NamedServiceTemplateSpec)(unsafe.Pointer(&in.ServiceTemplates))
 	out.TLS = (*clientgoapiv1.TLSConfig)(unsafe.Pointer(in.TLS))
-	out.TerminationPolicy = TerminationPolicy(in.DeletionPolicy)
+	out.TerminationPolicy = DeletionPolicy(in.DeletionPolicy)
 	out.HealthChecker = in.HealthChecker
 	return nil
 }
@@ -1113,7 +1136,7 @@ func Convert_v1_RedisSentinelSpec_To_v1alpha2_RedisSentinelSpec(in *v1.RedisSent
 	out.DisableAuth = in.DisableAuth
 	out.Halted = in.Halted
 	out.Monitor = (*monitoringagentapiapiv1.AgentSpec)(unsafe.Pointer(in.Monitor))
-	out.TerminationPolicy = TerminationPolicy(in.DeletionPolicy)
+	out.TerminationPolicy = DeletionPolicy(in.DeletionPolicy)
 	out.HealthChecker = in.HealthChecker
 	return nil
 }

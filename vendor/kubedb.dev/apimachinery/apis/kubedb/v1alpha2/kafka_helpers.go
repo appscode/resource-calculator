@@ -43,6 +43,7 @@ import (
 	appcat "kmodules.xyz/custom-resources/apis/appcatalog/v1alpha1"
 	mona "kmodules.xyz/monitoring-agent-api/api/v1"
 	ofst "kmodules.xyz/offshoot-api/api/v2"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func (k *Kafka) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
@@ -216,9 +217,10 @@ func (k *Kafka) NodeRoleSpecificLabelKey(role KafkaNodeRoleType) string {
 }
 
 func (k *Kafka) ConfigSecretName(role KafkaNodeRoleType) string {
-	if role == KafkaNodeRoleController {
+	switch role {
+	case KafkaNodeRoleController:
 		return meta_util.NameWithSuffix(k.OffshootName(), "controller-config")
-	} else if role == KafkaNodeRoleBroker {
+	case KafkaNodeRoleBroker:
 		return meta_util.NameWithSuffix(k.OffshootName(), "broker-config")
 	}
 	return meta_util.NameWithSuffix(k.OffshootName(), "config")
@@ -239,8 +241,8 @@ func (k *Kafka) CruiseControlConfigSecretName() string {
 	return meta_util.NameWithSuffix(k.OffshootName(), "cruise-control-config")
 }
 
-func (k *Kafka) DefaultUserCredSecretName(username string) string {
-	return meta_util.NameWithSuffix(k.Name, strings.ReplaceAll(fmt.Sprintf("%s-cred", username), "_", "-"))
+func (k *Kafka) DefaultUserCredSecretName() string {
+	return meta_util.NameWithSuffix(k.OffshootName(), "auth")
 }
 
 func (k *Kafka) DefaultKeystoreCredSecretName() string {
@@ -298,17 +300,17 @@ func (k *Kafka) SetHealthCheckerDefaults() {
 	}
 }
 
-func (k *Kafka) SetDefaults() {
+func (k *Kafka) SetDefaults(kc client.Client) {
 	if k.Spec.Halted {
-		if k.Spec.DeletionPolicy == TerminationPolicyDoNotTerminate {
+		if k.Spec.DeletionPolicy == DeletionPolicyDoNotTerminate {
 			klog.Errorf(`Can't halt, since deletion policy is 'DoNotTerminate'`)
 			return
 		}
-		k.Spec.DeletionPolicy = TerminationPolicyHalt
+		k.Spec.DeletionPolicy = DeletionPolicyHalt
 	}
 
 	if k.Spec.DeletionPolicy == "" {
-		k.Spec.DeletionPolicy = TerminationPolicyDelete
+		k.Spec.DeletionPolicy = DeletionPolicyDelete
 	}
 
 	if k.Spec.StorageType == "" {
@@ -316,7 +318,7 @@ func (k *Kafka) SetDefaults() {
 	}
 
 	var kfVersion catalog.KafkaVersion
-	err := DefaultClient.Get(context.TODO(), types.NamespacedName{Name: k.Spec.Version}, &kfVersion)
+	err := kc.Get(context.TODO(), types.NamespacedName{Name: k.Spec.Version}, &kfVersion)
 	if err != nil {
 		klog.Errorf("can't get the kafka version object %s for %s \n", err.Error(), k.Spec.Version)
 		return

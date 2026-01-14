@@ -17,18 +17,22 @@ limitations under the License.
 package v1
 
 import (
+	"errors"
 	"fmt"
+	"time"
 
 	"kubedb.dev/apimachinery/apis"
 	"kubedb.dev/apimachinery/apis/catalog/v1alpha1"
 	"kubedb.dev/apimachinery/apis/kubedb"
 	"kubedb.dev/apimachinery/crds"
 
+	"github.com/google/uuid"
 	promapi "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"gomodules.xyz/pointer"
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/utils/ptr"
 	kmapi "kmodules.xyz/client-go/api/v1"
 	"kmodules.xyz/client-go/apiextensions"
 	core_util "kmodules.xyz/client-go/core/v1"
@@ -42,7 +46,7 @@ import (
 
 func (*MySQL) Hub() {}
 
-func (_ MySQL) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
+func (MySQL) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
 	return crds.MustCustomResourceDefinition(SchemeGroupVersion.WithResource(ResourcePluralMySQL))
 }
 
@@ -86,6 +90,14 @@ func (m MySQL) PodLabels() map[string]string {
 
 func (m MySQL) PodControllerLabels() map[string]string {
 	return m.offshootLabels(m.OffshootSelectors(), m.Spec.PodTemplate.Controller.Labels)
+}
+
+func (m MySQL) SidekickLabels(skName string) map[string]string {
+	return meta_util.OverwriteKeys(nil, kubedb.CommonSidekickLabels(), map[string]string{
+		meta_util.InstanceLabelKey: skName,
+		kubedb.SidekickOwnerName:   m.Name,
+		kubedb.SidekickOwnerKind:   m.ResourceFQN(),
+	})
 }
 
 func (m MySQL) RouterOffshootLabels() map[string]string {
@@ -173,6 +185,10 @@ func (m MySQL) GetAuthSecretName() string {
 	return meta_util.NameWithSuffix(m.OffshootName(), "auth")
 }
 
+func (m MySQL) GetStorageClassName() string {
+	return *m.Spec.Storage.StorageClassName
+}
+
 type mysqlApp struct {
 	*MySQL
 }
@@ -257,15 +273,22 @@ func (m *MySQL) IsSemiSync() bool {
 		*m.Spec.Topology.Mode == MySQLModeSemiSync
 }
 
-func (m *MySQL) SetDefaults(myVersion *v1alpha1.MySQLVersion) {
+func (m *MySQL) SetDefaults(myVersion *v1alpha1.MySQLVersion) error {
 	if m == nil {
-		return
+		return nil
 	}
 	if m.Spec.StorageType == "" {
 		m.Spec.StorageType = StorageTypeDurable
 	}
 	if m.Spec.DeletionPolicy == "" {
 		m.Spec.DeletionPolicy = DeletionPolicyDelete
+	}
+
+	if m.Spec.AuthSecret == nil {
+		m.Spec.AuthSecret = &SecretReference{}
+	}
+	if m.Spec.AuthSecret.Kind == "" {
+		m.Spec.AuthSecret.Kind = kubedb.ResourceKindSecret
 	}
 
 	if m.UsesGroupReplication() || m.IsInnoDBCluster() || m.IsSemiSync() {
@@ -275,6 +298,42 @@ func (m *MySQL) SetDefaults(myVersion *v1alpha1.MySQLVersion) {
 	} else {
 		if m.Spec.Replicas == nil {
 			m.Spec.Replicas = pointer.Int32P(1)
+		}
+	}
+
+	if m.UsesGroupReplication() {
+		if m.Spec.Topology.Group == nil {
+			m.Spec.Topology.Group = &MySQLGroupSpec{}
+		}
+
+		if m.Spec.Topology.Group.Name == "" {
+			grName, err := uuid.NewRandom()
+			if err != nil {
+				return errors.New("failed to generate a new group name")
+			}
+			m.Spec.Topology.Group.Name = grName.String()
+		}
+	}
+
+	if m.IsSemiSync() {
+		if m.Spec.Topology.SemiSync == nil {
+			m.Spec.Topology.SemiSync = &SemiSyncSpec{
+				SourceWaitForReplicaCount: 1,
+				SourceTimeout:             metav1.Duration{Duration: 24 * time.Hour},
+				ErrantTransactionRecoveryPolicy: func() *ErrantTransactionRecoveryPolicy {
+					pseudoTransaction := ErrantTransactionRecoveryPolicyPseudoTransaction
+					return &pseudoTransaction
+				}(),
+			}
+		}
+	}
+	if m.IsInnoDBCluster() {
+		if m.Spec.Topology.InnoDBCluster == nil {
+			// avoid needing to check for m.Spec.Topology.InnoDBCluster != nil later
+			m.Spec.Topology.InnoDBCluster = &MySQLInnoDBClusterSpec{}
+		}
+		if m.Spec.Topology.InnoDBCluster.Router.PodTemplate == nil {
+			m.Spec.Topology.InnoDBCluster.Router.PodTemplate = &ofstv2.PodTemplateSpec{}
 		}
 	}
 
@@ -308,6 +367,23 @@ func (m *MySQL) SetDefaults(myVersion *v1alpha1.MySQLVersion) {
 			m.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsGroup = myVersion.Spec.SecurityContext.RunAsUser
 		}
 	}
+	if m.Spec.Init != nil && m.Spec.Init.Archiver != nil && m.Spec.Init.Archiver.ReplicationStrategy == nil {
+		m.Spec.Init.Archiver.ReplicationStrategy = ptr.To(ReplicationStrategyNone)
+	}
+
+	if m.Spec.Init != nil && m.Spec.Init.Archiver != nil {
+		if m.Spec.Init.Archiver.EncryptionSecret != nil && m.Spec.Init.Archiver.EncryptionSecret.Namespace == "" {
+			m.Spec.Init.Archiver.EncryptionSecret.Namespace = m.GetNamespace()
+		}
+		if m.Spec.Init.Archiver.FullDBRepository != nil && m.Spec.Init.Archiver.FullDBRepository.Namespace == "" {
+			m.Spec.Init.Archiver.FullDBRepository.Namespace = m.GetNamespace()
+		}
+		if m.Spec.Init.Archiver.ManifestRepository != nil && m.Spec.Init.Archiver.ManifestRepository.Namespace == "" {
+			m.Spec.Init.Archiver.ManifestRepository.Namespace = m.GetNamespace()
+		}
+	}
+
+	return nil
 }
 
 func (m *MySQL) SetTLSDefaults() {

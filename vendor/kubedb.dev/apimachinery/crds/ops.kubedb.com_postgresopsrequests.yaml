@@ -48,6 +48,24 @@ spec:
                 - IfReady
                 - Always
                 type: string
+              authentication:
+                properties:
+                  secretRef:
+                    properties:
+                      apiGroup:
+                        default: ""
+                        type: string
+                      kind:
+                        default: Secret
+                        type: string
+                      name:
+                        type: string
+                    required:
+                    - kind
+                    - name
+                    type: object
+                    x-kubernetes-map-type: atomic
+                type: object
               configuration:
                 properties:
                   applyConfig:
@@ -71,13 +89,20 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              forceFailOver:
+                properties:
+                  candidates:
+                    items:
+                      type: string
+                    type: array
+                type: object
               horizontalScaling:
                 properties:
                   replicas:
                     format: int32
                     type: integer
                   standbyMode:
-                    default: Warm
+                    default: Hot
                     enum:
                     - Hot
                     - Warm
@@ -89,7 +114,32 @@ spec:
                     - Asynchronous
                     type: string
                 type: object
+              maxRetries:
+                default: 1
+                format: int32
+                type: integer
+              migration:
+                properties:
+                  oldPVReclaimPolicy:
+                    type: string
+                  storageClassName:
+                    type: string
+                required:
+                - storageClassName
+                type: object
+              reconnectStandby:
+                properties:
+                  readyTimeOut:
+                    type: string
+                type: object
               restart:
+                type: object
+              setRaftKeyPair:
+                properties:
+                  keyPair:
+                    additionalProperties:
+                      type: string
+                    type: object
                 type: object
               timeout:
                 type: string
@@ -223,6 +273,11 @@ spec:
                 - Restart
                 - Reconfigure
                 - ReconfigureTLS
+                - RotateAuth
+                - ReconnectStandby
+                - ForceFailOver
+                - SetRaftKeyPair
+                - StorageMigration
                 type: string
               updateVersion:
                 properties:
@@ -241,6 +296,8 @@ spec:
                             items:
                               properties:
                                 name:
+                                  type: string
+                                request:
                                   type: string
                               required:
                               - name
@@ -286,6 +343,8 @@ spec:
                               properties:
                                 name:
                                   type: string
+                                request:
+                                  type: string
                               required:
                               - name
                               type: object
@@ -319,6 +378,8 @@ spec:
                             items:
                               properties:
                                 name:
+                                  type: string
+                                request:
                                   type: string
                               required:
                               - name
@@ -355,6 +416,8 @@ spec:
                             items:
                               properties:
                                 name:
+                                  type: string
+                                request:
                                   type: string
                               required:
                               - name

@@ -53,6 +53,11 @@ type PostgresVersion struct {
 type PostgresVersionSpec struct {
 	// Version
 	Version string `json:"version"`
+
+	// EndOfLife refers if this version reached into its end of the life or not, based on https://endoflife.date/
+	// +optional
+	EndOfLife bool `json:"endOfLife"`
+
 	// Distribution
 	Distribution PostgresDistro `json:"distribution,omitempty"`
 	// init container image
@@ -74,6 +79,9 @@ type PostgresVersionSpec struct {
 	// SecurityContext is for the additional config for postgres DB container
 	// +optional
 	SecurityContext PostgresSecurityContext `json:"securityContext"`
+	// PostgresVersionTLSSpec is used to set postgres version specific tls settings
+	// +optional
+	TLS *PostgresVersionTLSSpec `json:"tls,omitempty"`
 	// update constraints
 	UpdateConstraints UpdateConstraints `json:"updateConstraints,omitempty"`
 	// +optional
@@ -110,6 +118,13 @@ type PostgresVersionPodSecurityPolicy struct {
 	DatabasePolicyName string `json:"databasePolicyName"`
 }
 
+// PostgresVersionTLSSpec is used to set postgres version specific tls settings
+type PostgresVersionTLSSpec struct {
+	// DisableSSLSessionResumption determines whether to disable or enable Envoy Session Resumption
+	// +optional
+	DisableSSLSessionResumption bool `json:"disableSSLSessionResumption,omitempty"`
+}
+
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // PostgresVersionList is a list of PostgresVersions
@@ -132,7 +147,7 @@ type PostgresSecurityContext struct {
 	RunAsAnyNonRoot bool `json:"runAsAnyNonRoot,omitempty"`
 }
 
-// +kubebuilder:validation:Enum=Official;TimescaleDB;PostGIS;KubeDB;PostgreSQL
+// +kubebuilder:validation:Enum=Official;TimescaleDB;PostGIS;KubeDB;DocumentDB;PostgreSQL
 type PostgresDistro string
 
 const (
@@ -140,4 +155,5 @@ const (
 	PostgresDistroTimescaleDB PostgresDistro = "TimescaleDB"
 	PostgresDistroPostGIS     PostgresDistro = "PostGIS"
 	PostgresDistroKubeDB      PostgresDistro = "KubeDB"
+	PostgresDistroDocumentDB  PostgresDistro = "DocumentDB"
 )

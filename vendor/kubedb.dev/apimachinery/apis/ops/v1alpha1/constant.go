@@ -29,6 +29,10 @@ const (
 	Failed     = "Failed"
 )
 
+const (
+	Retrying = "Retrying"
+)
+
 // Database
 const (
 	DatabaseReady           = "DatabaseReady"
@@ -101,11 +105,25 @@ const (
 	IssueCertificatesFailed    = "IssueCertificatesFailed"
 )
 
+// RotateAuth
+const (
+	RotateAuth                     = "RotateAuth"
+	UpdateCredential               = "UpdateCredential"
+	BasicAuthPreviousUsernameKey   = "username.prev"
+	BasicAuthPreviousPasswordKey   = "password.prev"
+	BasicAuthNextUsernameKey       = "username.next"
+	BasicAuthNextPasswordKey       = "password.next"
+	SecretAlreadyUpdatedAnnotation = "secret-already-updated"
+	AuthDataPreviousKey            = "authData.prev"
+	PatchDefaultConfig             = "PatchDefaultConfig"
+)
+
 // Restart
 const (
 	Restart              = "Restart"
 	RestartNodes         = "RestartNodes"
 	RestartPods          = "RestartPods"
+	RestartKeeperPods    = "RestartKeeperPods"
 	RestartPodsSucceeded = "RestartPodsSucceeded"
 	RestartPodsFailed    = "RestartPodsFailed"
 )
@@ -147,9 +165,10 @@ const (
 
 // Elasticsearch Constant
 const (
-	PrepareCustomConfig       = "PrepareCustomConfig"
-	PrepareSecureCustomConfig = "PrepareSecureCustomConfig"
-	ReconfigureSecurityAdmin  = "ReconfigureSecurityAdmin"
+	PrepareCustomConfig               = "PrepareCustomConfig"
+	PrepareSecureCustomConfig         = "PrepareSecureCustomConfig"
+	ReconfigureSecurityAdmin          = "ReconfigureSecurityAdmin"
+	DisabledMasterNodeShardAllocation = "DisabledMasterNodeShardAllocation"
 
 	HorizontalScaleMasterNode       = "HorizontalScaleMasterNode"
 	HorizontalScaleDataNode         = "HorizontalScaleDataNode"
@@ -206,7 +225,8 @@ const (
 
 // RabbitMQ Constants
 const (
-	UpdateNodePVCs = "UpdateNodePVCs"
+	UpdateNodePVCs        = "UpdateNodePVCs"
+	EnableAllFeatureFlags = "EnableAllFeatureFlags"
 )
 
 // MongoDB Constants
@@ -267,11 +287,20 @@ const (
 	RestartShard        = "RestartShard"
 	RestartArbiter      = "RestartArbiter"
 	RestartHidden       = "RestartHidden"
+
+	SetHorizons    = "SetHorizons"
+	RemoveHorizons = "RemoveHorizons"
 )
 
-// MySQL/MariaDB Constants
+// MySQL/MariaDB/Maxscale Constants
 const (
-	TempIniFilesPath = "/tmp/kubedb-custom-ini-files"
+	TempIniFilesPath             = "/tmp/kubedb-custom-ini-files"
+	StopRemoteReplica            = "StopRemoteReplica"
+	DBPatch                      = "DBPatch"
+	StopRemoteReplicaSucceeded   = "StopRemoteReplicaSucceeded"
+	DBPatchSucceeded             = "DBPatchSucceeded"
+	RestartMaxscale              = "RestartMaxscale"
+	RestartMaxscalePodsSucceeded = "RestartMaxscalePodsSucceeded"
 )
 
 // Postgres Constants
@@ -290,6 +319,42 @@ const (
 
 	RestartPrimary   = "RestartPrimary"
 	RestartSecondary = "RestartSecondary"
+
+	StartRunScript                          = "StartRunScriptWithRestart"
+	KillRunScript                           = "KillRunScript"
+	StickyLeader                            = "STICKYLEADER" // We want a id(sticky id) to be always leader in raft
+	UpdateDataDirectory                     = "UpdateDataDirectory"
+	PausePgCoordinatorBeforeUpgrade         = "PausePgCoordinatorBeforeUpdate"
+	RunningLeaderSticky                     = "RunningLeaderSticky"
+	EnsureStickyId                          = "EnsureStickyId"
+	SetPrimaryPodNameInStatus               = "SetPrimaryPodNameInStatus"
+	NonTransferableResumeAfterUpgrade       = "NonTransferableResumeAfterUpgrade"
+	PausePgCoordinatorBeforeCustomRestart   = "PausePgCoordinatorBeforeCustomRestart"
+	NonTransferableResumeAfterCustomRestart = "NonTransferableResumeAfterCustomRestart"
+	ReadyPrimaryCheck                       = "ReadyPrimaryCheck"
+	PrimaryPodName                          = "PrimaryPodName"
+	OpsRequestProgressing                   = "OpsRequestProgressing"
+	SetRaftKeyOpsRequestProgressing         = "SetRaftKeyOpsRequestProgressing"
+	UnsetRaftKeyOpsRequestProgressing       = "UnsetRaftKeyOpsRequestProgressing"
+	NotReadyReplicas                        = "NotReadyReplicas"
+	RestartNotReadyStandby                  = "RestartNotReadyStandby"
+	StandbyReadyCheck                       = "StandbyReadyCheck"
+	PrimaryRunningCheck                     = "PrimaryRunningCheck"
+	StopPostgresServer                      = "StopPostgresServer"
+	SetupRecoverySettings                   = "SetupRecoverySettings"
+	RunPostgresBaseBackup                   = "RunPostgresBaseBackup"
+	StartPostgresRecovery                   = "StartPostgresRecovery"
+	RestartNotReadyStandbyAfterBaseBackup   = "RestartNotReadyStandbyAfterBaseBackup"
+	StandbyReadyCheckAfterBaseBackup        = "StandbyReadyCheckAfterBaseBackup"
+	ReconnectStandbyWithRestart             = "ReconnectStandbyWithRestart"
+	ReconnectStandbyWithBaseBackup          = "ReconnectStandbyWithBaseBackup"
+	UpdateRaftKVStore                       = "UpdateRaftKVStore"
+	CreateFailOverFile                      = "CreateFailOverFile"
+	TransitionCandidateToLeader             = "TransitionCandidateToLeader"
+	ForceFailOverFileName                   = "force-failover-with-lsn"
+	// need reveiw about this two
+	StringFalse = "false"
+	StringTrue  = "true"
 )
 
 // Redis Constants
@@ -301,16 +366,35 @@ const (
 	ScaleUpRedisReplicasInSentinelMode   = "ScaleUpRedisReplicasInSentinelMode"
 	ScaleDownRedisReplicasInSentinelMode = "ScaleDownRedisReplicasInSentinelMode"
 
+	RedisUpdateAnnounces        = "UpdateAnnounces"
 	HorizontalScaleReplicasUp   = "HorizontalScaleReplicasUp"
 	HorizontalScaleReplicasDown = "HorizontalScaleReplicasDown"
 	HorizontalScaleSentinelUp   = "HorizontalScaleSentinelUp"
 	HorizontalScaleSentinelDown = "HorizontalScaleSentinelDown"
+
+	RedisUpdateAclSecret = "UpdateAclSecret"
 )
 
 // Druid Constants
 const (
+	ScaleUpCoordinators   = "ScaleUpCoordinators"
+	ScaleUpOverlords      = "ScaleUpOverlords"
+	ScaleUpBrokers        = "ScaleUpBrokers"
+	ScaleUpHistoricals    = "ScaleUpHistoricals"
+	ScaleUpMiddleManagers = "ScaleUpMiddleManagers"
+	ScaleUpRouters        = "ScaleUpRouters"
+
+	ScaleDownCoordinators   = "ScaleDownCoordinators"
+	ScaleDownOverlords      = "ScaleDownOverlords"
+	ScaleDownBrokers        = "ScaleDownBrokers"
+	ScaleDownHistoricals    = "ScaleDownHistoricals"
+	ScaleDownMiddleManagers = "ScaleDownMiddleManagers"
+	ScaleDownRouters        = "ScaleDownRouters"
+
 	UpdateMiddleManagersNodePVCs = "UpdateMiddleManagersNodePVCs"
 	UpdateHistoricalsNodePVCs    = "UpdateHistoricalsNodePVCs"
+
+	UpdateCredentialDynamically = "UpdateCredentialDynamically"
 )
 
 // SingleStore Constants
@@ -323,4 +407,9 @@ const (
 const (
 	UpdatePgBouncerBackendSecret = "UpdateBackendSecret"
 	ConfigSecretDelete           = "ConfigSecretDeleted"
+)
+
+// Pgpool Constants
+const (
+	UpdateConfigSecret = "UpdateConfigSecret"
 )

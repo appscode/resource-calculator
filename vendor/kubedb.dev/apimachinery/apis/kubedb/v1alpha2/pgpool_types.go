@@ -40,7 +40,6 @@ const (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=pgpools,singular=pgpool,shortName=pp,categories={datastore,kubedb,appscode,all}
-// +kubebuilder:printcolumn:name="Type",type="string",JSONPath=".apiVersion"
 // +kubebuilder:printcolumn:name="Version",type="string",JSONPath=".spec.version"
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.phase"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
@@ -53,6 +52,10 @@ type Pgpool struct {
 
 // PgpoolSpec defines the desired state of Pgpool
 type PgpoolSpec struct {
+	// AutoOps contains configuration of automatic ops-request-recommendation generation
+	// +optional
+	AutoOps AutoOpsSpec `json:"autoOps,omitempty"`
+
 	// SyncUsers is a boolean type and when enabled, operator fetches all users created in the backend server to the
 	// Pgpool server . Password changes are also synced in pgpool when it is enabled.
 	// +optional
@@ -75,6 +78,10 @@ type PgpoolSpec struct {
 	// ConfigSecret is a configuration secret which will be created with default and InitConfiguration
 	// +optional
 	ConfigSecret *core.LocalObjectReference `json:"configSecret,omitempty"`
+
+	// Init is used to initialize database
+	// +optional
+	Init *InitSpec `json:"init,omitempty"`
 
 	// PodTemplate is an optional configuration for pods used to expose Pgpool
 	// +optional
@@ -99,7 +106,7 @@ type PgpoolSpec struct {
 
 	// DeletionPolicy controls the delete operation for database
 	// +optional
-	DeletionPolicy TerminationPolicy `json:"deletionPolicy,omitempty"`
+	DeletionPolicy DeletionPolicy `json:"deletionPolicy,omitempty"`
 
 	// SSLMode for both standalone and clusters. [disable;allow;prefer;require;verify-ca;verify-full]
 	SSLMode PgpoolSSLMode `json:"sslMode,omitempty"`

@@ -44,6 +44,7 @@ import (
 	mona "kmodules.xyz/monitoring-agent-api/api/v1"
 	ofst "kmodules.xyz/offshoot-api/api/v2"
 	pslister "kubeops.dev/petset/client/listers/apps/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type SolrApp struct {
@@ -95,6 +96,13 @@ func (s *Solr) ServiceName() string {
 
 func (s *Solr) SolrSecretName(suffix string) string {
 	return strings.Join([]string{s.Name, suffix}, "-")
+}
+
+func (s *Solr) GetAuthSecretName() string {
+	if s.Spec.AuthSecret != nil && s.Spec.AuthSecret.Name != "" {
+		return s.Spec.AuthSecret.Name
+	}
+	return meta_util.NameWithSuffix(s.OffshootName(), "auth")
 }
 
 func (s *Solr) SolrSecretKey() string {
@@ -246,12 +254,56 @@ func (s *Solr) StatsServiceLabels() map[string]string {
 }
 
 func (s *Solr) PVCName(alias string) string {
-	return meta_util.NameWithSuffix(s.Name, alias)
+	return alias
 }
 
-func (s *Solr) SetDefaults() {
+func (s Solr) NodeRoleSpecificLabelKey(roleType SolrNodeRoleType) string {
+	return kubedb.GroupName + "/role-" + string(roleType)
+}
+
+func (s Solr) OverseerSelectors() map[string]string {
+	return s.OffshootSelectors(map[string]string{string(SolrNodeRoleOverseer): SolrNodeRoleSet})
+}
+
+func (s Solr) DataSelectors() map[string]string {
+	return s.OffshootSelectors(map[string]string{string(SolrNodeRoleData): SolrNodeRoleSet})
+}
+
+func (s Solr) CoordinatorSelectors() map[string]string {
+	return s.OffshootSelectors(map[string]string{string(SolrNodeRoleCoordinator): SolrNodeRoleSet})
+}
+
+func (s *Solr) SetDefaultsToZooKeeperRef() {
+	if s.Spec.ZookeeperRef == nil {
+		s.Spec.ZookeeperRef = &ZookeeperRef{}
+	}
+	s.SetZooKeeperObjectRef()
+	if s.Spec.ZookeeperRef.Version == nil {
+		defaultVersion := "3.7.2"
+		s.Spec.ZookeeperRef.Version = &defaultVersion
+	}
+}
+
+func (s *Solr) GetZooKeeperName() string {
+	return s.OffshootName() + "-zk"
+}
+
+func (s *Solr) SetZooKeeperObjectRef() {
+	if s.Spec.ZookeeperRef.ObjectReference == nil {
+		s.Spec.ZookeeperRef.ObjectReference = &kmapi.ObjectReference{}
+	}
+	if s.Spec.ZookeeperRef.Name == "" {
+		s.Spec.ZookeeperRef.ExternallyManaged = false
+		s.Spec.ZookeeperRef.Name = s.GetZooKeeperName()
+	}
+	if s.Spec.ZookeeperRef.Namespace == "" {
+		s.Spec.ZookeeperRef.Namespace = s.Namespace
+	}
+}
+
+func (s *Solr) SetDefaults(kc client.Client) {
 	if s.Spec.DeletionPolicy == "" {
-		s.Spec.DeletionPolicy = TerminationPolicyDelete
+		s.Spec.DeletionPolicy = DeletionPolicyDelete
 	}
 
 	if s.Spec.ClientAuthSSL != "need" && s.Spec.ClientAuthSSL != "want" {
@@ -262,17 +314,17 @@ func (s *Solr) SetDefaults() {
 		s.Spec.StorageType = StorageTypeDurable
 	}
 
-	if s.Spec.AuthSecret == nil {
-		s.Spec.AuthSecret = &v1.LocalObjectReference{
-			Name: s.SolrSecretName("admin-cred"),
+	if !s.Spec.DisableSecurity {
+		if s.Spec.AuthSecret == nil {
+			s.Spec.AuthSecret = &SecretReference{}
+		}
+		if s.Spec.AuthSecret.Kind == "" {
+			s.Spec.AuthSecret.Kind = kubedb.ResourceKindSecret
 		}
 	}
 
-	if s.Spec.KeystoreSecret == nil {
-		s.Spec.KeystoreSecret = &v1.LocalObjectReference{
-			Name: s.SolrSecretName("keystore-cred"),
-		}
-	}
+	s.SetDefaultsToZooKeeperRef()
+	s.SetZooKeeperObjectRef()
 
 	if s.Spec.ZookeeperDigestSecret == nil {
 		s.Spec.ZookeeperDigestSecret = &v1.LocalObjectReference{
@@ -293,7 +345,7 @@ func (s *Solr) SetDefaults() {
 	}
 
 	var slVersion catalog.SolrVersion
-	err := DefaultClient.Get(context.TODO(), types.NamespacedName{
+	err := kc.Get(context.TODO(), types.NamespacedName{
 		Name: s.Spec.Version,
 	}, &slVersion)
 	if err != nil {
@@ -309,10 +361,6 @@ func (s *Solr) SetDefaults() {
 			if s.Spec.Topology.Data.Replicas == nil {
 				s.Spec.Topology.Data.Replicas = pointer.Int32P(1)
 			}
-			if s.Spec.Topology.Data.PodTemplate.Spec.SecurityContext == nil {
-				s.Spec.Topology.Data.PodTemplate.Spec.SecurityContext = &v1.PodSecurityContext{}
-			}
-			s.Spec.Topology.Data.PodTemplate.Spec.SecurityContext.FSGroup = slVersion.Spec.SecurityContext.RunAsUser
 			s.setDefaultContainerSecurityContext(&slVersion, &s.Spec.Topology.Data.PodTemplate)
 			s.setDefaultContainerResourceLimits(&s.Spec.Topology.Data.PodTemplate)
 
@@ -325,10 +373,6 @@ func (s *Solr) SetDefaults() {
 			if s.Spec.Topology.Overseer.Replicas == nil {
 				s.Spec.Topology.Overseer.Replicas = pointer.Int32P(1)
 			}
-			if s.Spec.Topology.Overseer.PodTemplate.Spec.SecurityContext == nil {
-				s.Spec.Topology.Overseer.PodTemplate.Spec.SecurityContext = &v1.PodSecurityContext{}
-			}
-			s.Spec.Topology.Overseer.PodTemplate.Spec.SecurityContext.FSGroup = slVersion.Spec.SecurityContext.RunAsUser
 			s.setDefaultContainerSecurityContext(&slVersion, &s.Spec.Topology.Overseer.PodTemplate)
 			s.setDefaultContainerResourceLimits(&s.Spec.Topology.Overseer.PodTemplate)
 		}
@@ -340,10 +384,6 @@ func (s *Solr) SetDefaults() {
 			if s.Spec.Topology.Coordinator.Replicas == nil {
 				s.Spec.Topology.Coordinator.Replicas = pointer.Int32P(1)
 			}
-			if s.Spec.Topology.Coordinator.PodTemplate.Spec.SecurityContext == nil {
-				s.Spec.Topology.Coordinator.PodTemplate.Spec.SecurityContext = &v1.PodSecurityContext{}
-			}
-			s.Spec.Topology.Coordinator.PodTemplate.Spec.SecurityContext.FSGroup = slVersion.Spec.SecurityContext.RunAsUser
 			s.setDefaultContainerSecurityContext(&slVersion, &s.Spec.Topology.Coordinator.PodTemplate)
 			s.setDefaultContainerResourceLimits(&s.Spec.Topology.Coordinator.PodTemplate)
 		}
@@ -351,10 +391,6 @@ func (s *Solr) SetDefaults() {
 		if s.Spec.Replicas == nil {
 			s.Spec.Replicas = pointer.Int32P(1)
 		}
-		if s.Spec.PodTemplate.Spec.SecurityContext == nil {
-			s.Spec.PodTemplate.Spec.SecurityContext = &v1.PodSecurityContext{}
-		}
-		s.Spec.PodTemplate.Spec.SecurityContext.FSGroup = slVersion.Spec.SecurityContext.RunAsUser
 		s.setDefaultContainerSecurityContext(&slVersion, &s.Spec.PodTemplate)
 		s.setDefaultContainerResourceLimits(&s.Spec.PodTemplate)
 	}
@@ -367,12 +403,29 @@ func (s *Solr) SetDefaults() {
 			s.Spec.Monitor.Prometheus.Exporter.Port = kubedb.SolrExporterPort
 		}
 		s.Spec.Monitor.SetDefaults()
+		if s.Spec.Monitor.Prometheus != nil {
+			if s.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsUser == nil {
+				s.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsUser = slVersion.Spec.SecurityContext.RunAsUser
+			}
+			if s.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsGroup == nil {
+				s.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsGroup = slVersion.Spec.SecurityContext.RunAsUser
+			}
+		}
 	}
 
 	s.SetTLSDefaults()
 }
 
 func (s *Solr) setDefaultContainerSecurityContext(slVersion *catalog.SolrVersion, podTemplate *ofst.PodTemplateSpec) {
+	if podTemplate == nil {
+		return
+	}
+	if podTemplate.Spec.SecurityContext == nil {
+		podTemplate.Spec.SecurityContext = &v1.PodSecurityContext{}
+	}
+	if podTemplate.Spec.SecurityContext.FSGroup == nil {
+		podTemplate.Spec.SecurityContext.FSGroup = slVersion.Spec.SecurityContext.RunAsUser
+	}
 	initContainer := coreutil.GetContainerByName(podTemplate.Spec.InitContainers, kubedb.SolrInitContainerName)
 	if initContainer == nil {
 		initContainer = &v1.Container{
@@ -448,9 +501,8 @@ func (s *Solr) GetPersistentSecrets() []string {
 
 	var secrets []string
 	// Add Admin/Elastic user secret name
-	if s.Spec.AuthSecret != nil {
-		secrets = append(secrets, s.Spec.AuthSecret.Name)
-	}
+
+	secrets = append(secrets, s.GetAuthSecretName())
 
 	if s.Spec.AuthConfigSecret != nil {
 		secrets = append(secrets, s.Spec.AuthConfigSecret.Name)
@@ -507,4 +559,26 @@ func (s *Solr) CertSecretVolumeName(alias SolrCertificateAlias) string {
 // CertSecretVolumeMountPath returns the CertSecretVolumeMountPath
 func (s *Solr) CertSecretVolumeMountPath(configDir string, cert string) string {
 	return filepath.Join(configDir, cert)
+}
+
+type SolrBind struct {
+	*Solr
+}
+
+var _ DBBindInterface = &SolrBind{}
+
+func (d *SolrBind) ServiceNames() (string, string) {
+	return d.ServiceName(), d.ServiceName()
+}
+
+func (d *SolrBind) Ports() (int, int) {
+	return kubedb.SolrRestPort, kubedb.SolrRestPort
+}
+
+func (d *SolrBind) SecretName() string {
+	return d.GetAuthSecretName()
+}
+
+func (d *SolrBind) CertSecretName() string {
+	return d.GetCertSecretName(SolrClientCert)
 }
