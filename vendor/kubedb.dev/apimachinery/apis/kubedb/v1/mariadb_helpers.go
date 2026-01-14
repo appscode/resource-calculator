@@ -30,6 +30,7 @@ import (
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/utils/ptr"
 	kmapi "kmodules.xyz/client-go/api/v1"
 	"kmodules.xyz/client-go/apiextensions"
 	core_util "kmodules.xyz/client-go/core/v1"
@@ -43,7 +44,7 @@ import (
 
 func (*MariaDB) Hub() {}
 
-func (_ MariaDB) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
+func (MariaDB) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
 	return crds.MustCustomResourceDefinition(SchemeGroupVersion.WithResource(ResourcePluralMariaDB))
 }
 
@@ -57,10 +58,50 @@ func (m MariaDB) OffshootName() string {
 	return m.Name
 }
 
+func (m MariaDB) OffshootMaxscaleName() string {
+	return meta_util.NameWithSuffix(m.Name, kubedb.MaxscaleCommonName)
+}
+
+func (m MariaDB) OffshootDistributedConfigSecretName() string {
+	return meta_util.NameWithSuffix(m.Name, kubedb.DistributedCustomConfigSecretNameSuffix)
+}
+
+func (m MariaDB) OffshootDistributedRBACName() string {
+	return meta_util.NameWithSuffix(m.Name, kubedb.DistributedRBACNameSuffix)
+}
+
+func (m MariaDB) OffshootDistributedServiceExportName() string {
+	return meta_util.NameWithSuffix(m.Name, kubedb.DistributedServiceExportNameSuffix)
+}
+
+func (m MariaDB) OffshootDistributedAuthSecretName() string {
+	return meta_util.NameWithSuffix(m.Name, kubedb.DistributedAuthSecretNameSuffix)
+}
+
+func (m MariaDB) OffshootDistributedTLSName() string {
+	return meta_util.NameWithSuffix(m.Name, kubedb.DistributedTLSSecretNameSuffix)
+}
+
+func (m MariaDB) OffshootDistributedPromethuesSecretName() string {
+	return meta_util.NameWithSuffix(m.Name, kubedb.DistributedPromethuesSecretNameSuffix)
+}
+
 func (m MariaDB) OffshootSelectors() map[string]string {
-	return map[string]string{
+	label := map[string]string{
 		meta_util.NameLabelKey:      m.ResourceFQN(),
 		meta_util.InstanceLabelKey:  m.Name,
+		meta_util.ManagedByLabelKey: kubedb.GroupName,
+	}
+	if m.Spec.Distributed {
+		label[meta_util.NamespaceLabelKey] = m.Namespace
+	}
+	return label
+}
+
+func (m MariaDB) OffshootMaxscaleSelectors() map[string]string {
+	return map[string]string{
+		meta_util.NameLabelKey:      m.ResourceFQN(),
+		meta_util.InstanceLabelKey:  m.OffshootMaxscaleName(),
 		meta_util.ManagedByLabelKey: kubedb.GroupName,
 	}
 }
@@ -69,12 +110,32 @@ func (m MariaDB) OffshootLabels() map[string]string {
 	return m.offshootLabels(m.OffshootSelectors(), nil)
 }
 
+func (m MariaDB) OffshootMaxscaleLabels() map[string]string {
+	return m.offshootLabels(m.OffshootMaxscaleSelectors(), nil)
+}
+
 func (m MariaDB) PodLabels() map[string]string {
 	return m.offshootLabels(m.OffshootSelectors(), m.Spec.PodTemplate.Labels)
 }
 
+func (m MariaDB) MaxscalePodLabels() map[string]string {
+	return m.offshootLabels(m.OffshootMaxscaleSelectors(), m.Spec.PodTemplate.Labels)
+}
+
 func (m MariaDB) PodControllerLabels() map[string]string {
 	return m.offshootLabels(m.OffshootSelectors(), m.Spec.PodTemplate.Controller.Labels)
+}
+
+func (m MariaDB) MaxscalePodControllerLabels() map[string]string {
+	return m.offshootLabels(m.OffshootMaxscaleSelectors(), m.Spec.PodTemplate.Controller.Labels)
+}
+
+func (m MariaDB) SidekickLabels(skName string) map[string]string {
+	return meta_util.OverwriteKeys(nil, kubedb.CommonSidekickLabels(), map[string]string{
+		meta_util.InstanceLabelKey: skName,
+		kubedb.SidekickOwnerName:   m.Name,
+		kubedb.SidekickOwnerKind:   m.ResourceFQN(),
+	})
 }
 
 func (m MariaDB) offshootLabels(selector, override map[string]string) map[string]string {
@@ -111,12 +172,32 @@ func (m MariaDB) ServiceName() string {
 	return m.OffshootName()
 }
 
+func (m MariaDB) StandbyServiceName() string {
+	return meta_util.NameWithPrefix(m.OffshootName(), "standby")
+}
+
 func (m MariaDB) IsCluster() bool {
-	return pointer.Int32(m.Spec.Replicas) > 1
+	return m.Spec.Topology != nil
+}
+
+func (m MariaDB) IsGaleraCluster() bool {
+	return m.Spec.Topology != nil &&
+		m.Spec.Topology.Mode != nil &&
+		*m.Spec.Topology.Mode == MariaDBModeGaleraCluster
+}
+
+func (m MariaDB) IsMariaDBReplication() bool {
+	return m.Spec.Topology != nil &&
+		m.Spec.Topology.Mode != nil &&
+		*m.Spec.Topology.Mode == MariaDBModeReplication
 }
 
 func (m MariaDB) GoverningServiceName() string {
 	return meta_util.NameWithSuffix(m.ServiceName(), "pods")
+}
+
+func (m MariaDB) MaxscaleGoverningServiceName() string {
+	return meta_util.NameWithSuffix(m.OffshootMaxscaleName(), "pods")
 }
 
 func (m MariaDB) PeerName(idx int) string {
@@ -206,14 +287,27 @@ func (m *MariaDB) SetDefaults(mdVersion *v1alpha1.MariaDBVersion) {
 		m.Spec.DeletionPolicy = DeletionPolicyDelete
 	}
 
+	if m.Spec.AuthSecret == nil {
+		m.Spec.AuthSecret = &SecretReference{}
+	}
+	if m.Spec.AuthSecret.Kind == "" {
+		m.Spec.AuthSecret.Kind = kubedb.ResourceKindSecret
+	}
+
 	if m.Spec.Replicas == nil {
 		m.Spec.Replicas = pointer.Int32P(1)
 	}
-
+	if *m.Spec.Replicas > 1 && m.Spec.Topology == nil {
+		m.Spec.Topology = &MariaDBTopology{
+			Mode: ptr.To(MariaDBModeGaleraCluster),
+		}
+	}
 	if m.Spec.PodTemplate.Spec.ServiceAccountName == "" {
 		m.Spec.PodTemplate.Spec.ServiceAccountName = m.OffshootName()
 	}
-
+	if m.Spec.Init != nil && m.Spec.Init.Archiver != nil && m.Spec.Init.Archiver.ReplicationStrategy == nil {
+		m.Spec.Init.Archiver.ReplicationStrategy = ptr.To(ReplicationStrategySync)
+	}
 	m.setDefaultContainerSecurityContext(mdVersion, &m.Spec.PodTemplate)
 	m.setDefaultContainerResourceLimits(&m.Spec.PodTemplate)
 	m.SetTLSDefaults()
@@ -228,6 +322,42 @@ func (m *MariaDB) SetDefaults(mdVersion *v1alpha1.MariaDBVersion) {
 			m.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsGroup = mdVersion.Spec.SecurityContext.RunAsUser
 		}
 	}
+	if m.IsCluster() && m.IsMariaDBReplication() {
+		m.SetDefaultsMaxscale(mdVersion, m.Spec.Topology.MaxScale)
+	}
+
+	if m.Spec.Init != nil && m.Spec.Init.Archiver != nil {
+		if m.Spec.Init.Archiver.EncryptionSecret != nil && m.Spec.Init.Archiver.EncryptionSecret.Namespace == "" {
+			m.Spec.Init.Archiver.EncryptionSecret.Namespace = m.GetNamespace()
+		}
+		if m.Spec.Init.Archiver.FullDBRepository != nil && m.Spec.Init.Archiver.FullDBRepository.Namespace == "" {
+			m.Spec.Init.Archiver.FullDBRepository.Namespace = m.GetNamespace()
+		}
+		if m.Spec.Init.Archiver.ManifestRepository != nil && m.Spec.Init.Archiver.ManifestRepository.Namespace == "" {
+			m.Spec.Init.Archiver.ManifestRepository.Namespace = m.GetNamespace()
+		}
+	}
+}
+
+func (m *MariaDB) SetDefaultsMaxscale(mdVersion *v1alpha1.MariaDBVersion, maxscale *MaxScaleSpec) {
+	if maxscale == nil {
+		return
+	}
+	if maxscale.StorageType == "" {
+		maxscale.StorageType = StorageTypeDurable
+	}
+
+	if maxscale.Replicas == nil {
+		maxscale.Replicas = pointer.Int32P(1)
+	}
+	if maxscale.PodTemplate.Spec.ServiceAccountName == "" {
+		maxscale.PodTemplate.Spec.ServiceAccountName = m.OffshootName()
+	}
+	if maxscale.EnableUI == nil {
+		maxscale.EnableUI = pointer.BoolP(true)
+	}
+	m.setMaxscaleDefaultContainerSecurityContext(mdVersion, &maxscale.PodTemplate)
+	m.setMaxscaleDefaultContainerResourceLimits(&maxscale.PodTemplate)
 }
 
 func (m *MariaDB) setDefaultContainerSecurityContext(mdVersion *v1alpha1.MariaDBVersion, podTemplate *ofstv2.PodTemplateSpec) {
@@ -280,6 +410,41 @@ func (m *MariaDB) setDefaultContainerSecurityContext(mdVersion *v1alpha1.MariaDB
 	}
 }
 
+func (m *MariaDB) setMaxscaleDefaultContainerSecurityContext(mdVersion *v1alpha1.MariaDBVersion, podTemplate *ofstv2.PodTemplateSpec) {
+	if podTemplate == nil {
+		return
+	}
+	if podTemplate.Spec.SecurityContext == nil {
+		podTemplate.Spec.SecurityContext = &core.PodSecurityContext{}
+	}
+	if podTemplate.Spec.SecurityContext.FSGroup == nil {
+		podTemplate.Spec.SecurityContext.FSGroup = mdVersion.Spec.Maxscale.SecurityContext.RunAsUser
+	}
+	dbContainer := core_util.GetContainerByName(podTemplate.Spec.Containers, kubedb.MaxscaleContainerName)
+	if dbContainer == nil {
+		dbContainer = &core.Container{
+			Name: kubedb.MaxscaleContainerName,
+		}
+	}
+	if dbContainer.SecurityContext == nil {
+		dbContainer.SecurityContext = &core.SecurityContext{}
+	}
+	m.assignMaxscaleDefaultContainerSecurityContext(mdVersion, dbContainer.SecurityContext)
+	podTemplate.Spec.Containers = core_util.UpsertContainer(podTemplate.Spec.Containers, *dbContainer)
+
+	initContainer := core_util.GetContainerByName(podTemplate.Spec.InitContainers, kubedb.MaxscaleInitContainerName)
+	if initContainer == nil {
+		initContainer = &core.Container{
+			Name: kubedb.MaxscaleInitContainerName,
+		}
+	}
+	if initContainer.SecurityContext == nil {
+		initContainer.SecurityContext = &core.SecurityContext{}
+	}
+	m.assignMaxscaleDefaultContainerSecurityContext(mdVersion, initContainer.SecurityContext)
+	podTemplate.Spec.InitContainers = core_util.UpsertContainer(podTemplate.Spec.InitContainers, *initContainer)
+}
+
 func (m *MariaDB) assignDefaultContainerSecurityContext(mdVersion *v1alpha1.MariaDBVersion, sc *core.SecurityContext) {
 	if sc.AllowPrivilegeEscalation == nil {
 		sc.AllowPrivilegeEscalation = pointer.BoolP(false)
@@ -303,6 +468,29 @@ func (m *MariaDB) assignDefaultContainerSecurityContext(mdVersion *v1alpha1.Mari
 	}
 }
 
+func (m *MariaDB) assignMaxscaleDefaultContainerSecurityContext(mdVersion *v1alpha1.MariaDBVersion, sc *core.SecurityContext) {
+	if sc.AllowPrivilegeEscalation == nil {
+		sc.AllowPrivilegeEscalation = pointer.BoolP(false)
+	}
+	if sc.Capabilities == nil {
+		sc.Capabilities = &core.Capabilities{
+			Drop: []core.Capability{"ALL"},
+		}
+	}
+	if sc.RunAsNonRoot == nil {
+		sc.RunAsNonRoot = pointer.BoolP(true)
+	}
+	if sc.RunAsUser == nil {
+		sc.RunAsUser = mdVersion.Spec.Maxscale.SecurityContext.RunAsUser
+	}
+	if sc.RunAsGroup == nil {
+		sc.RunAsUser = mdVersion.Spec.Maxscale.SecurityContext.RunAsUser
+	}
+	if sc.SeccompProfile == nil {
+		sc.SeccompProfile = secomp.DefaultSeccompProfile()
+	}
+}
+
 func (m *MariaDB) setDefaultContainerResourceLimits(podTemplate *ofstv2.PodTemplateSpec) {
 	dbContainer := core_util.GetContainerByName(podTemplate.Spec.Containers, kubedb.MariaDBContainerName)
 	if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
@@ -318,6 +506,18 @@ func (m *MariaDB) setDefaultContainerResourceLimits(podTemplate *ofstv2.PodTempl
 		if coordinatorContainer != nil && (coordinatorContainer.Resources.Requests == nil && coordinatorContainer.Resources.Limits == nil) {
 			apis.SetDefaultResourceLimits(&coordinatorContainer.Resources, kubedb.CoordinatorDefaultResources)
 		}
+	}
+}
+
+func (m *MariaDB) setMaxscaleDefaultContainerResourceLimits(podTemplate *ofstv2.PodTemplateSpec) {
+	dbContainer := core_util.GetContainerByName(podTemplate.Spec.Containers, kubedb.MaxscaleContainerName)
+	if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+		apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultInitContainerResource)
+	}
+
+	initContainer := core_util.GetContainerByName(podTemplate.Spec.InitContainers, kubedb.MaxscaleInitContainerName)
+	if initContainer != nil && (initContainer.Resources.Requests == nil && initContainer.Resources.Limits == nil) {
+		apis.SetDefaultResourceLimits(&initContainer.Resources, kubedb.DefaultInitContainerResource)
 	}
 }
 

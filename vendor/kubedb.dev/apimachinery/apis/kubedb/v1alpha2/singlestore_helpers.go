@@ -43,6 +43,7 @@ import (
 	mona "kmodules.xyz/monitoring-agent-api/api/v1"
 	ofst "kmodules.xyz/offshoot-api/api/v2"
 	pslister "kubeops.dev/petset/client/listers/apps/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func (s *Singlestore) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
@@ -215,8 +216,7 @@ func (s *Singlestore) IsStandalone() bool {
 }
 
 func (s *Singlestore) PVCName(alias string) string {
-	return metautil.NameWithSuffix(s.OffshootName(), alias)
-	// return s.OffshootName()
+	return alias
 }
 
 func (s *Singlestore) AggregatorPetSet() string {
@@ -319,7 +319,7 @@ func (s *Singlestore) GetPersistentSecrets() []string {
 	return secrets
 }
 
-func (s *Singlestore) SetDefaults() {
+func (s *Singlestore) SetDefaults(kc client.Client) {
 	if s == nil {
 		return
 	}
@@ -327,7 +327,14 @@ func (s *Singlestore) SetDefaults() {
 		s.Spec.StorageType = StorageTypeDurable
 	}
 	if s.Spec.DeletionPolicy == "" {
-		s.Spec.DeletionPolicy = TerminationPolicyDelete
+		s.Spec.DeletionPolicy = DeletionPolicyDelete
+	}
+
+	if s.Spec.AuthSecret == nil {
+		s.Spec.AuthSecret = &SecretReference{}
+	}
+	if s.Spec.AuthSecret.Kind == "" {
+		s.Spec.AuthSecret.Kind = kubedb.ResourceKindSecret
 	}
 
 	if s.Spec.Topology == nil {
@@ -351,7 +358,7 @@ func (s *Singlestore) SetDefaults() {
 	}
 
 	var sdbVersion catalog.SinglestoreVersion
-	err := DefaultClient.Get(context.TODO(), types.NamespacedName{
+	err := kc.Get(context.TODO(), types.NamespacedName{
 		Name: s.Spec.Version,
 	}, &sdbVersion)
 	if err != nil {
@@ -377,6 +384,14 @@ func (s *Singlestore) SetDefaults() {
 			s.Spec.Monitor.Prometheus.Exporter.Port = kubedb.SinglestoreExporterPort
 		}
 		s.Spec.Monitor.SetDefaults()
+		if s.Spec.Monitor.Prometheus != nil {
+			if s.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsUser == nil {
+				s.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsUser = sdbVersion.Spec.SecurityContext.RunAsUser
+			}
+			if s.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsGroup == nil {
+				s.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsGroup = sdbVersion.Spec.SecurityContext.RunAsGroup
+			}
+		}
 	}
 
 	if s.IsClustering() {
@@ -518,4 +533,26 @@ func (s *Singlestore) ReplicasAreReady(lister pslister.PetSetLister) (bool, stri
 		expectedItems = 2
 	}
 	return checkReplicasOfPetSet(lister.PetSets(s.Namespace), labels.SelectorFromSet(s.OffshootLabels()), expectedItems)
+}
+
+type SinglestoreBind struct {
+	*Singlestore
+}
+
+var _ DBBindInterface = &SinglestoreBind{}
+
+func (d *SinglestoreBind) ServiceNames() (string, string) {
+	return d.ServiceName(), d.ServiceName()
+}
+
+func (d *SinglestoreBind) Ports() (int, int) {
+	return kubedb.SinglestoreDatabasePort, kubedb.SinglestoreStudioPort
+}
+
+func (d *SinglestoreBind) SecretName() string {
+	return d.DefaultUserCredSecretName("root")
+}
+
+func (d *SinglestoreBind) CertSecretName() string {
+	return d.GetCertSecretName(SinglestoreClientCert)
 }

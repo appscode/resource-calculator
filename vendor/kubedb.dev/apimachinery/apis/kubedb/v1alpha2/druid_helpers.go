@@ -19,6 +19,7 @@ package v1alpha2
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -31,7 +32,6 @@ import (
 	promapi "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"gomodules.xyz/pointer"
 	core "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -102,6 +102,13 @@ func (d *Druid) GoverningServiceName() string {
 	return meta_util.NameWithSuffix(d.ServiceName(), "pods")
 }
 
+func (d *Druid) GetAuthSecretName() string {
+	if d.Spec.AuthSecret != nil && d.Spec.AuthSecret.Name != "" {
+		return d.Spec.AuthSecret.Name
+	}
+	return meta_util.NameWithSuffix(d.OffShootName(), "auth")
+}
+
 func (d *Druid) OffShootSelectors(extraSelectors ...map[string]string) map[string]string {
 	selector := map[string]string{
 		meta_util.NameLabelKey:      d.ResourceFQN(),
@@ -125,12 +132,16 @@ func (d *Druid) ServiceLabels(alias ServiceAlias, extraLabels ...map[string]stri
 	return d.offShootLabels(meta_util.OverwriteKeys(d.OffShootSelectors(), extraLabels...), svcTemplate.Labels)
 }
 
-func (r *Druid) Finalizer() string {
-	return fmt.Sprintf("%s/%s", apis.Finalizer, r.ResourceSingular())
+func (d *Druid) Finalizer() string {
+	return fmt.Sprintf("%s/%s", apis.Finalizer, d.ResourceSingular())
 }
 
 func (d *Druid) DefaultUserCredSecretName(username string) string {
 	return meta_util.NameWithSuffix(d.Name, strings.ReplaceAll(fmt.Sprintf("%s-cred", username), "_", "-"))
+}
+
+func (d *Druid) DruidSecretName(suffix string) string {
+	return strings.Join([]string{d.Name, suffix}, "-")
 }
 
 type DruidStatsService struct {
@@ -204,21 +215,23 @@ func (d *Druid) PodControllerLabels(nodeType DruidNodeRoleType, extraLabels ...m
 }
 
 func (d *Druid) GetNodeSpec(nodeType DruidNodeRoleType) (*DruidNode, *DruidDataNode) {
-	if nodeType == DruidNodeRoleCoordinators {
+	switch nodeType {
+	case DruidNodeRoleCoordinators:
 		return d.Spec.Topology.Coordinators, nil
-	} else if nodeType == DruidNodeRoleOverlords {
+	case DruidNodeRoleOverlords:
 		return d.Spec.Topology.Overlords, nil
-	} else if nodeType == DruidNodeRoleMiddleManagers {
+	case DruidNodeRoleMiddleManagers:
 		return nil, d.Spec.Topology.MiddleManagers
-	} else if nodeType == DruidNodeRoleHistoricals {
+	case DruidNodeRoleHistoricals:
 		return nil, d.Spec.Topology.Historicals
-	} else if nodeType == DruidNodeRoleBrokers {
+	case DruidNodeRoleBrokers:
 		return d.Spec.Topology.Brokers, nil
-	} else if nodeType == DruidNodeRoleRouters {
+	case DruidNodeRoleRouters:
 		return d.Spec.Topology.Routers, nil
+	default:
+		klog.Errorf("unknown druid node role %s\n", nodeType)
+		return nil, nil
 	}
-
-	panic("Node role name does not match any known types")
 }
 
 func (d *Druid) ServiceAccountName() string {
@@ -235,19 +248,42 @@ func (d *Druid) DruidNodeRoleStringSingular(nodeRole DruidNodeRoleType) string {
 }
 
 func (d *Druid) DruidNodeContainerPort(nodeRole DruidNodeRoleType) int32 {
-	if nodeRole == DruidNodeRoleCoordinators {
-		return kubedb.DruidPortCoordinators
-	} else if nodeRole == DruidNodeRoleOverlords {
-		return kubedb.DruidPortOverlords
-	} else if nodeRole == DruidNodeRoleMiddleManagers {
-		return kubedb.DruidPortMiddleManagers
-	} else if nodeRole == DruidNodeRoleHistoricals {
-		return kubedb.DruidPortHistoricals
-	} else if nodeRole == DruidNodeRoleBrokers {
-		return kubedb.DruidPortBrokers
+	if !d.Spec.EnableSSL {
+		switch nodeRole {
+		case DruidNodeRoleCoordinators:
+			return kubedb.DruidPlainTextPortCoordinators
+		case DruidNodeRoleOverlords:
+			return kubedb.DruidPlainTextPortOverlords
+		case DruidNodeRoleMiddleManagers:
+			return kubedb.DruidPlainTextPortMiddleManagers
+		case DruidNodeRoleHistoricals:
+			return kubedb.DruidPlainTextPortHistoricals
+		case DruidNodeRoleBrokers:
+			return kubedb.DruidPlainTextPortBrokers
+		case DruidNodeRoleRouters:
+			return kubedb.DruidPlainTextPortRouters
+		default:
+			klog.Errorf("unknown druid node role %s\n", nodeRole)
+		}
+	} else {
+		switch nodeRole {
+		case DruidNodeRoleCoordinators:
+			return kubedb.DruidTLSPortCoordinators
+		case DruidNodeRoleOverlords:
+			return kubedb.DruidTLSPortOverlords
+		case DruidNodeRoleMiddleManagers:
+			return kubedb.DruidTLSPortMiddleManagers
+		case DruidNodeRoleHistoricals:
+			return kubedb.DruidTLSPortHistoricals
+		case DruidNodeRoleBrokers:
+			return kubedb.DruidTLSPortBrokers
+		case DruidNodeRoleRouters:
+			return kubedb.DruidTLSPortRouters
+		default:
+			klog.Errorf("unknown node role %s\n", nodeRole)
+		}
 	}
-	// Routers
-	return kubedb.DruidPortRouters
+	return -1
 }
 
 func (d *Druid) SetHealthCheckerDefaults() {
@@ -280,18 +316,19 @@ func (d *Druid) AppBindingMeta() appcat.AppBindingMeta {
 
 func (d *Druid) GetConnectionScheme() string {
 	scheme := "http"
-	//if d.Spec.EnableSSL {
-	//	scheme = "https"
-	//}
+	if d.Spec.EnableSSL {
+		scheme = "https"
+	}
 	return scheme
 }
 
 func (d *Druid) GetMetadataStorageConnectURI(appbinding *appcat.AppBinding, metadataStorageType DruidMetadataStorageType) string {
 	var url string
-	if metadataStorageType == DruidMetadataStorageMySQL {
+	switch metadataStorageType {
+	case DruidMetadataStorageMySQL:
 		url = *appbinding.Spec.ClientConfig.URL
 		url = kubedb.DruidMetadataStorageConnectURIPrefixMySQL + url[4:len(url)-2] + "/" + ResourceSingularDruid
-	} else if metadataStorageType == DruidMetadataStoragePostgreSQL {
+	case DruidMetadataStoragePostgreSQL:
 		url = appbinding.Spec.ClientConfig.Service.Name + ":" + strconv.Itoa(int(appbinding.Spec.ClientConfig.Service.Port))
 		url = kubedb.DruidMetadataStorageConnectURIPrefixPostgreSQL + url + "/" + ResourceSingularDruid
 	}
@@ -320,12 +357,13 @@ func (d *Druid) GetMetadataStorageType(metadataStorage string) DruidMetadataStor
 		metadataStorage == kubedb.DruidMetadataStorageTypePostgres || metadataStorage == strings.ToLower(string(kubedb.DruidMetadataStorageTypePostgres)) {
 		return DruidMetadataStoragePostgreSQL
 	} else {
-		panic(fmt.Sprintf("Unknown metadata storage type: %s", metadataStorage))
+		klog.Errorf("Unknown metadata storage type: %s", metadataStorage)
+		return ""
 	}
 }
 
 func (d *Druid) PVCName(alias string) string {
-	return meta_util.NameWithSuffix(d.Name, alias)
+	return alias
 }
 
 func (d *Druid) GetDruidSegmentCacheConfig() string {
@@ -365,34 +403,59 @@ func (d *Druid) OffshootSelectors(extraSelectors ...map[string]string) map[strin
 	return meta_util.OverwriteKeys(selector, extraSelectors...)
 }
 
-func (d Druid) OffshootLabels() map[string]string {
+func (d *Druid) OffshootLabels() map[string]string {
 	return d.offshootLabels(d.OffshootSelectors(), nil)
 }
 
-func (e Druid) offshootLabels(selector, override map[string]string) map[string]string {
+func (d *Druid) offshootLabels(selector, override map[string]string) map[string]string {
 	selector[meta_util.ComponentLabelKey] = kubedb.ComponentDatabase
-	return meta_util.FilterKeys(kubedb.GroupName, selector, meta_util.OverwriteKeys(nil, e.Labels, override))
+	return meta_util.FilterKeys(kubedb.GroupName, selector, meta_util.OverwriteKeys(nil, d.Labels, override))
 }
 
-func (d *Druid) SetDefaults() {
+// CertificateName returns the default certificate name and/or certificate secret name for a certificate alias
+func (d *Druid) CertificateName(alias DruidCertificateAlias) string {
+	return meta_util.NameWithSuffix(d.Name, fmt.Sprintf("%s-cert", string(alias)))
+}
+
+// GetCertSecretName returns the secret name for a certificate alias if any,
+// otherwise returns default certificate secret name for the given alias.
+func (d *Druid) GetCertSecretName(alias DruidCertificateAlias) string {
+	if d.Spec.TLS != nil {
+		name, ok := kmapi.GetCertificateSecretName(d.Spec.TLS.Certificates, string(alias))
+		if ok {
+			return name
+		}
+	}
+	return d.CertificateName(alias)
+}
+
+func (d *Druid) SetDefaults(kc client.Client) {
 	if d.Spec.DeletionPolicy == "" {
-		d.Spec.DeletionPolicy = TerminationPolicyDelete
+		d.Spec.DeletionPolicy = DeletionPolicyDelete
 	}
 
-	if d.Spec.DisableSecurity == nil {
-		d.Spec.DisableSecurity = pointer.BoolP(false)
-	}
-
-	if !*d.Spec.DisableSecurity {
+	if !d.Spec.DisableSecurity {
 		if d.Spec.AuthSecret == nil {
-			d.Spec.AuthSecret = &v1.LocalObjectReference{
-				Name: d.DefaultUserCredSecretName(kubedb.DruidUserAdmin),
+			d.Spec.AuthSecret = &SecretReference{}
+		}
+		if d.Spec.AuthSecret.Kind == "" {
+			d.Spec.AuthSecret.Kind = kubedb.ResourceKindSecret
+		}
+	}
+
+	if d.Spec.EnableSSL {
+		if d.Spec.KeystoreCredSecret == nil {
+			d.Spec.KeystoreCredSecret = &SecretReference{
+				TypedLocalObjectReference: appcat.TypedLocalObjectReference{
+					Kind: "Secret",
+					Name: d.DruidSecretName(kubedb.DruidKeystoreSecretKey),
+				},
 			}
 		}
 	}
 
 	var druidVersion catalog.DruidVersion
-	err := DefaultClient.Get(context.TODO(), types.NamespacedName{
+	err := kc.Get(context.TODO(), types.NamespacedName{
 		Name: d.Spec.Version,
 	}, &druidVersion)
 	if err != nil {
@@ -416,7 +479,7 @@ func (d *Druid) SetDefaults() {
 			}
 			if version.Major() > 25 {
 				if d.Spec.Topology.Coordinators.PodTemplate.Spec.SecurityContext == nil {
-					d.Spec.Topology.Coordinators.PodTemplate.Spec.SecurityContext = &v1.PodSecurityContext{FSGroup: druidVersion.Spec.SecurityContext.RunAsUser}
+					d.Spec.Topology.Coordinators.PodTemplate.Spec.SecurityContext = &core.PodSecurityContext{FSGroup: druidVersion.Spec.SecurityContext.RunAsUser}
 				}
 				d.setDefaultContainerSecurityContext(&druidVersion, &d.Spec.Topology.Coordinators.PodTemplate)
 				d.setDefaultContainerResourceLimits(&d.Spec.Topology.Coordinators.PodTemplate, DruidNodeRoleCoordinators)
@@ -429,7 +492,7 @@ func (d *Druid) SetDefaults() {
 			}
 			if version.Major() > 25 {
 				if d.Spec.Topology.Overlords.PodTemplate.Spec.SecurityContext == nil {
-					d.Spec.Topology.Overlords.PodTemplate.Spec.SecurityContext = &v1.PodSecurityContext{FSGroup: druidVersion.Spec.SecurityContext.RunAsUser}
+					d.Spec.Topology.Overlords.PodTemplate.Spec.SecurityContext = &core.PodSecurityContext{FSGroup: druidVersion.Spec.SecurityContext.RunAsUser}
 				}
 				d.setDefaultContainerSecurityContext(&druidVersion, &d.Spec.Topology.Overlords.PodTemplate)
 				d.setDefaultContainerResourceLimits(&d.Spec.Topology.Overlords.PodTemplate, DruidNodeRoleOverlords)
@@ -451,7 +514,7 @@ func (d *Druid) SetDefaults() {
 			}
 			if version.Major() > 25 {
 				if d.Spec.Topology.MiddleManagers.PodTemplate.Spec.SecurityContext == nil {
-					d.Spec.Topology.MiddleManagers.PodTemplate.Spec.SecurityContext = &v1.PodSecurityContext{FSGroup: druidVersion.Spec.SecurityContext.RunAsUser}
+					d.Spec.Topology.MiddleManagers.PodTemplate.Spec.SecurityContext = &core.PodSecurityContext{FSGroup: druidVersion.Spec.SecurityContext.RunAsUser}
 				}
 				d.setDefaultContainerSecurityContext(&druidVersion, &d.Spec.Topology.MiddleManagers.PodTemplate)
 				d.setDefaultContainerResourceLimits(&d.Spec.Topology.MiddleManagers.PodTemplate, DruidNodeRoleMiddleManagers)
@@ -473,7 +536,7 @@ func (d *Druid) SetDefaults() {
 			}
 			if version.Major() > 25 {
 				if d.Spec.Topology.Historicals.PodTemplate.Spec.SecurityContext == nil {
-					d.Spec.Topology.Historicals.PodTemplate.Spec.SecurityContext = &v1.PodSecurityContext{FSGroup: druidVersion.Spec.SecurityContext.RunAsUser}
+					d.Spec.Topology.Historicals.PodTemplate.Spec.SecurityContext = &core.PodSecurityContext{FSGroup: druidVersion.Spec.SecurityContext.RunAsUser}
 				}
 				d.setDefaultContainerSecurityContext(&druidVersion, &d.Spec.Topology.Historicals.PodTemplate)
 				d.setDefaultContainerResourceLimits(&d.Spec.Topology.Historicals.PodTemplate, DruidNodeRoleHistoricals)
@@ -489,7 +552,7 @@ func (d *Druid) SetDefaults() {
 			}
 			if version.Major() > 25 {
 				if d.Spec.Topology.Brokers.PodTemplate.Spec.SecurityContext == nil {
-					d.Spec.Topology.Brokers.PodTemplate.Spec.SecurityContext = &v1.PodSecurityContext{FSGroup: druidVersion.Spec.SecurityContext.RunAsUser}
+					d.Spec.Topology.Brokers.PodTemplate.Spec.SecurityContext = &core.PodSecurityContext{FSGroup: druidVersion.Spec.SecurityContext.RunAsUser}
 				}
 				d.setDefaultContainerSecurityContext(&druidVersion, &d.Spec.Topology.Brokers.PodTemplate)
 				d.setDefaultContainerResourceLimits(&d.Spec.Topology.Brokers.PodTemplate, DruidNodeRoleBrokers)
@@ -503,7 +566,7 @@ func (d *Druid) SetDefaults() {
 			}
 			if version.Major() > 25 {
 				if d.Spec.Topology.Routers.PodTemplate.Spec.SecurityContext == nil {
-					d.Spec.Topology.Routers.PodTemplate.Spec.SecurityContext = &v1.PodSecurityContext{FSGroup: druidVersion.Spec.SecurityContext.RunAsUser}
+					d.Spec.Topology.Routers.PodTemplate.Spec.SecurityContext = &core.PodSecurityContext{FSGroup: druidVersion.Spec.SecurityContext.RunAsUser}
 				}
 				d.setDefaultContainerSecurityContext(&druidVersion, &d.Spec.Topology.Routers.PodTemplate)
 				d.setDefaultContainerResourceLimits(&d.Spec.Topology.Routers.PodTemplate, DruidNodeRoleRouters)
@@ -511,7 +574,7 @@ func (d *Druid) SetDefaults() {
 		}
 	}
 
-	d.SetDefaultsToMetadataStorage()
+	d.SetDefaultsToMetadataStorage(kc)
 	d.SetDefaultsToZooKeeperRef()
 
 	if d.Spec.Monitor != nil {
@@ -522,10 +585,30 @@ func (d *Druid) SetDefaults() {
 			d.Spec.Monitor.Prometheus.Exporter.Port = kubedb.DruidExporterPort
 		}
 		d.Spec.Monitor.SetDefaults()
+		if d.Spec.Monitor.Prometheus != nil {
+			if d.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsUser == nil {
+				d.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsUser = druidVersion.Spec.SecurityContext.RunAsUser
+			}
+			if d.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsGroup == nil {
+				d.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsGroup = druidVersion.Spec.SecurityContext.RunAsUser
+			}
+		}
+	}
+
+	if d.Spec.EnableSSL {
+		d.SetTLSDefaults()
 	}
 }
 
-func (d *Druid) SetDefaultsToMetadataStorage() {
+func (d *Druid) SetTLSDefaults() {
+	if d.Spec.TLS == nil || d.Spec.TLS.IssuerRef == nil {
+		return
+	}
+	d.Spec.TLS.Certificates = kmapi.SetMissingSecretNameForCertificate(d.Spec.TLS.Certificates, string(DruidServerCert), d.CertificateName(DruidServerCert))
+	d.Spec.TLS.Certificates = kmapi.SetMissingSecretNameForCertificate(d.Spec.TLS.Certificates, string(DruidClientCert), d.CertificateName(DruidClientCert))
+}
+
+func (d *Druid) SetDefaultsToMetadataStorage(kc client.Client) {
 	if d.Spec.MetadataStorage == nil {
 		d.Spec.MetadataStorage = &MetadataStorage{}
 	}
@@ -539,7 +622,7 @@ func (d *Druid) SetDefaultsToMetadataStorage() {
 
 	if d.Spec.MetadataStorage.Type == "" {
 		if d.Spec.MetadataStorage.ExternallyManaged {
-			appBinding, err := d.GetAppBinding(d.Spec.MetadataStorage.Name, d.Spec.MetadataStorage.Namespace)
+			appBinding, err := d.GetAppBinding(kc, d.Spec.MetadataStorage.Name, d.Spec.MetadataStorage.Namespace)
 			if err != nil {
 				return
 			}
@@ -585,38 +668,48 @@ func (d *Druid) GetDefaultPVC() *core.PersistentVolumeClaimSpec {
 }
 
 func (d *Druid) setDefaultContainerSecurityContext(druidVersion *catalog.DruidVersion, podTemplate *ofst.PodTemplateSpec) {
+	if podTemplate == nil {
+		return
+	}
+	if podTemplate.Spec.SecurityContext == nil {
+		podTemplate.Spec.SecurityContext = &core.PodSecurityContext{}
+	}
+	if podTemplate.Spec.SecurityContext.FSGroup == nil {
+		podTemplate.Spec.SecurityContext.FSGroup = druidVersion.Spec.SecurityContext.RunAsUser
+	}
+
 	container := coreutil.GetContainerByName(podTemplate.Spec.Containers, kubedb.DruidContainerName)
 	if container == nil {
-		container = &v1.Container{
+		container = &core.Container{
 			Name: kubedb.DruidContainerName,
 		}
 	}
 	if container.SecurityContext == nil {
-		container.SecurityContext = &v1.SecurityContext{}
+		container.SecurityContext = &core.SecurityContext{}
 	}
 	d.assignDefaultContainerSecurityContext(druidVersion, container.SecurityContext)
 	podTemplate.Spec.Containers = coreutil.UpsertContainer(podTemplate.Spec.Containers, *container)
 
 	initContainer := coreutil.GetContainerByName(podTemplate.Spec.InitContainers, kubedb.DruidInitContainerName)
 	if initContainer == nil {
-		initContainer = &v1.Container{
+		initContainer = &core.Container{
 			Name: kubedb.DruidInitContainerName,
 		}
 	}
 	if initContainer.SecurityContext == nil {
-		initContainer.SecurityContext = &v1.SecurityContext{}
+		initContainer.SecurityContext = &core.SecurityContext{}
 	}
 	d.assignDefaultContainerSecurityContext(druidVersion, initContainer.SecurityContext)
 	podTemplate.Spec.InitContainers = coreutil.UpsertContainer(podTemplate.Spec.InitContainers, *initContainer)
 }
 
-func (d *Druid) assignDefaultContainerSecurityContext(druidVersion *catalog.DruidVersion, sc *v1.SecurityContext) {
+func (d *Druid) assignDefaultContainerSecurityContext(druidVersion *catalog.DruidVersion, sc *core.SecurityContext) {
 	if sc.AllowPrivilegeEscalation == nil {
 		sc.AllowPrivilegeEscalation = pointer.BoolP(false)
 	}
 	if sc.Capabilities == nil {
-		sc.Capabilities = &v1.Capabilities{
-			Drop: []v1.Capability{"ALL"},
+		sc.Capabilities = &core.Capabilities{
+			Drop: []core.Capability{"ALL"},
 		}
 	}
 	if sc.RunAsNonRoot == nil {
@@ -673,12 +766,12 @@ func (d *Druid) ReplicasAreReady(lister pslister.PetSetLister) (bool, string, er
 	return checkReplicasOfPetSet(lister.PetSets(d.Namespace), labels.SelectorFromSet(d.OffshootLabels()), expectedItems)
 }
 
-func (d *Druid) GetAppBinding(name string, namespace string) (*appcat.AppBinding, error) {
+func (d *Druid) GetAppBinding(kc client.Client, name string, namespace string) (*appcat.AppBinding, error) {
 	appbinding := &appcat.AppBinding{}
 	appbinding.Namespace = namespace
 	appbinding.Name = name
 
-	if err := DefaultClient.Get(context.TODO(), client.ObjectKeyFromObject(appbinding), appbinding); err != nil {
+	if err := kc.Get(context.TODO(), client.ObjectKeyFromObject(appbinding), appbinding); err != nil {
 		klog.Error(err, fmt.Sprintf("failed to get appbinding for metadata storage %s/%s", name, namespace))
 		return nil, err
 	}
@@ -724,4 +817,40 @@ func (d *Druid) GetZooKeeperName() string {
 
 func (d *Druid) GetInitConfigMapName() string {
 	return d.OffShootName() + "-init-script"
+}
+
+// CertSecretVolumeName returns the CertSecretVolumeName
+// Values will be like: client-certs, server-certs etc.
+func (d *Druid) CertSecretVolumeName(alias DruidCertificateAlias) string {
+	return string(alias) + "-certs"
+}
+
+// CertSecretVolumeMountPath returns the CertSecretVolumeMountPath
+// if configDir is "/var/druid/ssl",
+// mountPath will be, "/var/druid/ssl/<alias>".
+func (d *Druid) CertSecretVolumeMountPath(configDir string, cert string) string {
+	return filepath.Join(configDir, cert)
+}
+
+type DruidBind struct {
+	*Druid
+}
+
+var _ DBBindInterface = &DruidBind{}
+
+func (d *DruidBind) ServiceNames() (string, string) {
+	return d.ServiceName(), d.ServiceName()
+}
+
+func (d *DruidBind) Ports() (int, int) {
+	p := int(d.DruidNodeContainerPort(DruidNodeRoleRouters))
+	return p, p
+}
+
+func (d *DruidBind) SecretName() string {
+	return d.GetAuthSecretName()
+}
+
+func (d *DruidBind) CertSecretName() string {
+	return d.GetCertSecretName(DruidClientCert)
 }

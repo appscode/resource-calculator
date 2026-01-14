@@ -19,10 +19,12 @@ package v1
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"kubedb.dev/apimachinery/apis/kubedb"
 
 	cm_api "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
+	vsecretapi "go.virtual-secrets.dev/apimachinery/apis/virtual/v1alpha1"
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -166,4 +168,19 @@ func GetSelectorForNetworkPolicy() map[string]string {
 		meta_util.ComponentLabelKey: kubedb.ComponentDatabase,
 		meta_util.ManagedByLabelKey: kubedb.GroupName,
 	}
+}
+
+func GetActivationTimeFromSecret(secretName *core.Secret) (*metav1.Time, error) {
+	if val, exists := secretName.Annotations[kubedb.AuthActiveFromAnnotation]; exists {
+		t, err := time.Parse(time.RFC3339, val)
+		if err != nil {
+			return nil, err
+		}
+		return &metav1.Time{Time: t}, nil
+	}
+	return nil, nil
+}
+
+func IsVirtualAuthSecretReferred(authSecret *SecretReference) bool {
+	return authSecret != nil && authSecret.APIGroup == vsecretapi.GroupName
 }

@@ -65,6 +65,8 @@ type RedisSentinelOpsRequestSpec struct {
 	Configuration *RedisSentinelCustomConfigurationSpec `json:"configuration,omitempty"`
 	// Specifies information necessary for configuring TLS
 	TLS *TLSSpec `json:"tls,omitempty"`
+	// Specifies information necessary for configuring authSecret of the database
+	Authentication *AuthSpec `json:"authentication,omitempty"`
 	// Specifies information necessary for restarting database
 	Restart *RestartSpec `json:"restart,omitempty"`
 	// Timeout for each step of the ops request in second. If a step doesn't finish within the specified timeout, the ops request will result in failure.
@@ -72,10 +74,12 @@ type RedisSentinelOpsRequestSpec struct {
 	// ApplyOption is to control the execution of OpsRequest depending on the database state.
 	// +kubebuilder:default="IfReady"
 	Apply ApplyOption `json:"apply,omitempty"`
+	// +kubebuilder:default=1
+	MaxRetries int32 `json:"maxRetries,omitempty"`
 }
 
-// +kubebuilder:validation:Enum=UpdateVersion;HorizontalScaling;VerticalScaling;Restart;Reconfigure;ReconfigureTLS
-// ENUM(UpdateVersion, HorizontalScaling, VerticalScaling, Restart, Reconfigure, ReconfigureTLS)
+// +kubebuilder:validation:Enum=UpdateVersion;HorizontalScaling;VerticalScaling;Restart;Reconfigure;ReconfigureTLS;RotateAuth
+// ENUM(UpdateVersion, HorizontalScaling, VerticalScaling, Restart, Reconfigure, ReconfigureTLS, RotateAuth)
 type RedisSentinelOpsRequestType string
 
 // RedisSentinelReplicaReadinessCriteria is the criteria for checking readiness of a RedisSentinel pod
@@ -97,7 +101,6 @@ type RedisSentinelHorizontalScalingSpec struct {
 type RedisSentinelVerticalScalingSpec struct {
 	RedisSentinel *PodResources       `json:"redissentinel,omitempty"`
 	Exporter      *ContainerResources `json:"exporter,omitempty"`
-	Coordinator   *ContainerResources `json:"coordinator,omitempty"`
 }
 
 // RedisSentinelVolumeExpansionSpec is the spec for RedisSentinel volume expansion

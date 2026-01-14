@@ -20,6 +20,7 @@ import (
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kmapi "kmodules.xyz/client-go/api/v1"
+	appcat "kmodules.xyz/custom-resources/apis/appcatalog/v1alpha1"
 	nodemeta "kmodules.xyz/resource-metadata/apis/node/v1alpha1"
 )
 
@@ -90,6 +91,12 @@ type TLSSpec struct {
 	// Remove tells operator to remove TLS configuration
 	// +optional
 	Remove bool `json:"remove,omitempty"`
+}
+
+type AuthSpec struct {
+	// SecretRef holds the new authSecret
+	// If it is given, ops-manager will use this. Otherwise, will generate random password
+	SecretRef *appcat.TypedLocalObjectReference `json:"secretRef,omitempty"`
 }
 
 // +kubebuilder:validation:Enum=IfReady;Always

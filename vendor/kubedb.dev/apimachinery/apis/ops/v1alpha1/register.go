@@ -54,6 +54,8 @@ func Resource(resource string) schema.GroupResource {
 // Adds the list of known types to api.Scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
+		&CassandraOpsRequest{},
+		&CassandraOpsRequestList{},
 		&ClickHouseOpsRequest{},
 		&ClickHouseOpsRequestList{},
 		&DruidOpsRequest{},
@@ -62,8 +64,12 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&ElasticsearchOpsRequestList{},
 		&FerretDBOpsRequest{},
 		&FerretDBOpsRequestList{},
+		&HazelcastOpsRequest{},
+		&HazelcastOpsRequestList{},
 		&EtcdOpsRequest{},
 		&EtcdOpsRequestList{},
+		&IgniteOpsRequest{},
+		&IgniteOpsRequestList{},
 		&KafkaOpsRequest{},
 		&KafkaOpsRequestList{},
 		&MariaDBOpsRequest{},

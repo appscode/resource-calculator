@@ -41,7 +41,7 @@ import (
 	ofst "kmodules.xyz/offshoot-api/api/v1"
 )
 
-func (_ MySQL) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
+func (MySQL) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
 	return crds.MustCustomResourceDefinition(SchemeGroupVersion.WithResource(ResourcePluralMySQL))
 }
 
@@ -264,7 +264,7 @@ func (m *MySQL) SetDefaults(myVersion *v1alpha1.MySQLVersion, topology *core_uti
 		m.Spec.StorageType = StorageTypeDurable
 	}
 	if m.Spec.TerminationPolicy == "" {
-		m.Spec.TerminationPolicy = TerminationPolicyDelete
+		m.Spec.TerminationPolicy = DeletionPolicyDelete
 	}
 
 	if m.UsesGroupReplication() {

@@ -67,6 +67,8 @@ type MariaDBOpsRequestSpec struct {
 	Configuration *MariaDBCustomConfigurationSpec `json:"configuration,omitempty"`
 	// Specifies information necessary for configuring TLS
 	TLS *MariaDBTLSSpec `json:"tls,omitempty"`
+	// Specifies information necessary for configuring authSecret of the database
+	Authentication *AuthSpec `json:"authentication,omitempty"`
 	// Specifies information necessary for restarting database
 	Restart *RestartSpec `json:"restart,omitempty"`
 	// Timeout for each step of the ops request in second. If a step doesn't finish within the specified timeout, the ops request will result in failure.
@@ -74,10 +76,12 @@ type MariaDBOpsRequestSpec struct {
 	// ApplyOption is to control the execution of OpsRequest depending on the database state.
 	// +kubebuilder:default="IfReady"
 	Apply ApplyOption `json:"apply,omitempty"`
+	// +kubebuilder:default=1
+	MaxRetries int32 `json:"maxRetries,omitempty"`
 }
 
-// +kubebuilder:validation:Enum=Upgrade;UpdateVersion;HorizontalScaling;VerticalScaling;VolumeExpansion;Restart;Reconfigure;ReconfigureTLS
-// ENUM(UpdateVersion, HorizontalScaling, VerticalScaling, VolumeExpansion, Restart, Reconfigure, ReconfigureTLS)
+// +kubebuilder:validation:Enum=Upgrade;UpdateVersion;HorizontalScaling;VerticalScaling;VolumeExpansion;Restart;Reconfigure;ReconfigureTLS;RotateAuth
+// ENUM(UpdateVersion, HorizontalScaling, VerticalScaling, VolumeExpansion, Restart, Reconfigure, ReconfigureTLS, RotateAuth)
 type MariaDBOpsRequestType string
 
 // MariaDBReplicaReadinessCriteria is the criteria for checking readiness of an MariaDB database
@@ -89,6 +93,9 @@ type MariaDBUpdateVersionSpec struct {
 }
 
 type MariaDBHorizontalScalingSpec struct {
+	// Specifies whether horizontal scaling is applied to the MaxScale Server.
+	// When set to true, it enables horizontal scaling for the MaxScale Server.
+	MaxScale bool `json:"maxscale,omitempty"`
 	// Number of nodes/members of the group
 	Member *int32 `json:"member,omitempty"`
 	// specifies the weight of the current member/PodResources
@@ -97,14 +104,16 @@ type MariaDBHorizontalScalingSpec struct {
 
 type MariaDBVerticalScalingSpec struct {
 	MariaDB     *PodResources       `json:"mariadb,omitempty"`
+	MaxScale    *PodResources       `json:"maxscale,omitempty"`
 	Exporter    *ContainerResources `json:"exporter,omitempty"`
 	Coordinator *ContainerResources `json:"coordinator,omitempty"`
 }
 
 // MariaDBVolumeExpansionSpec is the spec for MariaDB volume expansion
 type MariaDBVolumeExpansionSpec struct {
-	MariaDB *resource.Quantity  `json:"mariadb,omitempty"`
-	Mode    VolumeExpansionMode `json:"mode"`
+	MariaDB  *resource.Quantity  `json:"mariadb,omitempty"`
+	MaxScale *resource.Quantity  `json:"maxscale,omitempty"`
+	Mode     VolumeExpansionMode `json:"mode"`
 }
 
 type MariaDBCustomConfigurationSpec struct {

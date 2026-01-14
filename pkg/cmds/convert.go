@@ -99,7 +99,7 @@ func convert(dir string, clientGetter genericclioptions.RESTClientGetter) error 
 		return err
 	}
 
-	rsmap := map[schema.GroupKind][]interface{}{}
+	rsmap := map[schema.GroupKind][]any{}
 	for _, gk := range registeredKubeDBTypes {
 		mapping, err := mapper.RESTMapping(gk)
 		if meta.IsNoMatchError(err) {
@@ -112,7 +112,7 @@ func convert(dir string, clientGetter genericclioptions.RESTClientGetter) error 
 		if result, err := ri.List(context.TODO(), metav1.ListOptions{}); err != nil {
 			return err
 		} else {
-			objects := make([]interface{}, 0, len(result.Items))
+			objects := make([]any, 0, len(result.Items))
 			for _, item := range result.Items {
 				if gk.Group == kubedb.GroupName && mapping.GroupVersionKind.Version == kubedbv1alpha1.SchemeGroupVersion.Version {
 					content, err := Convert_kubedb_v1alpha1_To_v1alpha2(item, catalogmap, topology)
@@ -138,17 +138,17 @@ func convert(dir string, clientGetter genericclioptions.RESTClientGetter) error 
 		for _, obj := range objects {
 			buf.Reset()
 
-			name, _, err := unstructured.NestedString(obj.(map[string]interface{}), "metadata", "name")
+			name, _, err := unstructured.NestedString(obj.(map[string]any), "metadata", "name")
 			if err != nil {
 				return err
 			}
-			namespace, _, err := unstructured.NestedString(obj.(map[string]interface{}), "metadata", "namespace")
+			namespace, _, err := unstructured.NestedString(obj.(map[string]any), "metadata", "namespace")
 			if err != nil {
 				return err
 			}
 
 			// config secret handling
-			if cfgName, ok, _ := unstructured.NestedString(obj.(map[string]interface{}), "spec", "configSecret", "name"); ok && strings.HasPrefix(cfgName, "FIX_CONVERT_TO_SECRET_") {
+			if cfgName, ok, _ := unstructured.NestedString(obj.(map[string]any), "spec", "configSecret", "name"); ok && strings.HasPrefix(cfgName, "FIX_CONVERT_TO_SECRET_") {
 				cmName := strings.TrimPrefix(cfgName, "FIX_CONVERT_TO_SECRET_")
 				if cm, err := kc.CoreV1().ConfigMaps(namespace).Get(context.TODO(), cmName, metav1.GetOptions{}); err == nil {
 					s := &core.Secret{
@@ -172,7 +172,7 @@ func convert(dir string, clientGetter genericclioptions.RESTClientGetter) error 
 						buf.Write(data)
 						buf.WriteString("\n---\n")
 
-						_ = unstructured.SetNestedField(obj.(map[string]interface{}), cmName, "spec", "configSecret", "name")
+						_ = unstructured.SetNestedField(obj.(map[string]any), cmName, "spec", "configSecret", "name")
 					}
 				}
 			}

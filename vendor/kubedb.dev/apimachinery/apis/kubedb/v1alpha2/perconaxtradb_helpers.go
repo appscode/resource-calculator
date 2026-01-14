@@ -41,7 +41,7 @@ import (
 	ofst "kmodules.xyz/offshoot-api/api/v1"
 )
 
-func (_ PerconaXtraDB) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
+func (PerconaXtraDB) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
 	return crds.MustCustomResourceDefinition(SchemeGroupVersion.WithResource(ResourcePluralPerconaXtraDB))
 }
 
@@ -219,7 +219,7 @@ func (p *PerconaXtraDB) SetDefaults(pVersion *v1alpha1.PerconaXtraDBVersion, top
 		p.Spec.StorageType = StorageTypeDurable
 	}
 	if p.Spec.TerminationPolicy == "" {
-		p.Spec.TerminationPolicy = TerminationPolicyDelete
+		p.Spec.TerminationPolicy = DeletionPolicyDelete
 	}
 
 	if p.Spec.PodTemplate.Spec.ServiceAccountName == "" {

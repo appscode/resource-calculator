@@ -40,7 +40,6 @@ const (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=rabbitmqs,singular=rabbitmq,shortName=rm,categories={datastore,kubedb,appscode,all}
-// +kubebuilder:printcolumn:name="Type",type="string",JSONPath=".apiVersion"
 // +kubebuilder:printcolumn:name="Version",type="string",JSONPath=".spec.version"
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.phase"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
@@ -54,6 +53,10 @@ type RabbitMQ struct {
 
 // RabbitMQSpec defines the desired state of RabbitMQ
 type RabbitMQSpec struct {
+	// AutoOps contains configuration of automatic ops-request-recommendation generation
+	// +optional
+	AutoOps AutoOpsSpec `json:"autoOps,omitempty"`
+
 	// Version of RabbitMQ to be deployed.
 	Version string `json:"version"`
 
@@ -110,7 +113,7 @@ type RabbitMQSpec struct {
 
 	// DeletionPolicy controls the delete operation for database
 	// +optional
-	DeletionPolicy TerminationPolicy `json:"deletionPolicy,omitempty"`
+	DeletionPolicy DeletionPolicy `json:"deletionPolicy,omitempty"`
 
 	// HealthChecker defines attributes of the health checker
 	// +optional
@@ -122,7 +125,7 @@ type RabbitMQSpec struct {
 type RabbitMQStatus struct {
 	// Specifies the current phase of the database
 	// +optional
-	Phase RabbitMQPhase `json:"phase,omitempty"`
+	Phase DatabasePhase `json:"phase,omitempty"`
 	// observedGeneration is the most recent generation observed for this resource. It corresponds to the
 	// resource's generation, which is updated on mutation by the API Server.
 	// +optional
@@ -131,16 +134,6 @@ type RabbitMQStatus struct {
 	// +optional
 	Conditions []kmapi.Condition `json:"conditions,omitempty"`
 }
-
-// +kubebuilder:validation:Enum=Provisioning;Ready;NotReady;Critical
-type RabbitMQPhase string
-
-const (
-	RabbitmqProvisioning RabbitMQPhase = "Provisioning"
-	RabbitmqReady        RabbitMQPhase = "Ready"
-	RabbitmqNotReady     RabbitMQPhase = "NotReady"
-	RabbitmqCritical     RabbitMQPhase = "Critical"
-)
 
 // +kubebuilder:validation:Enum=ca;client;server
 type RabbitMQCertificateAlias string

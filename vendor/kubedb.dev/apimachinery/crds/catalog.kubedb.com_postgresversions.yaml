@@ -131,8 +131,11 @@ spec:
                 - TimescaleDB
                 - PostGIS
                 - KubeDB
+                - DocumentDB
                 - PostgreSQL
                 type: string
+              endOfLife:
+                type: boolean
               exporter:
                 properties:
                   image:
@@ -215,6 +218,11 @@ spec:
                     - backupTask
                     - restoreTask
                     type: object
+                type: object
+              tls:
+                properties:
+                  disableSSLSessionResumption:
+                    type: boolean
                 type: object
               ui:
                 items:

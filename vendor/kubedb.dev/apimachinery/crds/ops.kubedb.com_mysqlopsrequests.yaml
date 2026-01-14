@@ -48,6 +48,24 @@ spec:
                 - IfReady
                 - Always
                 type: string
+              authentication:
+                properties:
+                  secretRef:
+                    properties:
+                      apiGroup:
+                        default: ""
+                        type: string
+                      kind:
+                        default: Secret
+                        type: string
+                      name:
+                        type: string
+                    required:
+                    - kind
+                    - name
+                    type: object
+                    x-kubernetes-map-type: atomic
+                type: object
               configuration:
                 properties:
                   applyConfig:
@@ -76,6 +94,130 @@ spec:
                   member:
                     format: int32
                     type: integer
+                type: object
+              maxRetries:
+                default: 1
+                format: int32
+                type: integer
+              migration:
+                properties:
+                  oldPVReclaimPolicy:
+                    type: string
+                  storageClassName:
+                    type: string
+                required:
+                - storageClassName
+                type: object
+              replicationModeTransformation:
+                properties:
+                  certificates:
+                    items:
+                      properties:
+                        alias:
+                          type: string
+                        dnsNames:
+                          items:
+                            type: string
+                          type: array
+                        duration:
+                          type: string
+                        emailAddresses:
+                          items:
+                            type: string
+                          type: array
+                        ipAddresses:
+                          items:
+                            type: string
+                          type: array
+                        issuerRef:
+                          properties:
+                            apiGroup:
+                              type: string
+                            kind:
+                              type: string
+                            name:
+                              type: string
+                          required:
+                          - kind
+                          - name
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        privateKey:
+                          properties:
+                            encoding:
+                              enum:
+                              - PKCS1
+                              - PKCS8
+                              type: string
+                          type: object
+                        renewBefore:
+                          type: string
+                        secretName:
+                          type: string
+                        subject:
+                          properties:
+                            countries:
+                              items:
+                                type: string
+                              type: array
+                            localities:
+                              items:
+                                type: string
+                              type: array
+                            organizationalUnits:
+                              items:
+                                type: string
+                              type: array
+                            organizations:
+                              items:
+                                type: string
+                              type: array
+                            postalCodes:
+                              items:
+                                type: string
+                              type: array
+                            provinces:
+                              items:
+                                type: string
+                              type: array
+                            serialNumber:
+                              type: string
+                            streetAddresses:
+                              items:
+                                type: string
+                              type: array
+                          type: object
+                        uris:
+                          items:
+                            type: string
+                          type: array
+                      required:
+                      - alias
+                      type: object
+                    type: array
+                  issuerRef:
+                    properties:
+                      apiGroup:
+                        type: string
+                      kind:
+                        type: string
+                      name:
+                        type: string
+                    required:
+                    - kind
+                    - name
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  mode:
+                    default: Single-Primary
+                    enum:
+                    - Single-Primary
+                    - Multi-Primary
+                    type: string
+                  requireSSL:
+                    type: boolean
+                required:
+                - mode
                 type: object
               restart:
                 type: object
@@ -198,6 +340,9 @@ spec:
                 - Restart
                 - Reconfigure
                 - ReconfigureTLS
+                - RotateAuth
+                - ReplicationModeTransformation
+                - StorageMigration
                 type: string
               updateVersion:
                 properties:
@@ -216,6 +361,8 @@ spec:
                             items:
                               properties:
                                 name:
+                                  type: string
+                                request:
                                   type: string
                               required:
                               - name
@@ -250,6 +397,8 @@ spec:
                             items:
                               properties:
                                 name:
+                                  type: string
+                                request:
                                   type: string
                               required:
                               - name
@@ -286,6 +435,8 @@ spec:
                             items:
                               properties:
                                 name:
+                                  type: string
+                                request:
                                   type: string
                               required:
                               - name

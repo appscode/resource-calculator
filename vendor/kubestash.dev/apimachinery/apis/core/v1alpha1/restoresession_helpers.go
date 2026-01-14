@@ -18,17 +18,21 @@ package v1alpha1
 
 import (
 	"fmt"
+
+	"kubestash.dev/apimachinery/apis"
+	"kubestash.dev/apimachinery/apis/storage/v1alpha1"
+	"kubestash.dev/apimachinery/crds"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kmapi "kmodules.xyz/client-go/api/v1"
 	"kmodules.xyz/client-go/apiextensions"
 	cutil "kmodules.xyz/client-go/conditions"
 	meta_util "kmodules.xyz/client-go/meta"
-	"kubestash.dev/apimachinery/apis"
-	"kubestash.dev/apimachinery/apis/storage/v1alpha1"
-	"kubestash.dev/apimachinery/crds"
+	dbapi "kubedb.dev/apimachinery/apis/kubedb/v1"
+	olddbapi "kubedb.dev/apimachinery/apis/kubedb/v1alpha2"
 )
 
-func (_ RestoreSession) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
+func (RestoreSession) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
 	return crds.MustCustomResourceDefinition(GroupVersion.WithResource(ResourcePluralRestoreSession))
 }
 
@@ -201,7 +205,6 @@ func (rs *RestoreSession) GetTargetObjectRef(snap *v1alpha1.Snapshot) *kmapi.Obj
 			Name:      rs.Spec.Target.Name,
 		}
 	}
-
 	return rs.getTargetRef(snap.Spec.AppRef)
 }
 
@@ -224,9 +227,9 @@ func (rs *RestoreSession) getTargetRef(appRef kmapi.TypedObjectReference) *kmapi
 		return targetRef
 	}
 
-	overrideTargetRef := func(dbName, namespace string) {
-		if dbName != "" {
-			targetRef.Name = dbName
+	overrideTargetRef := func(name, namespace string) {
+		if name != "" {
+			targetRef.Name = name
 		}
 		if namespace != "" {
 			targetRef.Namespace = namespace
@@ -234,40 +237,45 @@ func (rs *RestoreSession) getTargetRef(appRef kmapi.TypedObjectReference) *kmapi
 	}
 
 	opt := rs.Spec.ManifestOptions
+
+	if opt.Workload != nil {
+		overrideTargetRef("", opt.Workload.RestoreNamespace)
+	}
+
 	switch appRef.Kind {
-	case apis.KindMySQL:
+	case dbapi.ResourceKindMySQL:
 		if opt.MySQL != nil {
 			overrideTargetRef(opt.MySQL.DBName, opt.MySQL.RestoreNamespace)
 		}
-	case apis.KindPostgres:
+	case dbapi.ResourceKindPostgres:
 		if opt.Postgres != nil {
 			overrideTargetRef(opt.Postgres.DBName, opt.Postgres.RestoreNamespace)
 		}
-	case apis.KindMongoDB:
+	case dbapi.ResourceKindMongoDB:
 		if opt.MongoDB != nil {
 			overrideTargetRef(opt.MongoDB.DBName, opt.MongoDB.RestoreNamespace)
 		}
-	case apis.KindMariaDB:
+	case dbapi.ResourceKindMariaDB:
 		if opt.MariaDB != nil {
 			overrideTargetRef(opt.MariaDB.DBName, opt.MariaDB.RestoreNamespace)
 		}
-	case apis.KindRedis:
+	case dbapi.ResourceKindRedis:
 		if opt.Redis != nil {
 			overrideTargetRef(opt.Redis.DBName, opt.Redis.RestoreNamespace)
 		}
-	case apis.KindMSSQLServer:
+	case olddbapi.ResourceKindMSSQLServer:
 		if opt.MSSQLServer != nil {
 			overrideTargetRef(opt.MSSQLServer.DBName, opt.MSSQLServer.RestoreNamespace)
 		}
-	case apis.KindDruid:
+	case olddbapi.ResourceKindDruid:
 		if opt.Druid != nil {
 			overrideTargetRef(opt.Druid.DBName, opt.Druid.RestoreNamespace)
 		}
-	case apis.KindZooKeeper:
+	case olddbapi.ResourceKindZooKeeper:
 		if opt.ZooKeeper != nil {
 			overrideTargetRef(opt.ZooKeeper.DBName, opt.ZooKeeper.RestoreNamespace)
 		}
-	case apis.KindSinglestore:
+	case olddbapi.ResourceKindSinglestore:
 		if opt.Singlestore != nil {
 			overrideTargetRef(opt.Singlestore.DBName, opt.Singlestore.RestoreNamespace)
 		}

@@ -210,9 +210,10 @@ func (r *Redis) SetDefaults(rdVersion *catalog.RedisVersion, topology *core_util
 	}
 
 	// perform defaulting
-	if r.Spec.Mode == "" {
+	switch r.Spec.Mode {
+	case "":
 		r.Spec.Mode = RedisModeStandalone
-	} else if r.Spec.Mode == RedisModeCluster {
+	case RedisModeCluster:
 		if r.Spec.Cluster == nil {
 			r.Spec.Cluster = &RedisClusterSpec{}
 		}
@@ -227,7 +228,7 @@ func (r *Redis) SetDefaults(rdVersion *catalog.RedisVersion, topology *core_util
 		r.Spec.StorageType = StorageTypeDurable
 	}
 	if r.Spec.TerminationPolicy == "" {
-		r.Spec.TerminationPolicy = TerminationPolicyDelete
+		r.Spec.TerminationPolicy = DeletionPolicyDelete
 	}
 	r.setDefaultContainerSecurityContext(rdVersion, &r.Spec.PodTemplate)
 	if r.Spec.PodTemplate.Spec.ServiceAccountName == "" {

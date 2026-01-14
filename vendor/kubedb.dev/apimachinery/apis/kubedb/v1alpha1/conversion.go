@@ -27,6 +27,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	appcat "kmodules.xyz/custom-resources/apis/appcatalog/v1alpha1"
 	mona "kmodules.xyz/monitoring-agent-api/api/v1"
 	ofst "kmodules.xyz/offshoot-api/api/v1"
 )
@@ -96,7 +97,8 @@ func Convert_v1alpha1_ElasticsearchSpec_To_v1alpha2_ElasticsearchSpec(in *Elasti
 	// WARNING: in.AuthPlugin requires manual conversion: does not exist in peer-type
 	if in.DatabaseSecret != nil {
 		out.AuthSecret = &v1alpha2.SecretReference{
-			LocalObjectReference: v1.LocalObjectReference{
+			TypedLocalObjectReference: appcat.TypedLocalObjectReference{
+				Kind: "Secret",
 				Name: in.DatabaseSecret.SecretName,
 			},
 		}
@@ -134,7 +136,7 @@ func Convert_v1alpha1_ElasticsearchSpec_To_v1alpha2_ElasticsearchSpec(in *Elasti
 	}
 	out.MaxUnavailable = (*intstr.IntOrString)(unsafe.Pointer(in.MaxUnavailable))
 	// WARNING: in.UpdateStrategy requires manual conversion: does not exist in peer-type
-	out.TerminationPolicy = v1alpha2.TerminationPolicy(in.TerminationPolicy)
+	out.TerminationPolicy = v1alpha2.DeletionPolicy(in.TerminationPolicy)
 	return nil
 }
 
@@ -255,7 +257,8 @@ func Convert_v1alpha1_EtcdSpec_To_v1alpha2_EtcdSpec(in *EtcdSpec, out *v1alpha2.
 	out.Storage = (*v1.PersistentVolumeClaimSpec)(unsafe.Pointer(in.Storage))
 	if in.DatabaseSecret != nil {
 		out.AuthSecret = &v1alpha2.SecretReference{
-			LocalObjectReference: v1.LocalObjectReference{
+			TypedLocalObjectReference: appcat.TypedLocalObjectReference{
+				Kind: "Secret",
 				Name: in.DatabaseSecret.SecretName,
 			},
 		}
@@ -280,7 +283,7 @@ func Convert_v1alpha1_EtcdSpec_To_v1alpha2_EtcdSpec(in *EtcdSpec, out *v1alpha2.
 		})
 	}
 	// WARNING: in.UpdateStrategy requires manual conversion: does not exist in peer-type
-	out.DeletionPolicy = v1alpha2.TerminationPolicy(in.TerminationPolicy)
+	out.DeletionPolicy = v1alpha2.DeletionPolicy(in.TerminationPolicy)
 	return nil
 }
 
@@ -331,7 +334,8 @@ func Convert_v1alpha1_MariaDBSpec_To_v1alpha2_MariaDBSpec(in *MariaDBSpec, out *
 	out.Storage = (*v1.PersistentVolumeClaimSpec)(unsafe.Pointer(in.Storage))
 	if in.DatabaseSecret != nil {
 		out.AuthSecret = &v1alpha2.SecretReference{
-			LocalObjectReference: v1.LocalObjectReference{
+			TypedLocalObjectReference: appcat.TypedLocalObjectReference{
+				Kind: "Secret",
 				Name: in.DatabaseSecret.SecretName,
 			},
 		}
@@ -365,7 +369,7 @@ func Convert_v1alpha1_MariaDBSpec_To_v1alpha2_MariaDBSpec(in *MariaDBSpec, out *
 		})
 	}
 	// WARNING: in.UpdateStrategy requires manual conversion: does not exist in peer-type
-	out.TerminationPolicy = v1alpha2.TerminationPolicy(in.TerminationPolicy)
+	out.TerminationPolicy = v1alpha2.DeletionPolicy(in.TerminationPolicy)
 	return nil
 }
 
@@ -434,7 +438,7 @@ func Convert_v1alpha1_MemcachedSpec_To_v1alpha2_MemcachedSpec(in *MemcachedSpec,
 		})
 	}
 	// WARNING: in.UpdateStrategy requires manual conversion: does not exist in peer-type
-	out.TerminationPolicy = v1alpha2.TerminationPolicy(in.TerminationPolicy)
+	out.TerminationPolicy = v1alpha2.DeletionPolicy(in.TerminationPolicy)
 	return nil
 }
 
@@ -493,7 +497,8 @@ func Convert_v1alpha1_MongoDBSpec_To_v1alpha2_MongoDBSpec(in *MongoDBSpec, out *
 	out.Storage = (*v1.PersistentVolumeClaimSpec)(unsafe.Pointer(in.Storage))
 	if in.DatabaseSecret != nil {
 		out.AuthSecret = &v1alpha2.SecretReference{
-			LocalObjectReference: v1.LocalObjectReference{
+			TypedLocalObjectReference: appcat.TypedLocalObjectReference{
+				Kind: "Secret",
 				Name: in.DatabaseSecret.SecretName,
 			},
 		}
@@ -537,7 +542,7 @@ func Convert_v1alpha1_MongoDBSpec_To_v1alpha2_MongoDBSpec(in *MongoDBSpec, out *
 		})
 	}
 	// WARNING: in.UpdateStrategy requires manual conversion: does not exist in peer-type
-	out.TerminationPolicy = v1alpha2.TerminationPolicy(in.TerminationPolicy)
+	out.TerminationPolicy = v1alpha2.DeletionPolicy(in.TerminationPolicy)
 	return nil
 }
 
@@ -687,7 +692,8 @@ func Convert_v1alpha1_MySQLSpec_To_v1alpha2_MySQLSpec(in *MySQLSpec, out *v1alph
 	out.Storage = (*v1.PersistentVolumeClaimSpec)(unsafe.Pointer(in.Storage))
 	if in.DatabaseSecret != nil {
 		out.AuthSecret = &v1alpha2.SecretReference{
-			LocalObjectReference: v1.LocalObjectReference{
+			TypedLocalObjectReference: appcat.TypedLocalObjectReference{
+				Kind: "Secret",
 				Name: in.DatabaseSecret.SecretName,
 			},
 		}
@@ -722,7 +728,7 @@ func Convert_v1alpha1_MySQLSpec_To_v1alpha2_MySQLSpec(in *MySQLSpec, out *v1alph
 		})
 	}
 	// WARNING: in.UpdateStrategy requires manual conversion: does not exist in peer-type
-	out.TerminationPolicy = v1alpha2.TerminationPolicy(in.TerminationPolicy)
+	out.TerminationPolicy = v1alpha2.DeletionPolicy(in.TerminationPolicy)
 	return nil
 }
 
@@ -799,7 +805,8 @@ func Convert_v1alpha1_PerconaXtraDBSpec_To_v1alpha2_PerconaXtraDBSpec(in *Percon
 	out.Storage = (*v1.PersistentVolumeClaimSpec)(unsafe.Pointer(in.Storage))
 	if in.DatabaseSecret != nil {
 		out.AuthSecret = &v1alpha2.SecretReference{
-			LocalObjectReference: v1.LocalObjectReference{
+			TypedLocalObjectReference: appcat.TypedLocalObjectReference{
+				Kind: "Secret",
 				Name: in.DatabaseSecret.SecretName,
 			},
 		}
@@ -834,7 +841,7 @@ func Convert_v1alpha1_PerconaXtraDBSpec_To_v1alpha2_PerconaXtraDBSpec(in *Percon
 		})
 	}
 	// WARNING: in.UpdateStrategy requires manual conversion: does not exist in peer-type
-	out.TerminationPolicy = v1alpha2.TerminationPolicy(in.TerminationPolicy)
+	out.TerminationPolicy = v1alpha2.DeletionPolicy(in.TerminationPolicy)
 	return nil
 }
 
@@ -889,7 +896,8 @@ func Convert_v1alpha1_PostgresSpec_To_v1alpha2_PostgresSpec(in *PostgresSpec, ou
 	}
 	if in.DatabaseSecret != nil {
 		out.AuthSecret = &v1alpha2.SecretReference{
-			LocalObjectReference: v1.LocalObjectReference{
+			TypedLocalObjectReference: appcat.TypedLocalObjectReference{
+				Kind: "Secret",
 				Name: in.DatabaseSecret.SecretName,
 			},
 		}
@@ -932,7 +940,7 @@ func Convert_v1alpha1_PostgresSpec_To_v1alpha2_PostgresSpec(in *PostgresSpec, ou
 		})
 	}
 	// WARNING: in.UpdateStrategy requires manual conversion: does not exist in peer-type
-	out.TerminationPolicy = v1alpha2.TerminationPolicy(in.TerminationPolicy)
+	out.TerminationPolicy = v1alpha2.DeletionPolicy(in.TerminationPolicy)
 	return nil
 }
 
@@ -1005,7 +1013,7 @@ func Convert_v1alpha1_RedisSpec_To_v1alpha2_RedisSpec(in *RedisSpec, out *v1alph
 		})
 	}
 	// WARNING: in.UpdateStrategy requires manual conversion: does not exist in peer-type
-	out.TerminationPolicy = v1alpha2.TerminationPolicy(in.TerminationPolicy)
+	out.TerminationPolicy = v1alpha2.DeletionPolicy(in.TerminationPolicy)
 	return nil
 }
 

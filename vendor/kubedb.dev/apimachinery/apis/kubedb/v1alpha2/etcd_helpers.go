@@ -34,7 +34,7 @@ import (
 	mona "kmodules.xyz/monitoring-agent-api/api/v1"
 )
 
-func (_ Etcd) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
+func (Etcd) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
 	return crds.MustCustomResourceDefinition(SchemeGroupVersion.WithResource(ResourcePluralEtcd))
 }
 
@@ -182,7 +182,7 @@ func (e *Etcd) SetDefaults() {
 		e.Spec.StorageType = StorageTypeDurable
 	}
 	if e.Spec.DeletionPolicy == "" {
-		e.Spec.DeletionPolicy = TerminationPolicyDelete
+		e.Spec.DeletionPolicy = DeletionPolicyDelete
 	}
 
 	e.Spec.Monitor.SetDefaults()

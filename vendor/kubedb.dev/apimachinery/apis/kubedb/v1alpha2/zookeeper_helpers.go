@@ -19,6 +19,7 @@ package v1alpha2
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"kubedb.dev/apimachinery/apis"
 	catalog "kubedb.dev/apimachinery/apis/catalog/v1alpha1"
@@ -32,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
+	kmapi "kmodules.xyz/client-go/api/v1"
 	"kmodules.xyz/client-go/apiextensions"
 	coreutil "kmodules.xyz/client-go/core/v1"
 	meta_util "kmodules.xyz/client-go/meta"
@@ -40,6 +42,7 @@ import (
 	mona "kmodules.xyz/monitoring-agent-api/api/v1"
 	ofst "kmodules.xyz/offshoot-api/api/v2"
 	pslister "kubeops.dev/petset/client/listers/apps/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func (z *ZooKeeper) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
@@ -88,7 +91,7 @@ func (z *ZooKeeper) ConfigSecretName() string {
 }
 
 func (z *ZooKeeper) PVCName(alias string) string {
-	return meta_util.NameWithSuffix(z.Name, alias)
+	return alias
 }
 
 func (z *ZooKeeper) ServiceName() string {
@@ -145,6 +148,21 @@ func (z *ZooKeeper) GetAuthSecretName() string {
 	return meta_util.NameWithSuffix(z.OffshootName(), "auth")
 }
 
+func (z *ZooKeeper) GetKeystoreSecretName() string {
+	if z.Spec.KeystoreCredSecret != nil && z.Spec.KeystoreCredSecret.Name != "" {
+		return z.Spec.KeystoreCredSecret.Name
+	}
+	return meta_util.NameWithSuffix(z.OffshootName(), "keystore-cred")
+}
+
+func (k *ZooKeeper) DefaultUserCredSecretName(username string) string {
+	return meta_util.NameWithSuffix(k.Name, strings.ReplaceAll(fmt.Sprintf("%s-cred", username), "_", "-"))
+}
+
+func (z *ZooKeeper) DefaultKeystoreCredSecretName() string {
+	return meta_util.NameWithSuffix(z.Name, strings.ReplaceAll("keystore-cred", "_", "-"))
+}
+
 func (z *ZooKeeper) GetPersistentSecrets() []string {
 	if z == nil {
 		return nil
@@ -169,24 +187,33 @@ func (z *ZooKeeper) SetHealthCheckerDefaults() {
 	}
 }
 
-func (z *ZooKeeper) SetDefaults() {
+func (z *ZooKeeper) SetDefaults(kc client.Client) {
 	if z.Spec.DeletionPolicy == "" {
-		z.Spec.DeletionPolicy = TerminationPolicyDelete
+		z.Spec.DeletionPolicy = DeletionPolicyDelete
 	}
 	if z.Spec.Replicas == nil {
 		z.Spec.Replicas = pointer.Int32P(1)
 	}
 
 	if z.Spec.Halted {
-		if z.Spec.DeletionPolicy == TerminationPolicyDoNotTerminate {
+		if z.Spec.DeletionPolicy == DeletionPolicyDoNotTerminate {
 			klog.Errorf(`Can't halt, since termination policy is 'DoNotTerminate'`)
 			return
 		}
-		z.Spec.DeletionPolicy = TerminationPolicyHalt
+		z.Spec.DeletionPolicy = DeletionPolicyHalt
+	}
+
+	if !z.Spec.DisableAuth {
+		if z.Spec.AuthSecret == nil {
+			z.Spec.AuthSecret = &SecretReference{}
+		}
+		if z.Spec.AuthSecret.Kind == "" {
+			z.Spec.AuthSecret.Kind = kubedb.ResourceKindSecret
+		}
 	}
 
 	var zkVersion catalog.ZooKeeperVersion
-	err := DefaultClient.Get(context.TODO(), types.NamespacedName{Name: z.Spec.Version}, &zkVersion)
+	err := kc.Get(context.TODO(), types.NamespacedName{Name: z.Spec.Version}, &zkVersion)
 	if err != nil {
 		klog.Errorf("can't get the zookeeper version object %s for %s \n", err.Error(), z.Spec.Version)
 		return
@@ -204,6 +231,10 @@ func (z *ZooKeeper) SetDefaults() {
 		apis.SetDefaultResourceLimits(&initContainer.Resources, kubedb.DefaultInitContainerResource)
 	}
 
+	if z.Spec.EnableSSL {
+		z.SetTLSDefaults()
+	}
+
 	z.SetHealthCheckerDefaults()
 	if z.Spec.Monitor != nil {
 		if z.Spec.Monitor.Prometheus == nil {
@@ -213,7 +244,23 @@ func (z *ZooKeeper) SetDefaults() {
 			z.Spec.Monitor.Prometheus.Exporter.Port = kubedb.ZooKeeperMetricsPort
 		}
 		z.Spec.Monitor.SetDefaults()
+		if z.Spec.Monitor.Prometheus != nil {
+			if z.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsUser == nil {
+				z.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsUser = zkVersion.Spec.SecurityContext.RunAsUser
+			}
+			if z.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsGroup == nil {
+				z.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsGroup = zkVersion.Spec.SecurityContext.RunAsUser
+			}
+		}
 	}
+}
+
+func (z *ZooKeeper) SetTLSDefaults() {
+	if z.Spec.TLS == nil || z.Spec.TLS.IssuerRef == nil {
+		return
+	}
+	z.Spec.TLS.Certificates = kmapi.SetMissingSecretNameForCertificate(z.Spec.TLS.Certificates, string(ZooKeeperServerCert), z.CertificateName(ZooKeeperServerCert))
+	z.Spec.TLS.Certificates = kmapi.SetMissingSecretNameForCertificate(z.Spec.TLS.Certificates, string(ZooKeeperClientCert), z.CertificateName(ZooKeeperClientCert))
 }
 
 func (z *ZooKeeper) setDefaultContainerSecurityContext(zkVersion *catalog.ZooKeeperVersion, podTemplate *ofst.PodTemplateSpec) {
@@ -346,4 +393,27 @@ func (z *ZooKeeper) ReplicasAreReady(lister pslister.PetSetLister) (bool, string
 	// Desire number of petSets
 	expectedItems := 1
 	return checkReplicasOfPetSet(lister.PetSets(z.Namespace), labels.SelectorFromSet(z.OffshootLabels()), expectedItems)
+}
+
+// CertificateName returns the default certificate name and/or certificate secret name for a certificate alias
+func (z *ZooKeeper) CertificateName(alias ZooKeeperCertificateAlias) string {
+	return meta_util.NameWithSuffix(z.Name, fmt.Sprintf("%s-cert", string(alias)))
+}
+
+// GetCertSecretName returns the secret name for a certificate alias if any,
+// otherwise returns default certificate secret name for the given alias.
+func (z *ZooKeeper) GetCertSecretName(alias ZooKeeperCertificateAlias) string {
+	if z.Spec.TLS != nil {
+		name, ok := kmapi.GetCertificateSecretName(z.Spec.TLS.Certificates, string(alias))
+		if ok {
+			return name
+		}
+	}
+	return z.CertificateName(alias)
+}
+
+// CertSecretVolumeName returns the CertSecretVolumeName
+// Values will be like: client-certs, server-certs etc.
+func (k *ZooKeeper) CertSecretVolumeName(alias ZooKeeperCertificateAlias) string {
+	return string(alias) + "-certs"
 }

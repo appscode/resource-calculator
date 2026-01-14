@@ -4,7 +4,7 @@ metadata:
   name: "10.19"
 spec:
   coordinator:
-    image: ghcr.io/kubedb/pg-coordinator:v0.32.0
+    image: ghcr.io/kubedb/pg-coordinator:v0.44.0-rc.1
   db:
     baseOS: bullseye
     image: postgres:10.19-bullseye
@@ -13,7 +13,7 @@ spec:
   exporter:
     image: prometheuscommunity/postgres-exporter:v0.15.0
   initContainer:
-    image: ghcr.io/kubedb/postgres-init:0.15.0
+    image: ghcr.io/kubedb/postgres-init:0.18.0
   podSecurityPolicies:
     databasePolicyName: postgres-db
   securityContext:
@@ -37,7 +37,7 @@ metadata:
   name: 10.19-bullseye
 spec:
   coordinator:
-    image: ghcr.io/kubedb/pg-coordinator:v0.32.0
+    image: ghcr.io/kubedb/pg-coordinator:v0.44.0-rc.1
   db:
     baseOS: bullseye
     image: postgres:10.19-bullseye
@@ -46,7 +46,7 @@ spec:
   exporter:
     image: prometheuscommunity/postgres-exporter:v0.15.0
   initContainer:
-    image: ghcr.io/kubedb/postgres-init:0.15.0
+    image: ghcr.io/kubedb/postgres-init:0.18.0
   podSecurityPolicies:
     databasePolicyName: postgres-db
   securityContext:

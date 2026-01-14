@@ -99,13 +99,14 @@ func NewCmdCalculate(clientGetter genericclioptions.RESTClientGetter) *cobra.Com
 				allStats = append(allStats, stats)
 			}
 
-			if format == "json" {
+			switch format {
+			case "json":
 				data, err := json.MarshalIndent(allStats, "", "  ")
 				if err != nil {
 					return err
 				}
 				fmt.Println(string(data))
-			} else if format == "yaml" || format == "yml" {
+			case "yaml", "yml":
 				data, err := yaml.Marshal(allStats)
 				if err != nil {
 					return err
@@ -278,9 +279,9 @@ func isResourceAvailable(mapper *restmapper.DeferredDiscoveryRESTMapper, gvk sch
 	return err == nil
 }
 
-const TerminationPolicyPause kubedbv1alpha2.TerminationPolicy = "Pause"
+const TerminationPolicyPause kubedbv1alpha2.DeletionPolicy = "Pause"
 
-func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalogmap map[KindVersion]interface{}, topology *core_util.Topology) (map[string]interface{}, error) {
+func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalogmap map[KindVersion]any, topology *core_util.Topology) (map[string]any, error) {
 	gvk := item.GroupVersionKind()
 
 	switch gvk.Kind {
@@ -314,7 +315,7 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 			delete(out.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
 		}
 		if out.Spec.TerminationPolicy == TerminationPolicyPause {
-			out.Spec.TerminationPolicy = kubedbv1alpha2.TerminationPolicyHalt
+			out.Spec.TerminationPolicy = kubedbv1alpha2.DeletionPolicyHalt
 		}
 
 		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
@@ -342,7 +343,7 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 			delete(out.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
 		}
 		if out.Spec.DeletionPolicy == TerminationPolicyPause {
-			out.Spec.DeletionPolicy = kubedbv1alpha2.TerminationPolicyHalt
+			out.Spec.DeletionPolicy = kubedbv1alpha2.DeletionPolicyHalt
 		}
 
 		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
@@ -378,7 +379,7 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 			delete(out.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
 		}
 		if out.Spec.TerminationPolicy == TerminationPolicyPause {
-			out.Spec.TerminationPolicy = kubedbv1alpha2.TerminationPolicyHalt
+			out.Spec.TerminationPolicy = kubedbv1alpha2.DeletionPolicyHalt
 		}
 
 		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
@@ -414,7 +415,7 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 			delete(out.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
 		}
 		if out.Spec.TerminationPolicy == TerminationPolicyPause {
-			out.Spec.TerminationPolicy = kubedbv1alpha2.TerminationPolicyHalt
+			out.Spec.TerminationPolicy = kubedbv1alpha2.DeletionPolicyHalt
 		}
 
 		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
@@ -449,7 +450,7 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 			delete(out.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
 		}
 		if out.Spec.TerminationPolicy == TerminationPolicyPause {
-			out.Spec.TerminationPolicy = kubedbv1alpha2.TerminationPolicyHalt
+			out.Spec.TerminationPolicy = kubedbv1alpha2.DeletionPolicyHalt
 		}
 
 		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
@@ -485,7 +486,7 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 			delete(out.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
 		}
 		if out.Spec.TerminationPolicy == TerminationPolicyPause {
-			out.Spec.TerminationPolicy = kubedbv1alpha2.TerminationPolicyHalt
+			out.Spec.TerminationPolicy = kubedbv1alpha2.DeletionPolicyHalt
 		}
 
 		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
@@ -521,7 +522,7 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 			delete(out.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
 		}
 		if out.Spec.TerminationPolicy == TerminationPolicyPause {
-			out.Spec.TerminationPolicy = kubedbv1alpha2.TerminationPolicyHalt
+			out.Spec.TerminationPolicy = kubedbv1alpha2.DeletionPolicyHalt
 		}
 
 		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
@@ -556,7 +557,7 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 			delete(out.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
 		}
 		if out.Spec.TerminationPolicy == TerminationPolicyPause {
-			out.Spec.TerminationPolicy = kubedbv1alpha2.TerminationPolicyHalt
+			out.Spec.TerminationPolicy = kubedbv1alpha2.DeletionPolicyHalt
 		}
 		if out.Spec.LeaderElection != nil && out.Spec.LeaderElection.Period.Milliseconds() == 0 {
 			out.Spec.LeaderElection.Period = metav1.Duration{Duration: 300 * time.Millisecond}
@@ -595,7 +596,7 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 			delete(out.Annotations, "kubectl.kubernetes.io/last-applied-configuration")
 		}
 		if out.Spec.TerminationPolicy == TerminationPolicyPause {
-			out.Spec.TerminationPolicy = kubedbv1alpha2.TerminationPolicyHalt
+			out.Spec.TerminationPolicy = kubedbv1alpha2.DeletionPolicyHalt
 		}
 
 		return runtime.DefaultUnstructuredConverter.ToUnstructured(&out)
@@ -603,12 +604,12 @@ func Convert_kubedb_v1alpha1_To_v1alpha2(item unstructured.Unstructured, catalog
 	return nil, fmt.Errorf("can't convert %v to v1alpha2", gvk)
 }
 
-func LoadCatalog(client cs.Interface, local bool) (map[KindVersion]interface{}, error) {
+func LoadCatalog(client cs.Interface, local bool) (map[KindVersion]any, error) {
 	catalogversions, err := parser.ListFSResources(catalog.FS())
 	if err != nil {
 		return nil, err
 	}
-	catalogmap := map[KindVersion]interface{}{}
+	catalogmap := map[KindVersion]any{}
 	for _, r := range catalogversions {
 		key := r.Object.GetObjectKind().GroupVersionKind()
 		key.Kind = strings.TrimSuffix(key.Kind, "Version")

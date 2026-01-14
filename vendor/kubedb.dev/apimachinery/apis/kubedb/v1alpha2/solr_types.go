@@ -40,7 +40,6 @@ const (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=solrs,singular=solr,shortName=sl,categories={datastore,kubedb,appscode,all}
-// +kubebuilder:printcolumn:name="Type",type="string",JSONPath=".apiVersion"
 // +kubebuilder:printcolumn:name="Version",type="string",JSONPath=".spec.version"
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.phase"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
@@ -54,6 +53,10 @@ type Solr struct {
 
 // SolrSpec defines the desired state of Solr c
 type SolrSpec struct {
+	// AutoOps contains configuration of automatic ops-request-recommendation generation
+	// +optional
+	AutoOps AutoOpsSpec `json:"autoOps,omitempty"`
+
 	// Version of Solr to be deployed
 	Version string `json:"version"`
 
@@ -72,7 +75,7 @@ type SolrSpec struct {
 	Storage *core.PersistentVolumeClaimSpec `json:"storage,omitempty"`
 
 	// 	// ZooKeeper contains information for Solr to store configurations for collections
-	ZookeeperRef *kmapi.ObjectReference `json:"zookeeperRef,omitempty"`
+	ZookeeperRef *ZookeeperRef `json:"zookeeperRef,omitempty"`
 
 	// +optional
 	SolrModules []string `json:"solrModules,omitempty"`
@@ -102,7 +105,7 @@ type SolrSpec struct {
 	KeystoreSecret *core.LocalObjectReference `json:"keystoreSecret,omitempty"`
 
 	// +optional
-	AuthSecret *core.LocalObjectReference `json:"authSecret,omitempty"`
+	AuthSecret *SecretReference `json:"authSecret,omitempty"`
 
 	// +optional
 	ZookeeperDigestSecret *core.LocalObjectReference `json:"zookeeperDigestSecret,omitempty"`
@@ -123,7 +126,7 @@ type SolrSpec struct {
 
 	// DeletionPolicy controls the delete operation for database
 	// +optional
-	DeletionPolicy TerminationPolicy `json:"deletionPolicy,omitempty"`
+	DeletionPolicy DeletionPolicy `json:"deletionPolicy,omitempty"`
 
 	// HealthChecker defines attributes of the health checker
 	// +optional
@@ -180,6 +183,7 @@ const (
 	SolrNodeRoleOverseer    SolrNodeRoleType = "overseer"
 	SolrNodeRoleData        SolrNodeRoleType = "data"
 	SolrNodeRoleCoordinator SolrNodeRoleType = "coordinator"
+	SolrNodeRoleCombined    SolrNodeRoleType = "combined"
 	SolrNodeRoleSet                          = "set"
 )
 
