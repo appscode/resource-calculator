@@ -24,6 +24,8 @@ type ClickHouseExpansion interface{}
 
 type DB2Expansion interface{}
 
+type DocumentDBExpansion interface{}
+
 type DruidExpansion interface{}
 
 type ElasticsearchExpansion interface{}
@@ -45,8 +47,6 @@ type MSSQLServerExpansion interface{}
 type MariaDBExpansion interface{}
 
 type MemcachedExpansion interface{}
-
-type MilvusExpansion interface{}
 
 type MongoDBExpansion interface{}
 

@@ -86,7 +86,8 @@ func (p *Pgpool) ResourcePlural() string {
 }
 
 func (p *Pgpool) ConfigSecretName() string {
-	return meta_util.NameWithSuffix(p.OffshootName(), "config")
+	uid := string(p.UID)
+	return meta_util.NameWithSuffix(p.OffshootName(), uid[len(uid)-6:])
 }
 
 func (p *Pgpool) TLSSecretName() string {
@@ -162,7 +163,8 @@ func (p *Pgpool) GetAuthSecretName() string {
 }
 
 func (p *Pgpool) GetPcpConfigSecretName() string {
-	return meta_util.NameWithSuffix(p.OffshootName(), "pcp-config")
+	uid := string(p.UID)
+	return meta_util.NameWithSuffix(meta_util.NameWithSuffix(p.OffshootName(), "pcp"), uid[len(uid)-6:])
 }
 
 func (p *Pgpool) SetHealthCheckerDefaults() {
@@ -211,7 +213,8 @@ func (p PgpoolStatsService) Path() string {
 }
 
 func (p PgpoolStatsService) Scheme() string {
-	return ""
+	sc := promapi.SchemeHTTP
+	return sc.String()
 }
 
 func (p PgpoolStatsService) TLSConfig() *promapi.TLSConfig {
@@ -347,7 +350,7 @@ func (p *Pgpool) assignContainerSecurityContext(ppVersion *catalog.PgpoolVersion
 
 func (p *Pgpool) setContainerResourceLimits(podTemplate *ofst.PodTemplateSpec) {
 	ppContainer := core_util.GetContainerByName(podTemplate.Spec.Containers, kubedb.PgpoolContainerName)
-	if ppContainer != nil && (ppContainer.Resources.Requests == nil && ppContainer.Resources.Limits == nil) {
+	if ppContainer != nil {
 		apis.SetDefaultResourceLimits(&ppContainer.Resources, kubedb.DefaultResources)
 	}
 }

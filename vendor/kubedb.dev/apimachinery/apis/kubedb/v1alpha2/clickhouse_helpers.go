@@ -198,7 +198,8 @@ func (c *ClickHouse) GetAuthSecretName() string {
 }
 
 func (r *ClickHouse) ConfigSecretName() string {
-	return meta_util.NameWithSuffix(r.OffshootName(), "config")
+	uid := string(r.UID)
+	return meta_util.NameWithSuffix(r.OffshootName(), uid[len(uid)-6:])
 }
 
 func (r *ClickHouse) KeeperConfigSecretName() string {
@@ -304,7 +305,8 @@ func (cs ClickHouseStatsService) Path() string {
 }
 
 func (cs ClickHouseStatsService) Scheme() string {
-	return ""
+	sc := promapi.SchemeHTTP
+	return sc.String()
 }
 
 func (c *ClickHouse) StatsService() mona.StatsAccessor {
@@ -387,7 +389,7 @@ func (c *ClickHouse) SetDefaults(kc client.Client) {
 		}
 
 		dbContainer := coreutil.GetContainerByName(cluster.PodTemplate.Spec.Containers, kubedb.ClickHouseContainerName)
-		if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+		if dbContainer != nil {
 			apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.ClickHouseDefaultResources)
 		}
 		c.setDefaultContainerSecurityContext(&chVersion, cluster.PodTemplate)
@@ -407,7 +409,7 @@ func (c *ClickHouse) SetDefaults(kc client.Client) {
 			}
 			c.setKeeperDefaultContainerSecurityContext(&chVersion, c.Spec.ClusterTopology.ClickHouseKeeper.Spec.PodTemplate)
 			dbContainer := coreutil.GetContainerByName(c.Spec.ClusterTopology.ClickHouseKeeper.Spec.PodTemplate.Spec.Containers, kubedb.ClickHouseKeeperContainerName)
-			if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+			if dbContainer != nil {
 				apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResources)
 			}
 		}
@@ -427,7 +429,7 @@ func (c *ClickHouse) SetDefaults(kc client.Client) {
 		}
 		c.setDefaultContainerSecurityContext(&chVersion, c.Spec.PodTemplate)
 		dbContainer := coreutil.GetContainerByName(c.Spec.PodTemplate.Spec.Containers, kubedb.ClickHouseContainerName)
-		if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+		if dbContainer != nil {
 			apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.ClickHouseDefaultResources)
 		}
 	}
@@ -562,4 +564,8 @@ func (c *ClickHouse) ReplicasAreReady(lister pslister.PetSetLister) (bool, strin
 		expectedItems += 1
 	}
 	return checkReplicasOfPetSet(lister.PetSets(c.Namespace), labels.SelectorFromSet(c.OffshootLabels()), expectedItems)
+}
+
+func (c *ClickHouse) ClickHouseInlineConfigSecretKey(key string) string {
+	return fmt.Sprintf("%s-%s", kubedb.InlineConfigKeyPrefix, key)
 }

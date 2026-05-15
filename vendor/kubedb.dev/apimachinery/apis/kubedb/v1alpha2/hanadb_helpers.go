@@ -18,12 +18,17 @@ package v1alpha2
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
+	"time"
 
 	"kubedb.dev/apimachinery/apis"
 	catalog "kubedb.dev/apimachinery/apis/catalog/v1alpha1"
 	"kubedb.dev/apimachinery/apis/kubedb"
 	"kubedb.dev/apimachinery/crds"
+	apiutils "kubedb.dev/apimachinery/pkg/utils"
+	raftutils "kubedb.dev/apimachinery/pkg/utils/raft"
 
 	promapi "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"gomodules.xyz/pointer"
@@ -42,6 +47,31 @@ import (
 	pslister "kubeops.dev/petset/client/listers/apps/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+type SystemReplicationStatus struct {
+	Status        string
+	Details       string
+	ReplayBacklog string
+}
+
+type SystemReplicationHealthSummary struct {
+	AllHealthy bool
+	HasActive  bool
+	HasSyncing bool
+	HasError   bool
+	Summary    string
+}
+
+const (
+	SystemReplicationStatusColumn        = "REPLICATION_STATUS"
+	SystemReplicationStatusDetailsColumn = "REPLICATION_STATUS_DETAILS"
+	SystemReplicationReplayBacklogColumn = "REPLAY_BACKLOG"
+)
+
+const SystemReplicationStatusQuery = `
+SELECT REPLICATION_STATUS, REPLICATION_STATUS_DETAILS,
+       (LAST_LOG_POSITION - REPLAYED_LOG_POSITION) AS REPLAY_BACKLOG
+FROM SYS.M_SERVICE_REPLICATION`
 
 func (HanaDB) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
 	return crds.MustCustomResourceDefinition(SchemeGroupVersion.WithResource(ResourcePluralHanaDB))
@@ -77,6 +107,213 @@ func (h *HanaDB) SecondaryServiceName() string {
 
 func (h *HanaDB) GoverningServiceName() string {
 	return metautil.NameWithSuffix(h.ServiceName(), "pods")
+}
+
+func (h *HanaDB) PrimaryServiceDNS() string {
+	return fmt.Sprintf("%s.%s.svc", h.ServiceName(), h.Namespace)
+}
+
+func (h *HanaDB) GoverningServiceDNS(podName string) string {
+	return fmt.Sprintf("%s.%s.%s.svc.%s", podName, h.GoverningServiceName(), h.Namespace, apiutils.FindDomain())
+}
+
+type hanaRaftProvider struct {
+	dnsSuffix    string
+	offshootName string
+}
+
+func (p hanaRaftProvider) GoverningServiceDNS(podName string) string {
+	return podName + p.dnsSuffix
+}
+
+func (p hanaRaftProvider) OffshootName() string {
+	return p.offshootName
+}
+
+func getHanaRaftProvider(db *HanaDB) hanaRaftProvider {
+	return hanaRaftProvider{
+		dnsSuffix:    fmt.Sprintf(".%s.%s.svc.%s", db.GoverningServiceName(), db.Namespace, apiutils.FindDomain()),
+		offshootName: db.OffshootName(),
+	}
+}
+
+// GetCurrentLeaderID queries raft leader id from a coordinator pod.
+func GetCurrentLeaderID(db *HanaDB, podName, user, pass string) (uint64, error) {
+	return raftutils.GetCurrentLeaderID(kubedb.HanaDBCoordinatorClientPort, db.GoverningServiceDNS(podName), user, pass)
+}
+
+// AddNodeToRaft requests raft membership add via coordinator /add-node endpoint.
+func AddNodeToRaft(db *HanaDB, primaryPodName, podName string, nodeID int, user, pass string) (string, error) {
+	return raftutils.AddNodeToRaft(getHanaRaftProvider(db), kubedb.HanaDBCoordinatorClientPort, kubedb.HanaDBCoordinatorPort, primaryPodName, podName, nodeID, user, pass)
+}
+
+// RemoveNodeFromRaft requests raft membership remove via coordinator /remove-node endpoint.
+func RemoveNodeFromRaft(db *HanaDB, primaryPodName string, nodeID int, user, pass string) (string, error) {
+	return raftutils.RemoveNodeFromRaft(getHanaRaftProvider(db), kubedb.HanaDBCoordinatorClientPort, primaryPodName, nodeID, user, pass)
+}
+
+// GetCurrentLeaderPodName returns current leader pod name by resolving raft leader id.
+func GetCurrentLeaderPodName(db *HanaDB, podName, user, pass string) (string, error) {
+	return raftutils.GetCurrentLeaderPodName(getHanaRaftProvider(db), kubedb.HanaDBCoordinatorClientPort, podName, user, pass)
+}
+
+func GetRaftLeaderIDWithRetries(db *HanaDB, dbPodName, user, pass string, maxTries int, retryDelay time.Duration) (int, error) {
+	return raftutils.GetRaftLeaderIDWithRetries(getHanaRaftProvider(db), kubedb.HanaDBCoordinatorClientPort, dbPodName, user, pass, maxTries, retryDelay)
+}
+
+func GetRaftPrimaryNode(db *HanaDB, replicas int, user, pass string, maxTries int, retryDelay time.Duration) (int, error) {
+	return raftutils.GetRaftPrimaryNode(getHanaRaftProvider(db), kubedb.HanaDBCoordinatorClientPort, replicas, user, pass, maxTries, retryDelay)
+}
+
+func AddRaftNodeWithRetries(db *HanaDB, primaryPodName, podName string, nodeID int, user, pass string, maxTries int, retryDelay time.Duration) error {
+	return raftutils.AddRaftNodeWithRetries(getHanaRaftProvider(db), kubedb.HanaDBCoordinatorClientPort, kubedb.HanaDBCoordinatorPort, primaryPodName, podName, nodeID, user, pass, maxTries, retryDelay)
+}
+
+func RemoveRaftNodeWithRetries(db *HanaDB, primaryPodName string, nodeID int, user, pass string, maxTries int, retryDelay time.Duration) error {
+	return raftutils.RemoveRaftNodeWithRetries(getHanaRaftProvider(db), kubedb.HanaDBCoordinatorClientPort, primaryPodName, nodeID, user, pass, maxTries, retryDelay)
+}
+
+func NewSystemReplicationStatus(status, details, replayBacklog string) SystemReplicationStatus {
+	return SystemReplicationStatus{
+		Status:        strings.ToUpper(strings.TrimSpace(status)),
+		Details:       strings.TrimSpace(details),
+		ReplayBacklog: strings.TrimSpace(replayBacklog),
+	}
+}
+
+func ParseSystemReplicationStatuses(rows []map[string]string) []SystemReplicationStatus {
+	statuses := make([]SystemReplicationStatus, 0, len(rows))
+	for _, row := range rows {
+		status := NewSystemReplicationStatus(
+			row[SystemReplicationStatusColumn],
+			row[SystemReplicationStatusDetailsColumn],
+			row[SystemReplicationReplayBacklogColumn],
+		)
+		if status.Status == "" {
+			continue
+		}
+		statuses = append(statuses, status)
+	}
+	return statuses
+}
+
+func EvaluateSystemReplicationHealth(statuses []SystemReplicationStatus) SystemReplicationHealthSummary {
+	summary := SystemReplicationHealthSummary{
+		AllHealthy: true,
+	}
+	if len(statuses) == 0 {
+		summary.AllHealthy = false
+		summary.Summary = "no replication status found"
+		return summary
+	}
+
+	statusParts := make([]string, 0, len(statuses))
+	for _, status := range statuses {
+		replStatus := strings.ToUpper(strings.TrimSpace(status.Status))
+		replDetails := strings.TrimSpace(status.Details)
+		backlog := strings.TrimSpace(status.ReplayBacklog)
+		if replStatus == "" {
+			continue
+		}
+
+		statusPart := replStatus
+		if backlog != "" && backlog != "0" {
+			statusPart += "(backlog:" + backlog + ")"
+		}
+		if replDetails != "" && replStatus != "ACTIVE" {
+			statusPart += "[" + replDetails + "]"
+		}
+		statusParts = append(statusParts, statusPart)
+
+		switch replStatus {
+		case "ACTIVE":
+			summary.HasActive = true
+		case "SYNCING", "INITIALIZING", "UNKNOWN":
+			summary.HasSyncing = true
+		case "ERROR":
+			summary.HasError = true
+		default:
+			summary.HasSyncing = true
+		}
+
+		if !isSystemReplicationMemberHealthy(replStatus, replDetails) {
+			summary.AllHealthy = false
+		}
+	}
+
+	if len(statusParts) == 0 {
+		summary.AllHealthy = false
+		summary.Summary = "no replication status found"
+		return summary
+	}
+
+	summary.Summary = strings.Join(statusParts, ", ")
+	return summary
+}
+
+func isSystemReplicationMemberHealthy(status, details string) bool {
+	if status != "ACTIVE" {
+		return false
+	}
+
+	if details == "" {
+		return true
+	}
+
+	normalizedDetails := strings.ToUpper(details)
+	if strings.Contains(normalizedDetails, "DISCONNECT") ||
+		strings.Contains(normalizedDetails, "ERROR") ||
+		strings.Contains(normalizedDetails, "FAIL") ||
+		strings.Contains(normalizedDetails, "SYNCING") ||
+		strings.Contains(normalizedDetails, "INITIALIZ") ||
+		strings.Contains(normalizedDetails, "UNKNOWN") {
+		return false
+	}
+
+	// If details mention connectivity state, require connected.
+	if strings.Contains(normalizedDetails, "CONNECT") &&
+		!strings.Contains(normalizedDetails, "CONNECTED") {
+		return false
+	}
+
+	return true
+}
+
+// GetAuthCredentialsFromSecret reads SYSTEM user/password from the auth secret.
+func GetAuthCredentialsFromSecret(ctx context.Context, kc client.Client, db *HanaDB) (string, string, error) {
+	secret := &core.Secret{}
+	if err := kc.Get(ctx, types.NamespacedName{
+		Namespace: db.Namespace,
+		Name:      db.GetAuthSecretName(),
+	}, secret); err != nil {
+		return "", "", err
+	}
+
+	user := kubedb.HanaDBSystemUser
+	if usernameBytes, ok := secret.Data[core.BasicAuthUsernameKey]; ok && len(usernameBytes) > 0 {
+		user = string(usernameBytes)
+	}
+
+	if passwordBytes, ok := secret.Data[core.BasicAuthPasswordKey]; ok && len(passwordBytes) > 0 {
+		return user, string(passwordBytes), nil
+	}
+
+	passwordJSON, ok := secret.Data[kubedb.HanaDBPasswordFileKey]
+	if !ok {
+		return "", "", fmt.Errorf("secret %s/%s missing %s key", secret.Namespace, secret.Name, kubedb.HanaDBPasswordFileKey)
+	}
+
+	var passwordData struct {
+		MasterPassword string `json:"master_password"`
+	}
+	if err := json.Unmarshal(passwordJSON, &passwordData); err != nil {
+		return "", "", fmt.Errorf("failed to parse %s in secret %s/%s: %v", kubedb.HanaDBPasswordFileKey, secret.Namespace, secret.Name, err)
+	}
+	if passwordData.MasterPassword == "" {
+		return "", "", fmt.Errorf("master password not specified in secret %s/%s", secret.Namespace, secret.Name)
+	}
+
+	return user, passwordData.MasterPassword, nil
 }
 
 func (h *HanaDB) offshootLabels(selector, override map[string]string) map[string]string {
@@ -180,7 +417,8 @@ func (os hanadbStatsService) Path() string {
 }
 
 func (os hanadbStatsService) Scheme() string {
-	return ""
+	sc := promapi.SchemeHTTP
+	return sc.String()
 }
 
 func (h *HanaDB) StatsService() mona.StatsAccessor {
@@ -220,7 +458,8 @@ func (h *HanaDB) ObserverPetSetName() string {
 }
 
 func (h *HanaDB) ConfigSecretName() string {
-	return metautil.NameWithSuffix(h.OffshootName(), "config")
+	uid := string(h.UID)
+	return metautil.NameWithSuffix(h.OffshootName(), uid[len(uid)-6:])
 }
 
 func (h *HanaDB) IsStandalone() bool {
@@ -229,6 +468,11 @@ func (h *HanaDB) IsStandalone() bool {
 
 func (h *HanaDB) IsCluster() bool {
 	return h.Spec.Topology != nil
+}
+
+func (h *HanaDB) IsSystemReplication() bool {
+	return h.Spec.Topology != nil && h.Spec.Topology.Mode != nil &&
+		*h.Spec.Topology.Mode == HanaDBModeSystemReplication
 }
 
 func (h *HanaDB) SetHealthCheckerDefaults() {
@@ -240,6 +484,19 @@ func (h *HanaDB) SetHealthCheckerDefaults() {
 	}
 	if h.Spec.HealthChecker.FailureThreshold == nil {
 		h.Spec.HealthChecker.FailureThreshold = pointer.Int32P(1)
+	}
+}
+
+func (h *HanaDB) SetArbiterDefault() {
+	replicas := int32(0)
+	if h.Spec.Replicas != nil {
+		replicas = *h.Spec.Replicas
+	}
+	if h.IsCluster() && replicas%2 == 0 && h.Spec.Arbiter == nil {
+		h.Spec.Arbiter = &ArbiterSpec{
+			Resources: core.ResourceRequirements{},
+		}
+		apis.SetDefaultResourceLimits(&h.Spec.Arbiter.Resources, kubedb.DefaultArbiter(false))
 	}
 }
 
@@ -273,11 +530,41 @@ func (h *HanaDB) SetDefaults(kc client.Client) {
 		}
 	}
 
+	if h.IsSystemReplication() {
+		if h.Spec.Topology.SystemReplication == nil {
+			h.Spec.Topology.SystemReplication = &HanaDBSystemReplicationSpec{}
+		}
+		if h.Spec.Topology.SystemReplication.ReplicationMode == "" {
+			h.Spec.Topology.SystemReplication.ReplicationMode = ReplicationModeSync
+		}
+		if h.Spec.Topology.SystemReplication.OperationMode == "" {
+			h.Spec.Topology.SystemReplication.OperationMode = OperationModeLogReplay
+		}
+	}
+
+	h.SetArbiterDefault()
+
 	h.setDefaultContainerSecurityContext(&hanadbVersion, h.Spec.PodTemplate)
 
 	h.SetHealthCheckerDefaults()
 
 	h.setDefaultContainerResourceLimits(h.Spec.PodTemplate)
+
+	if h.Spec.Monitor != nil {
+		if h.Spec.Monitor.Prometheus == nil {
+			h.Spec.Monitor.Prometheus = &mona.PrometheusSpec{}
+		}
+		if h.Spec.Monitor.Prometheus.Exporter.Port == 0 {
+			h.Spec.Monitor.Prometheus.Exporter.Port = kubedb.HanaDBExporterPort
+		}
+		h.Spec.Monitor.SetDefaults()
+		if h.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsUser == nil {
+			h.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsUser = hanadbVersion.Spec.SecurityContext.RunAsUser
+		}
+		if h.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsGroup == nil {
+			h.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsGroup = hanadbVersion.Spec.SecurityContext.RunAsGroup
+		}
+	}
 }
 
 func (h *HanaDB) setDefaultContainerSecurityContext(hanadbVersion *catalog.HanaDBVersion, podTemplate *ofst.PodTemplateSpec) {
@@ -332,8 +619,15 @@ func (h *HanaDB) assignDefaultContainerSecurityContext(hanadbVersion *catalog.Ha
 
 func (h *HanaDB) setDefaultContainerResourceLimits(podTemplate *ofst.PodTemplateSpec) {
 	dbContainer := coreutil.GetContainerByName(podTemplate.Spec.Containers, kubedb.HanaDBContainerName)
-	if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+	if dbContainer != nil {
 		apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResourcesHanaDB)
+	}
+
+	if h.IsCluster() {
+		coordinatorContainer := coreutil.GetContainerByName(podTemplate.Spec.Containers, kubedb.HanaDBCoordinatorContainerName)
+		if coordinatorContainer != nil && (coordinatorContainer.Resources.Requests == nil && coordinatorContainer.Resources.Limits == nil) {
+			apis.SetDefaultResourceLimits(&coordinatorContainer.Resources, kubedb.CoordinatorDefaultResources)
+		}
 	}
 }
 

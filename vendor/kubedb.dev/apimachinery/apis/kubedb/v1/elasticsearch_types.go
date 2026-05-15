@@ -99,6 +99,9 @@ type ElasticsearchSpec struct {
 	// +optional
 	ConfigSecret *core.LocalObjectReference `json:"configSecret,omitempty"`
 
+	// +optional
+	Configuration *ConfigurationSpec `json:"configuration,omitempty"`
+
 	// SecureConfigSecret is an optional field to provide secure settings for database.
 	//	- Ref: https://www.elastic.co/guide/en/elasticsearch/reference/7.14/secure-settings.html
 	// Secure settings are store at "ES_CONFIG_DIR/elasticsearch.keystore" file (contents are encoded with password),
@@ -395,3 +398,21 @@ const (
 	ElasticsearchNodeRoleTypeTransform           ElasticsearchNodeRoleType = "transform"
 	ElasticsearchNodeRoleTypeCoordinating        ElasticsearchNodeRoleType = "coordinating"
 )
+
+var _ Accessor = &Elasticsearch{}
+
+func (m *Elasticsearch) GetObjectMeta() metav1.ObjectMeta {
+	return m.ObjectMeta
+}
+
+func (m *Elasticsearch) GetConditions() []kmapi.Condition {
+	return m.Status.Conditions
+}
+
+func (m *Elasticsearch) SetCondition(cond kmapi.Condition) {
+	m.Status.Conditions = setCondition(m.Status.Conditions, cond)
+}
+
+func (m *Elasticsearch) RemoveCondition(typ string) {
+	m.Status.Conditions = removeCondition(m.Status.Conditions, typ)
+}

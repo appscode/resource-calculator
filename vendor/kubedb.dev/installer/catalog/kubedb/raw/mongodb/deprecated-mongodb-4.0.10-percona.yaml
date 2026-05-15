@@ -4,11 +4,11 @@ metadata:
   name: percona-4.0.10
 spec:
   db:
-    image: percona/percona-server-mongodb:4.0.10
+    image: docker.io/percona/percona-server-mongodb:4.0.10
   deprecated: true
   distribution: Percona
   exporter:
-    image: ghcr.io/kubedb/mongodb_exporter:v0.40.0
+    image: ghcr.io/kubedb/mongodb_exporter:v0.47.2
   gitSyncer:
     image: registry.k8s.io/git-sync/git-sync:v4.4.2
   initContainer:
@@ -16,7 +16,7 @@ spec:
   podSecurityPolicies:
     databasePolicyName: mongodb-db
   replicationModeDetector:
-    image: ghcr.io/kubedb/replication-mode-detector:v0.47.0-rc.1
+    image: ghcr.io/kubedb/replication-mode-detector:v0.51.0
   securityContext:
     runAsGroup: 1001
     runAsUser: 0

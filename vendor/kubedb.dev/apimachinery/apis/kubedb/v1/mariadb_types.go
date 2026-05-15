@@ -97,9 +97,12 @@ type MariaDBSpec struct {
 	// +optional
 	Monitor *mona.AgentSpec `json:"monitor,omitempty"`
 
-	// ConfigSecret is an optional field to provide custom configuration file for database (i.e custom-mysql.cnf).
+	// ConfigSecret is an optional field to provide custom configuration file for database (i.e custom-MariaDB.cnf).
 	// If specified, this file will be used as configuration file otherwise default configuration file will be used.
 	ConfigSecret *core.LocalObjectReference `json:"configSecret,omitempty"`
+
+	// +optional
+	Configuration *ConfigurationSpec `json:"configuration,omitempty"`
 
 	// PodTemplate is an optional configuration for pods used to expose database
 	// +optional
@@ -214,4 +217,22 @@ type MaxScaleSpec struct {
 	// ConfigSecret is an optional field to provide custom configuration file for maxscale (i.e custom-maxscale.cnf).
 	// If specified, this file will be merged with default configuration file.
 	ConfigSecret *core.LocalObjectReference `json:"configSecret,omitempty"`
+}
+
+var _ Accessor = &MariaDB{}
+
+func (m *MariaDB) GetObjectMeta() metav1.ObjectMeta {
+	return m.ObjectMeta
+}
+
+func (m *MariaDB) GetConditions() []kmapi.Condition {
+	return m.Status.Conditions
+}
+
+func (m *MariaDB) SetCondition(cond kmapi.Condition) {
+	m.Status.Conditions = setCondition(m.Status.Conditions, cond)
+}
+
+func (m *MariaDB) RemoveCondition(typ string) {
+	m.Status.Conditions = removeCondition(m.Status.Conditions, typ)
 }

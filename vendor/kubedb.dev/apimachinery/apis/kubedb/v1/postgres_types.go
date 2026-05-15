@@ -18,10 +18,10 @@ package v1
 
 import (
 	core "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kmapi "kmodules.xyz/client-go/api/v1"
 	mona "kmodules.xyz/monitoring-agent-api/api/v1"
+	ofstv1 "kmodules.xyz/offshoot-api/api/v1"
 	ofstv2 "kmodules.xyz/offshoot-api/api/v2"
 )
 
@@ -118,6 +118,8 @@ type PostgresSpec struct {
 	// If specified, this file will be used as configuration file otherwise default configuration file will be used.
 	ConfigSecret *core.LocalObjectReference `json:"configSecret,omitempty"`
 
+	Configuration *PostgresConfiguration `json:"configuration,omitempty"`
+
 	// PodTemplate is an optional configuration for pods used to expose database
 	// +optional
 	PodTemplate ofstv2.PodTemplateSpec `json:"podTemplate,omitempty"`
@@ -170,6 +172,12 @@ type PostgresSpec struct {
 	Replication *PostgresReplication `json:"replication,omitempty"`
 
 	// +optional
+	ReadReplicas []ReadReplicaSpec `json:"readReplicas,omitempty"`
+}
+
+type PostgresConfiguration struct {
+	ConfigurationSpec `json:",inline,omitempty"`
+	// +optional
 	Tuning *PostgresTuningConfig `json:"tuning,omitempty"`
 }
 
@@ -192,12 +200,12 @@ type PostgresReplication struct {
 	// +optional
 	MaxSlotWALKeepSizeInMegaBytes *int32 `json:"maxSlotWALKeepSize,omitempty"`
 
-	// ForceFailOverAcceptingDataLossAfter is the maximum time to wait before running a force failover process
+	// ForceFailoverAcceptingDataLossAfter is the maximum time to wait before running a force failover process
 	// This is helpful for a scenario where the old primary is not available and it has the most updated wal lsn
 	// Doing force failover may or may not end up loosing data depending on any wrtie transaction
 	// in the range lagged lsn between the new primary and the old primary
 	// +optional
-	ForceFailOverAcceptingDataLossAfter *metav1.Duration `json:"forceFailOverAcceptingDataLossAfter,omitempty"`
+	ForceFailoverAcceptingDataLossAfter *metav1.Duration `json:"forceFailoverAcceptingDataLossAfter,omitempty"`
 }
 
 type ArbiterSpec struct {
@@ -213,6 +221,36 @@ type ArbiterSpec struct {
 	// If specified, the pod's tolerations.
 	// +optional
 	Tolerations []core.Toleration `json:"tolerations,omitempty"`
+}
+
+type ReadReplicaSpec struct {
+	// Name specifies the name of the read replica
+	Name string `json:"name"`
+	// Number of instances to deploy for a Postgres database.
+	Replicas *int32 `json:"replicas,omitempty"`
+	// Compute Resources required by the sidecar container.
+	// +optional
+	Resources core.ResourceRequirements `json:"resources,omitempty"`
+	// NodeSelector is a selector which must be true for the pod to fit on a node.
+	// Selector which must match a node's labels for the pod to be scheduled on that node.
+	// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+	// +optional
+	// +mapType=atomic
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+	// If specified, the pod's tolerations.
+	// +optional
+	Tolerations []core.Toleration `json:"tolerations,omitempty"`
+	// StorageType can be durable (default) or ephemeral
+	StorageType StorageType `json:"storageType,omitempty"`
+	// Storage to specify how storage shall be used.
+	Storage *core.PersistentVolumeClaimSpec `json:"storage,omitempty"`
+	// PodPlacementPolicy is the reference of the podPlacementPolicy
+	// +kubebuilder:default={name:"default"}
+	// +optional
+	PodPlacementPolicy *core.LocalObjectReference `json:"podPlacementPolicy,omitempty"`
+	// ServiceTemplate is an optional configuration for services used to expose database
+	// +optional
+	ServiceTemplate *ofstv1.ServiceTemplateSpec `json:"serviceTemplate,omitempty"`
 }
 
 // PostgreLeaderElectionConfig contains essential attributes of leader election.
@@ -398,25 +436,18 @@ const (
 
 // PostgresTuningConfig defines configuration for PostgreSQL performance tuning
 type PostgresTuningConfig struct {
-	// TuningProfile defines a predefined tuning profile for different workload types.
+	// Profile defines a predefined tuning profile for different workload types.
 	// If specified, other tuning parameters will be calculated based on this profile.
-	// +kubebuilder:validation:Enum=web;oltp;dw;mixed;desktop
 	// +optional
-	TuningProfile *PostgresTuningProfile `json:"tuningProfile,omitempty"`
+	Profile *PostgresProfile `json:"profile,omitempty"`
 
 	// MaxConnections defines the maximum number of concurrent connections.
 	// If not specified, it will be calculated based on available memory and tuning profile.
 	// +optional
 	MaxConnections *int32 `json:"maxConnections,omitempty"`
 
-	// ResourcesOverride allows overriding resource calculations.
-	// If specified, these values will be used instead of pod resource limits/requests.
-	// +optional
-	ResourcesOverride *TuningResourcesOverride `json:"resourcesOverride,omitempty"`
-
 	// StorageType defines the type of storage for tuning purposes.
 	// If not specified, it will be inferred from StorageClass or default to HDD.
-	// +kubebuilder:validation:Enum=ssd;hdd;san
 	// +optional
 	StorageType *PostgresStorageType `json:"storageType,omitempty"`
 
@@ -426,39 +457,29 @@ type PostgresTuningConfig struct {
 	DisableAutoTune bool `json:"disableAutoTune,omitempty"`
 }
 
-// TuningResourcesOverride allows overriding resource calculations for tuning
-type TuningResourcesOverride struct {
-	// Memory overrides the total memory used for tuning calculations.
-	// Format: "1Gi", "512Mi", etc.
-	// +optional
-	Memory *resource.Quantity `json:"memory,omitempty"`
-
-	// CPU overrides the CPU count used for tuning calculations.
-	// +optional
-	CPU *int32 `json:"cpu,omitempty"`
-}
-
-// PostgresTuningProfile defines predefined tuning profiles
-type PostgresTuningProfile string
+// PostgresProfile defines predefined tuning profiles
+// +kubebuilder:validation:Enum=web;oltp;dw;mixed;desktop
+type PostgresProfile string
 
 const (
 	// PostgresTuningProfileWeb optimizes for web applications with many simple queries
-	PostgresTuningProfileWeb PostgresTuningProfile = "web"
+	PostgresTuningProfileWeb PostgresProfile = "web"
 
 	// PostgresTuningProfileOLTP optimizes for OLTP workloads with many short transactions
-	PostgresTuningProfileOLTP PostgresTuningProfile = "oltp"
+	PostgresTuningProfileOLTP PostgresProfile = "oltp"
 
 	// PostgresTuningProfileDW optimizes for data warehousing with complex analytical queries
-	PostgresTuningProfileDW PostgresTuningProfile = "dw"
+	PostgresTuningProfileDW PostgresProfile = "dw"
 
 	// PostgresTuningProfileMixed optimizes for mixed workloads
-	PostgresTuningProfileMixed PostgresTuningProfile = "mixed"
+	PostgresTuningProfileMixed PostgresProfile = "mixed"
 
 	// PostgresTuningProfileDesktop optimizes for desktop or development environments
-	PostgresTuningProfileDesktop PostgresTuningProfile = "desktop"
+	PostgresTuningProfileDesktop PostgresProfile = "desktop"
 )
 
 // PostgresStorageType defines storage types for tuning purposes
+// +kubebuilder:validation:Enum=ssd;hdd;san
 type PostgresStorageType string
 
 const (
@@ -466,3 +487,21 @@ const (
 	PostgresStorageTypeHDD PostgresStorageType = "hdd"
 	PostgresStorageTypeSAN PostgresStorageType = "san"
 )
+
+var _ Accessor = &Postgres{}
+
+func (m *Postgres) GetObjectMeta() metav1.ObjectMeta {
+	return m.ObjectMeta
+}
+
+func (m *Postgres) GetConditions() []kmapi.Condition {
+	return m.Status.Conditions
+}
+
+func (m *Postgres) SetCondition(cond kmapi.Condition) {
+	m.Status.Conditions = setCondition(m.Status.Conditions, cond)
+}
+
+func (m *Postgres) RemoveCondition(typ string) {
+	m.Status.Conditions = removeCondition(m.Status.Conditions, typ)
+}

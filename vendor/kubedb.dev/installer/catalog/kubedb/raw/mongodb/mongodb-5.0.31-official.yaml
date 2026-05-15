@@ -18,12 +18,13 @@ spec:
         volumeSnapshot:
           name: volume-snapshot
     walg:
-      image: ghcr.io/kubedb/wal-g:v2024.12.18_mongo
+      image: ghcr.io/kubedb/wal-g:v2026.3.30_mongo
   db:
     image: ghcr.io/appscode-images/mongo:5.0.31
   distribution: Official
+  endOfLife: true
   exporter:
-    image: ghcr.io/kubedb/mongodb_exporter:v0.40.0
+    image: ghcr.io/kubedb/mongodb_exporter:v0.47.2
   gitSyncer:
     image: registry.k8s.io/git-sync/git-sync:v4.4.2
   initContainer:
@@ -31,7 +32,7 @@ spec:
   podSecurityPolicies:
     databasePolicyName: mongodb-db
   replicationModeDetector:
-    image: ghcr.io/kubedb/replication-mode-detector:v0.47.0-rc.1
+    image: ghcr.io/kubedb/replication-mode-detector:v0.51.0
   securityContext:
     runAsGroup: 999
     runAsUser: 999
@@ -43,7 +44,7 @@ spec:
         name: mongodb-restore-5.0.15
   ui:
   - name: mongo-ui
-    version: v2024.4.27
+    version: v2026.3.30
   updateConstraints:
     allowlist:
     - '>= 5.0.31, < 7.0.0'

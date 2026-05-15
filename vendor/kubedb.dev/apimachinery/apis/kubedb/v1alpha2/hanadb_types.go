@@ -1,5 +1,5 @@
 /*
-Copyright 2025.
+Copyright AppsCode Inc. and Contributors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -8,7 +8,7 @@ You may obtain a copy of the License at
     http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
-distributed u`nder the License is distributed on an "AS IS" BASIS,
+distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
@@ -20,6 +20,7 @@ import (
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kmapi "kmodules.xyz/client-go/api/v1"
+	mona "kmodules.xyz/monitoring-agent-api/api/v1"
 	ofst "kmodules.xyz/offshoot-api/api/v2"
 )
 
@@ -28,6 +29,25 @@ const (
 	ResourceKindHanaDB     = "HanaDB"
 	ResourceSingularHanaDB = "hanadb"
 	ResourcePluralHanaDB   = "hanadbs"
+)
+
+// +kubebuilder:validation:Enum=sync;syncmem;async;fullsync
+type ReplicationMode string
+
+const (
+	ReplicationModeSync     ReplicationMode = "sync"
+	ReplicationModeSyncMem  ReplicationMode = "syncmem"
+	ReplicationModeAsync    ReplicationMode = "async"
+	ReplicationModeFullSync ReplicationMode = "fullsync"
+)
+
+// +kubebuilder:validation:Enum=logreplay;delta_datashipping;logreplay_readaccess
+type OperationMode string
+
+const (
+	OperationModeLogReplay           OperationMode = "logreplay"
+	OperationModeDeltaDataShipping   OperationMode = "delta_datashipping"
+	OperationModeLogReplayReadAccess OperationMode = "logreplay_readaccess"
 )
 
 // +kubebuilder:validation:Enum=Standalone;SystemReplication
@@ -88,10 +108,13 @@ type HanaDBSpec struct {
 	// +optional
 	AuthSecret *SecretReference `json:"authSecret,omitempty"`
 
-	// ConfigSecret is an optional field to provide custom configuration file for database (i.e. config.properties)
-	// If specified, this file will be used as configuration file otherwise default configuration file will be used.
+	// Configuration holds the custom config for hanadb
 	// +optional
-	ConfigSecret *core.LocalObjectReference `json:"configSecret,omitempty"`
+	Configuration *ConfigurationSpec `json:"configuration,omitempty"`
+
+	// Monitor is used monitor database instance
+	// +optional
+	Monitor *mona.AgentSpec `json:"monitor,omitempty"`
 
 	// PodTemplate is an optional configuration for pods used to expose database
 	// +optional
@@ -109,6 +132,10 @@ type HanaDBSpec struct {
 	// +optional
 	// +kubebuilder:default={periodSeconds: 20, timeoutSeconds: 10, failureThreshold: 3}
 	HealthChecker kmapi.HealthCheckSpec `json:"healthChecker"`
+
+	// Arbiter controls spec for arbiter pods
+	// +optional
+	Arbiter *ArbiterSpec `json:"arbiter,omitempty"`
 }
 
 // HanaDBTopology defines the deployment mode for HanaDB
@@ -116,6 +143,23 @@ type HanaDBTopology struct {
 	// Mode specifies the deployment mode.
 	// +optional
 	Mode *HanaDBMode `json:"mode,omitempty"`
+
+	// SystemReplication defines configuration for SAP HANA system replication.
+	// +optional
+	SystemReplication *HanaDBSystemReplicationSpec `json:"systemReplication,omitempty"`
+}
+
+// HanaDBSystemReplicationSpec defines system replication configuration.
+type HanaDBSystemReplicationSpec struct {
+	// ReplicationMode controls when transactions are committed relative to log shipping.
+	// +optional
+	// +kubebuilder:default=sync
+	ReplicationMode ReplicationMode `json:"replicationMode,omitempty"`
+
+	// OperationMode controls the log shipping/replay strategy on the secondary.
+	// +optional
+	// +kubebuilder:default=logreplay
+	OperationMode OperationMode `json:"operationMode,omitempty"`
 }
 
 // HanaDBStatus defines the observed state of HanaDB.

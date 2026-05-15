@@ -175,7 +175,8 @@ func (ks kafkaStatsService) Path() string {
 }
 
 func (ks kafkaStatsService) Scheme() string {
-	return ""
+	sc := promapi.SchemeHTTP
+	return sc.String()
 }
 
 func (k *Kafka) StatsService() mona.StatsAccessor {
@@ -220,14 +221,9 @@ func (k *Kafka) NodeRoleSpecificLabelKey(role KafkaNodeRoleType) string {
 	return kubedb.GroupName + "/role-" + string(role)
 }
 
-func (k *Kafka) ConfigSecretName(role KafkaNodeRoleType) string {
-	switch role {
-	case KafkaNodeRoleController:
-		return meta_util.NameWithSuffix(k.OffshootName(), "controller-config")
-	case KafkaNodeRoleBroker:
-		return meta_util.NameWithSuffix(k.OffshootName(), "broker-config")
-	}
-	return meta_util.NameWithSuffix(k.OffshootName(), "config")
+func (k *Kafka) ConfigSecretName() string {
+	uid := string(k.UID)
+	return meta_util.NameWithSuffix(k.OffshootName(), uid[len(uid)-6:])
 }
 
 func (k *Kafka) GetAuthSecretName() string {
@@ -253,10 +249,6 @@ func (k *Kafka) GetPersistentSecrets() []string {
 		secrets = append(secrets, k.Spec.KeystoreCredSecret.Name)
 	}
 	return secrets
-}
-
-func (k *Kafka) CruiseControlConfigSecretName() string {
-	return meta_util.NameWithSuffix(k.OffshootName(), "cruise-control-config")
 }
 
 // CertificateName returns the default certificate name and/or certificate secret name for a certificate alias
@@ -352,6 +344,7 @@ func (k *Kafka) SetDefaults(kc client.Client) {
 	if k.Spec.StorageType == "" {
 		k.Spec.StorageType = StorageTypeDurable
 	}
+	k.Spec.Configuration = copyConfigurationField(k.Spec.Configuration, &k.Spec.ConfigSecret)
 
 	if !k.Spec.DisableSecurity {
 		if k.Spec.AuthSecret == nil {
@@ -394,7 +387,7 @@ func (k *Kafka) SetDefaults(kc client.Client) {
 			k.setDefaultContainerSecurityContext(&kfVersion, &k.Spec.Topology.Controller.PodTemplate)
 
 			dbContainer := coreutil.GetContainerByName(k.Spec.Topology.Controller.PodTemplate.Spec.Containers, kubedb.KafkaContainerName)
-			if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+			if dbContainer != nil {
 				apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResourcesMemoryIntensive)
 			}
 		}
@@ -409,7 +402,7 @@ func (k *Kafka) SetDefaults(kc client.Client) {
 			k.setDefaultContainerSecurityContext(&kfVersion, &k.Spec.Topology.Broker.PodTemplate)
 
 			dbContainer := coreutil.GetContainerByName(k.Spec.Topology.Broker.PodTemplate.Spec.Containers, kubedb.KafkaContainerName)
-			if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+			if dbContainer != nil {
 				apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResourcesMemoryIntensive)
 			}
 		}
@@ -420,7 +413,7 @@ func (k *Kafka) SetDefaults(kc client.Client) {
 		k.setDefaultContainerSecurityContext(&kfVersion, &k.Spec.PodTemplate)
 
 		dbContainer := coreutil.GetContainerByName(k.Spec.PodTemplate.Spec.Containers, kubedb.KafkaContainerName)
-		if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+		if dbContainer != nil {
 			apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResourcesMemoryIntensive)
 		}
 	}
@@ -430,6 +423,15 @@ func (k *Kafka) SetDefaults(kc client.Client) {
 		k.SetTLSDefaults()
 	}
 	k.SetHealthCheckerDefaults()
+
+	if k.Spec.TieredStorage != nil {
+		if k.Spec.TieredStorage.StorageManagerClassPath == "" {
+			k.Spec.TieredStorage.StorageManagerClassPath = fmt.Sprintf("%s/*", kubedb.KafkaTieredStoragePluginDir)
+		}
+		if k.Spec.TieredStorage.StorageManagerClassName == "" {
+			k.Spec.TieredStorage.StorageManagerClassName = kubedb.KafkaAivenTieredStorageClassName
+		}
+	}
 }
 
 func (k *Kafka) setDefaultContainerSecurityContext(kfVersion *catalog.KafkaVersion, podTemplate *ofst.PodTemplateSpec) {
@@ -597,4 +599,11 @@ func (k *Kafka) KafkaSaslListenerProtocolConfigKey(protocol string, mechanism st
 
 func (k *Kafka) KafkaEnabledSASLMechanismsKey(protocol string) string {
 	return fmt.Sprintf("listener.name.%s.sasl.enabled.mechanisms", strings.ToLower(protocol))
+}
+
+func (k *Kafka) GetKafkaBrokerCounts() int {
+	if k.Spec.Topology != nil {
+		return int(*k.Spec.Topology.Broker.Replicas)
+	}
+	return int(*k.Spec.Replicas)
 }

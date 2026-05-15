@@ -145,7 +145,8 @@ func (p PgBouncer) GetPgBouncerFinalConfigSecret(kc client.Client) (*core.Secret
 }
 
 func (p PgBouncer) PgBouncerFinalConfigSecretName() string {
-	return meta_util.NameWithSuffix(p.ServiceName(), "final-config")
+	uid := string(p.UID)
+	return meta_util.NameWithSuffix(p.OffshootName(), uid[len(uid)-6:])
 }
 
 type pgbouncerApp struct {
@@ -189,7 +190,8 @@ func (p pgbouncerStatsService) Path() string {
 }
 
 func (p pgbouncerStatsService) Scheme() string {
-	return ""
+	sc := promapi.SchemeHTTP
+	return sc.String()
 }
 
 func (p pgbouncerStatsService) TLSConfig() *promapi.TLSConfig {
@@ -234,6 +236,8 @@ func (p *PgBouncer) SetDefaults(pgBouncerVersion *catalog.PgBouncerVersion, uses
 		p.Spec.AuthSecret.Kind = kubedb.ResourceKindSecret
 	}
 
+	p.Spec.Configuration = copyConfigurationField(p.Spec.Configuration, &p.Spec.ConfigSecret)
+
 	p.setPgBouncerContainerDefaults(&p.Spec.PodTemplate, pgBouncerVersion)
 	p.setDefaultPodSecurityContext()
 
@@ -252,7 +256,7 @@ func (p *PgBouncer) SetDefaults(pgBouncerVersion *catalog.PgBouncerVersion, uses
 		}
 	}
 	dbContainer := core_util.GetContainerByName(p.Spec.PodTemplate.Spec.Containers, ResourceSingularPgBouncer)
-	if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+	if dbContainer != nil {
 		apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResourcesMemoryIntensive)
 	}
 }
@@ -267,9 +271,7 @@ func (p *PgBouncer) setPgBouncerContainerDefaults(podTemplate *ofstv2.PodTemplat
 }
 
 func (p *PgBouncer) setContainerDefaultResources(container *core.Container, defaultResources core.ResourceRequirements) {
-	if container.Resources.Requests == nil && container.Resources.Limits == nil {
-		apis.SetDefaultResourceLimits(&container.Resources, defaultResources)
-	}
+	apis.SetDefaultResourceLimits(&container.Resources, defaultResources)
 }
 
 func (p *PgBouncer) SetTLSDefaults(usesAcme bool) {

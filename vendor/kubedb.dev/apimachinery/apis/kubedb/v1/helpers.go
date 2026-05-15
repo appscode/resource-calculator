@@ -19,6 +19,7 @@ package v1
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"kubedb.dev/apimachinery/apis/kubedb"
@@ -128,10 +129,8 @@ func GetDatabasePodsByPetSetLister(db metav1.Object, psLister pslister.PetSetLis
 // Upsert elements to string slice
 func upsertStringSlice(inSlice []string, values ...string) []string {
 	upsert := func(m string) {
-		for _, v := range inSlice {
-			if v == m {
-				return
-			}
+		if slices.Contains(inSlice, m) {
+			return
 		}
 		inSlice = append(inSlice, m)
 	}
@@ -183,4 +182,14 @@ func GetActivationTimeFromSecret(secretName *core.Secret) (*metav1.Time, error) 
 
 func IsVirtualAuthSecretReferred(authSecret *SecretReference) bool {
 	return authSecret != nil && authSecret.APIGroup == vsecretapi.GroupName
+}
+
+func copyConfigurationField(cnf *ConfigurationSpec, sec **core.LocalObjectReference) *ConfigurationSpec {
+	if cnf == nil && (*sec) != nil && (*sec).Name != "" {
+		cnf = &ConfigurationSpec{
+			SecretName: (*sec).Name,
+		}
+	}
+	*sec = nil
+	return cnf
 }

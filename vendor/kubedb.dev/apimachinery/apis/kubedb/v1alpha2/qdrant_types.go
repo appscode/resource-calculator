@@ -20,6 +20,7 @@ import (
 	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kmapi "kmodules.xyz/client-go/api/v1"
+	mona "kmodules.xyz/monitoring-agent-api/api/v1"
 	ofst "kmodules.xyz/offshoot-api/api/v2"
 )
 
@@ -38,6 +39,14 @@ const (
 	QdrantDistributed QdrantMode = "Distributed"
 )
 
+// +kubebuilder:validation:Enum=server;client
+type QdrantCertificateAlias string
+
+const (
+	QdrantServerCert QdrantCertificateAlias = "server"
+	QdrantClientCert QdrantCertificateAlias = "client"
+)
+
 // Qdrant is the Schema for the Qdrant API
 
 // +genclient
@@ -46,7 +55,7 @@ const (
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:path=qdrants,singular=qdrant,shortName=qd,categories={datastore,kubedb,appscode,all}
+// +kubebuilder:resource:path=qdrants,singular=qdrant,shortName=qd,categories={datastore,vectordb,kubedb,appscode,all}
 // +kubebuilder:printcolumn:name="Version",type="string",JSONPath=".spec.version"
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.phase"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
@@ -86,14 +95,15 @@ type QdrantSpec struct {
 	// +optional
 	AuthSecret *SecretReference `json:"authSecret,omitempty"`
 
-	// ConfigSecret is an optional field to provide custom configuration file for database (i.e node-configuration.xml).
-	// If specified, this file will be used as configuration file otherwise default configuration file will be used.
 	// +optional
-	ConfigSecret *core.LocalObjectReference `json:"configSecret,omitempty"`
+	Configuration *ConfigurationSpec `json:"configuration,omitempty"`
 
 	// PodTemplate is an optional configuration for pods used to expose database
 	// +optional
 	PodTemplate *ofst.PodTemplateSpec `json:"podTemplate,omitempty"`
+
+	// TLS contains tls configurations for client and server.
+	TLS *QdrantTLSConfig `json:"tls,omitempty"`
 
 	// ServiceTemplates is an optional configuration for services used to expose database
 	// +optional
@@ -111,6 +121,18 @@ type QdrantSpec struct {
 	// +optional
 	// +kubebuilder:default={periodSeconds: 10, timeoutSeconds: 10, failureThreshold: 3}
 	HealthChecker kmapi.HealthCheckSpec `json:"healthChecker"`
+
+	// Monitor is used monitor database instance
+	// +optional
+	Monitor *mona.AgentSpec `json:"monitor,omitempty"`
+}
+
+type QdrantTLSConfig struct {
+	kmapi.TLSConfig `json:",inline"`
+	// +optional
+	P2P *bool `json:"p2p,omitempty"`
+	// +optional
+	Client *bool `json:"client,omitempty"`
 }
 
 // QdrantStatus defines the observed state of Qdrant.
@@ -134,4 +156,22 @@ type QdrantList struct {
 	meta.TypeMeta `json:",inline"`
 	meta.ListMeta `json:"metadata,omitempty"`
 	Items         []Qdrant `json:"items"`
+}
+
+var _ Accessor = &Qdrant{}
+
+func (q *Qdrant) GetObjectMeta() meta.ObjectMeta {
+	return q.ObjectMeta
+}
+
+func (q *Qdrant) GetConditions() []kmapi.Condition {
+	return q.Status.Conditions
+}
+
+func (q *Qdrant) SetCondition(cond kmapi.Condition) {
+	q.Status.Conditions = setCondition(q.Status.Conditions, cond)
+}
+
+func (q *Qdrant) RemoveCondition(typ string) {
+	q.Status.Conditions = removeCondition(q.Status.Conditions, typ)
 }

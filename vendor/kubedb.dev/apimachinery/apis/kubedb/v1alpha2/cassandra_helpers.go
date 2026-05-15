@@ -165,7 +165,8 @@ func (r *Cassandra) GetAuthSecretName() string {
 }
 
 func (r *Cassandra) ConfigSecretName() string {
-	return meta_util.NameWithSuffix(r.OffshootName(), "config")
+	uid := string(r.UID)
+	return meta_util.NameWithSuffix(r.OffshootName(), uid[len(uid)-6:])
 }
 
 func (r *Cassandra) DefaultUserCredSecretName(username string) string {
@@ -253,7 +254,8 @@ func (ks CassandraStatsService) Path() string {
 }
 
 func (ks CassandraStatsService) Scheme() string {
-	return ""
+	sc := promapi.SchemeHTTP
+	return sc.String()
 }
 
 func (r *Cassandra) StatsService() mona.StatsAccessor {
@@ -352,7 +354,7 @@ func (r *Cassandra) SetDefaults(kc client.Client) {
 			}
 
 			dbContainer := coreutil.GetContainerByName(rack.PodTemplate.Spec.Containers, kubedb.CassandraContainerName)
-			if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+			if dbContainer != nil {
 				apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResources)
 			}
 			r.setDefaultContainerSecurityContext(&casVersion, rack.PodTemplate)
@@ -372,7 +374,7 @@ func (r *Cassandra) SetDefaults(kc client.Client) {
 		}
 		r.setDefaultContainerSecurityContext(&casVersion, r.Spec.PodTemplate)
 		dbContainer := coreutil.GetContainerByName(r.Spec.PodTemplate.Spec.Containers, kubedb.CassandraContainerName)
-		if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+		if dbContainer != nil {
 			apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResources)
 		}
 		r.SetHealthCheckerDefaults()
@@ -457,7 +459,7 @@ func (r *Cassandra) GetSeed() string {
 	}
 	for _, rack := range r.Spec.Topology.Rack {
 		rackCount := min(*rack.Replicas, 3)
-		for i := int32(0); i < rackCount; i++ {
+		for i := range rackCount {
 			current_seed := fmt.Sprintf("%s-rack-%s-%d.%s-rack-%s-pods.%s.svc", name, rack.Name, i, name, rack.Name, namespace)
 			seed += current_seed + " , "
 		}

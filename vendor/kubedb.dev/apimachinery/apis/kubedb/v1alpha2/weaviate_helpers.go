@@ -186,7 +186,7 @@ func (w *Weaviate) SetDefaults(kc client.Client) {
 	w.setDefaultContainerSecurityContext(&wvVersion, &w.Spec.PodTemplate)
 
 	dbContainer := coreutil.GetContainerByName(w.Spec.PodTemplate.Spec.Containers, kubedb.WeaviateContainerName)
-	if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+	if dbContainer != nil {
 		apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResources)
 	}
 
@@ -257,5 +257,6 @@ func (w *Weaviate) GetConnectionScheme() string {
 }
 
 func (w *Weaviate) ConfigSecretName() string {
-	return fmt.Sprintf("%s-config", w.Name)
+	uid := string(w.UID)
+	return meta_util.NameWithSuffix(w.OffshootName(), uid[len(uid)-6:])
 }

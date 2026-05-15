@@ -1,5 +1,5 @@
 /*
-Copyright 2025.
+Copyright AppsCode Inc. and Contributors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -128,10 +128,11 @@ type OracleSpec struct {
 	// Storage to specify how storage shall be used.
 	Storage *core.PersistentVolumeClaimSpec `json:"storage,omitempty"`
 
-	// ConfigSecret is an optional field to provide custom configuration file for database (i.e config.properties).
+	// Configuration is an optional field to provide custom configuration file for database (i.e config.properties).
 	// If specified, this file will be used as configuration file otherwise default configuration file will be used.
+	// You can provide custom configurations using Secret or ApplyConfig.
 	// +optional
-	ConfigSecret *core.LocalObjectReference `json:"configSecret,omitempty"`
+	Configuration *ConfigurationSpec `json:"configuration,omitempty"`
 
 	// Database authentication secret
 	// +optional
@@ -165,6 +166,11 @@ type OracleSpec struct {
 	// Listener is for Oracle Net Listener
 	// +optional
 	Listener *ListenerSpec `json:"listener,omitempty"`
+
+	// Init is used to initialize database
+	// +optional
+	Init *InitSpec `json:"init,omitempty"`
+
 	// Monitor is used monitor database instance
 	// +optional
 	Monitor *mona.AgentSpec `json:"monitor,omitempty"`

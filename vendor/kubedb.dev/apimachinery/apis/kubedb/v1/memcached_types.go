@@ -66,6 +66,10 @@ type MemcachedSpec struct {
 	// If specified, this file will be used as configuration file otherwise default configuration file will be used.
 	ConfigSecret *core.LocalObjectReference `json:"configSecret,omitempty"`
 
+	// Configuration holds the custom config for memcached
+	// +optional
+	Configuration *ConfigurationSpec `json:"configuration,omitempty"`
+
 	// Database Authentication Secret
 	// If specified, this will be used for authentication otherwise default secret will be used.
 	// +optional
@@ -148,4 +152,22 @@ type MemcachedList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	// Items is a list of Memcached TPR objects
 	Items []Memcached `json:"items,omitempty"`
+}
+
+var _ Accessor = &Memcached{}
+
+func (m *Memcached) GetObjectMeta() metav1.ObjectMeta {
+	return m.ObjectMeta
+}
+
+func (m *Memcached) GetConditions() []kmapi.Condition {
+	return m.Status.Conditions
+}
+
+func (m *Memcached) SetCondition(cond kmapi.Condition) {
+	m.Status.Conditions = setCondition(m.Status.Conditions, cond)
+}
+
+func (m *Memcached) RemoveCondition(typ string) {
+	m.Status.Conditions = removeCondition(m.Status.Conditions, typ)
 }

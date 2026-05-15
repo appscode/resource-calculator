@@ -87,6 +87,10 @@ func (p PerconaXtraDB) offshootLabels(selector, override map[string]string) map[
 	return meta_util.FilterKeys(kubedb.GroupName, selector, meta_util.OverwriteKeys(nil, p.Labels, override))
 }
 
+func (m PerconaXtraDB) AddKeyPrefix(key string) string {
+	return meta_util.NameWithPrefix(kubedb.InlineConfigKeyPrefixZZ, key)
+}
+
 func (p PerconaXtraDB) ResourceFQN() string {
 	return fmt.Sprintf("%s.%s", ResourcePluralPerconaXtraDB, kubedb.GroupName)
 }
@@ -189,7 +193,8 @@ func (p perconaXtraDBStatsService) Path() string {
 }
 
 func (p perconaXtraDBStatsService) Scheme() string {
-	return ""
+	sc := promapi.SchemeHTTP
+	return sc.String()
 }
 
 func (p perconaXtraDBStatsService) TLSConfig() *promapi.TLSConfig {
@@ -228,12 +233,14 @@ func (p *PerconaXtraDB) SetDefaults(pVersion *v1alpha1.PerconaXtraDBVersion) {
 		p.Spec.PodTemplate.Spec.ServiceAccountName = p.OffshootName()
 	}
 
+	p.Spec.Configuration = copyConfigurationField(p.Spec.Configuration, &p.Spec.ConfigSecret)
 	// Need to set FSGroup equal to  p.Spec.PodTemplate.Spec.ContainerSecurityContext.RunAsGroup.
 	// So that /var/pv directory have the group permission for the RunAsGroup user GID.
 	// Otherwise, We will get write permission denied.
 	p.setDefaultContainerSecurityContext(pVersion, &p.Spec.PodTemplate)
 	p.setDefaultContainerResourceLimits(&p.Spec.PodTemplate)
 	p.SetTLSDefaults()
+
 	p.Spec.Monitor.SetDefaults()
 	if p.Spec.Monitor != nil && p.Spec.Monitor.Prometheus != nil {
 		if p.Spec.Monitor.Prometheus.Exporter.SecurityContext.RunAsUser == nil {
@@ -318,7 +325,7 @@ func (p *PerconaXtraDB) assignDefaultContainerSecurityContext(pVersion *v1alpha1
 
 func (p *PerconaXtraDB) setDefaultContainerResourceLimits(podTemplate *ofstv2.PodTemplateSpec) {
 	dbContainer := core_util.GetContainerByName(podTemplate.Spec.Containers, kubedb.PerconaXtraDBContainerName)
-	if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+	if dbContainer != nil {
 		apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResources)
 	}
 
@@ -362,20 +369,25 @@ func (p *PerconaXtraDB) SetTLSDefaults() {
 }
 
 // CertificateName returns the default certificate name and/or certificate secret name for a certificate alias
-func (p *PerconaXtraDBSpec) GetPersistentSecrets() []string {
+func (p *PerconaXtraDB) GetPersistentSecrets() []string {
 	if p == nil {
 		return nil
 	}
 
 	var secrets []string
-	if p.AuthSecret != nil {
-		secrets = append(secrets, p.AuthSecret.Name)
+	if p.Spec.AuthSecret != nil {
+		secrets = append(secrets, p.Spec.AuthSecret.Name)
 	}
-	if p.SystemUserSecrets != nil && p.SystemUserSecrets.ReplicationUserSecret != nil {
-		secrets = append(secrets, p.SystemUserSecrets.ReplicationUserSecret.Name)
+	if p.Spec.SystemUserSecrets != nil && p.Spec.SystemUserSecrets.ReplicationUserSecret != nil {
+		secrets = append(secrets, p.Spec.SystemUserSecrets.ReplicationUserSecret.Name)
 	}
-	if p.SystemUserSecrets != nil && p.SystemUserSecrets.MonitorUserSecret != nil {
-		secrets = append(secrets, p.SystemUserSecrets.MonitorUserSecret.Name)
+	if p.Spec.SystemUserSecrets != nil && p.Spec.SystemUserSecrets.MonitorUserSecret != nil {
+		secrets = append(secrets, p.Spec.SystemUserSecrets.MonitorUserSecret.Name)
+	}
+
+	if p.Spec.Monitor != nil && p.Spec.TLS != nil {
+		name := meta_util.NameWithSuffix(p.Name, kubedb.MySQLMetricsExporterConfigSecretSuffix)
+		secrets = append(secrets, name)
 	}
 	return secrets
 }
@@ -409,4 +421,9 @@ func (p *PerconaXtraDB) CertMountPath(alias PerconaXtraDBCertificateAlias) strin
 
 func (p *PerconaXtraDB) CertFilePath(certAlias PerconaXtraDBCertificateAlias, certFileName string) string {
 	return filepath.Join(p.CertMountPath(certAlias), certFileName)
+}
+
+func (p *PerconaXtraDB) ConfigSecretName() string {
+	uid := string(p.UID)
+	return meta_util.NameWithSuffix(p.OffshootName(), uid[len(uid)-6:])
 }

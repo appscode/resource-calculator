@@ -213,7 +213,8 @@ func (e *Elasticsearch) GetUserCredSecretName(username string) (string, error) {
 
 // returns the secret name for the default elasticsearch configuration
 func (e *Elasticsearch) ConfigSecretName() string {
-	return meta_util.NameWithSuffix(e.Name, "config")
+	uid := string(e.UID)
+	return meta_util.NameWithSuffix(e.OffshootName(), uid[len(uid)-6:])
 }
 
 func (e *Elasticsearch) GetConnectionScheme() string {
@@ -374,7 +375,8 @@ func (e elasticsearchStatsService) Path() string {
 }
 
 func (e elasticsearchStatsService) Scheme() string {
-	return ""
+	sc := promapi.SchemeHTTP
+	return sc.String()
 }
 
 func (e elasticsearchStatsService) TLSConfig() *promapi.TLSConfig {
@@ -471,6 +473,7 @@ func (e *Elasticsearch) SetDefaults(esVersion *catalog.ElasticsearchVersion) {
 			e.Spec.AuthSecret.Kind = kubedb.ResourceKindSecret
 		}
 	}
+	e.Spec.Configuration = copyConfigurationField(e.Spec.Configuration, &e.Spec.ConfigSecret)
 
 	// set default elasticsearch node name prefix
 	if e.Spec.Topology != nil {
@@ -482,7 +485,7 @@ func (e *Elasticsearch) SetDefaults(esVersion *catalog.ElasticsearchVersion) {
 		e.setContainerSecurityContextDefaults(esVersion, &e.Spec.Topology.Ingest.PodTemplate, kubedb.ElasticsearchContainerName)
 		e.setContainerSecurityContextDefaults(esVersion, &e.Spec.Topology.Ingest.PodTemplate, kubedb.ElasticsearchInitConfigMergerContainerName)
 		dbContainer := core_util.GetContainerByName(e.Spec.Topology.Ingest.PodTemplate.Spec.Containers, kubedb.ElasticsearchContainerName)
-		if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+		if dbContainer != nil {
 			apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResourcesMemoryIntensive)
 		}
 		if e.Spec.Topology.Ingest.Replicas == nil {
@@ -500,7 +503,7 @@ func (e *Elasticsearch) SetDefaults(esVersion *catalog.ElasticsearchVersion) {
 		e.setContainerSecurityContextDefaults(esVersion, &e.Spec.Topology.Master.PodTemplate, kubedb.ElasticsearchContainerName)
 		e.setContainerSecurityContextDefaults(esVersion, &e.Spec.Topology.Master.PodTemplate, kubedb.ElasticsearchInitConfigMergerContainerName)
 		dbContainer = core_util.GetContainerByName(e.Spec.Topology.Master.PodTemplate.Spec.Containers, kubedb.ElasticsearchContainerName)
-		if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+		if dbContainer != nil {
 			apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResourcesMemoryIntensive)
 		}
 		if e.Spec.Topology.Master.Replicas == nil {
@@ -520,7 +523,7 @@ func (e *Elasticsearch) SetDefaults(esVersion *catalog.ElasticsearchVersion) {
 			e.setContainerSecurityContextDefaults(esVersion, &e.Spec.Topology.Data.PodTemplate, kubedb.ElasticsearchContainerName)
 			e.setContainerSecurityContextDefaults(esVersion, &e.Spec.Topology.Data.PodTemplate, kubedb.ElasticsearchInitConfigMergerContainerName)
 			dbContainer = core_util.GetContainerByName(e.Spec.Topology.Data.PodTemplate.Spec.Containers, kubedb.ElasticsearchContainerName)
-			if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+			if dbContainer != nil {
 				apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResourcesMemoryIntensive)
 			}
 			if e.Spec.Topology.Data.Replicas == nil {
@@ -540,7 +543,7 @@ func (e *Elasticsearch) SetDefaults(esVersion *catalog.ElasticsearchVersion) {
 			e.setContainerSecurityContextDefaults(esVersion, &e.Spec.Topology.DataHot.PodTemplate, kubedb.ElasticsearchContainerName)
 			e.setContainerSecurityContextDefaults(esVersion, &e.Spec.Topology.DataHot.PodTemplate, kubedb.ElasticsearchInitConfigMergerContainerName)
 			dbContainer = core_util.GetContainerByName(e.Spec.Topology.DataHot.PodTemplate.Spec.Containers, kubedb.ElasticsearchContainerName)
-			if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+			if dbContainer != nil {
 				apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResourcesMemoryIntensive)
 			}
 			if e.Spec.Topology.DataHot.Replicas == nil {
@@ -560,7 +563,7 @@ func (e *Elasticsearch) SetDefaults(esVersion *catalog.ElasticsearchVersion) {
 			e.setContainerSecurityContextDefaults(esVersion, &e.Spec.Topology.DataWarm.PodTemplate, kubedb.ElasticsearchContainerName)
 			e.setContainerSecurityContextDefaults(esVersion, &e.Spec.Topology.DataWarm.PodTemplate, kubedb.ElasticsearchInitConfigMergerContainerName)
 			dbContainer = core_util.GetContainerByName(e.Spec.Topology.DataWarm.PodTemplate.Spec.Containers, kubedb.ElasticsearchContainerName)
-			if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+			if dbContainer != nil {
 				apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResourcesMemoryIntensive)
 			}
 			if e.Spec.Topology.DataWarm.Replicas == nil {
@@ -580,7 +583,7 @@ func (e *Elasticsearch) SetDefaults(esVersion *catalog.ElasticsearchVersion) {
 			e.setContainerSecurityContextDefaults(esVersion, &e.Spec.Topology.DataCold.PodTemplate, kubedb.ElasticsearchContainerName)
 			e.setContainerSecurityContextDefaults(esVersion, &e.Spec.Topology.DataCold.PodTemplate, kubedb.ElasticsearchInitConfigMergerContainerName)
 			dbContainer = core_util.GetContainerByName(e.Spec.Topology.DataCold.PodTemplate.Spec.Containers, kubedb.ElasticsearchContainerName)
-			if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+			if dbContainer != nil {
 				apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResourcesMemoryIntensive)
 			}
 			if e.Spec.Topology.DataCold.Replicas == nil {
@@ -600,7 +603,7 @@ func (e *Elasticsearch) SetDefaults(esVersion *catalog.ElasticsearchVersion) {
 			e.setContainerSecurityContextDefaults(esVersion, &e.Spec.Topology.DataFrozen.PodTemplate, kubedb.ElasticsearchContainerName)
 			e.setContainerSecurityContextDefaults(esVersion, &e.Spec.Topology.DataFrozen.PodTemplate, kubedb.ElasticsearchInitConfigMergerContainerName)
 			dbContainer = core_util.GetContainerByName(e.Spec.Topology.DataFrozen.PodTemplate.Spec.Containers, kubedb.ElasticsearchContainerName)
-			if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+			if dbContainer != nil {
 				apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResourcesMemoryIntensive)
 			}
 			if e.Spec.Topology.DataFrozen.Replicas == nil {
@@ -620,7 +623,7 @@ func (e *Elasticsearch) SetDefaults(esVersion *catalog.ElasticsearchVersion) {
 			e.setContainerSecurityContextDefaults(esVersion, &e.Spec.Topology.DataContent.PodTemplate, kubedb.ElasticsearchContainerName)
 			e.setContainerSecurityContextDefaults(esVersion, &e.Spec.Topology.DataContent.PodTemplate, kubedb.ElasticsearchInitConfigMergerContainerName)
 			dbContainer = core_util.GetContainerByName(e.Spec.Topology.DataContent.PodTemplate.Spec.Containers, kubedb.ElasticsearchContainerName)
-			if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+			if dbContainer != nil {
 				apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResourcesMemoryIntensive)
 			}
 			if e.Spec.Topology.DataContent.Replicas == nil {
@@ -640,7 +643,7 @@ func (e *Elasticsearch) SetDefaults(esVersion *catalog.ElasticsearchVersion) {
 			e.setContainerSecurityContextDefaults(esVersion, &e.Spec.Topology.ML.PodTemplate, kubedb.ElasticsearchContainerName)
 			e.setContainerSecurityContextDefaults(esVersion, &e.Spec.Topology.ML.PodTemplate, kubedb.ElasticsearchInitConfigMergerContainerName)
 			dbContainer = core_util.GetContainerByName(e.Spec.Topology.ML.PodTemplate.Spec.Containers, kubedb.ElasticsearchContainerName)
-			if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+			if dbContainer != nil {
 				apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResourcesMemoryIntensive)
 			}
 			if e.Spec.Topology.ML.Replicas == nil {
@@ -660,7 +663,7 @@ func (e *Elasticsearch) SetDefaults(esVersion *catalog.ElasticsearchVersion) {
 			e.setContainerSecurityContextDefaults(esVersion, &e.Spec.Topology.Transform.PodTemplate, kubedb.ElasticsearchContainerName)
 			e.setContainerSecurityContextDefaults(esVersion, &e.Spec.Topology.Transform.PodTemplate, kubedb.ElasticsearchInitConfigMergerContainerName)
 			dbContainer = core_util.GetContainerByName(e.Spec.Topology.Transform.PodTemplate.Spec.Containers, kubedb.ElasticsearchContainerName)
-			if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+			if dbContainer != nil {
 				apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResourcesMemoryIntensive)
 			}
 			if e.Spec.Topology.Transform.Replicas == nil {
@@ -675,7 +678,7 @@ func (e *Elasticsearch) SetDefaults(esVersion *catalog.ElasticsearchVersion) {
 		e.setContainerSecurityContextDefaults(esVersion, &e.Spec.PodTemplate, kubedb.ElasticsearchContainerName)
 		e.setContainerSecurityContextDefaults(esVersion, &e.Spec.PodTemplate, kubedb.ElasticsearchInitConfigMergerContainerName)
 		dbContainer := core_util.GetContainerByName(e.Spec.PodTemplate.Spec.Containers, kubedb.ElasticsearchContainerName)
-		if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+		if dbContainer != nil {
 			apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResourcesMemoryIntensive)
 		}
 		if e.Spec.Replicas == nil {

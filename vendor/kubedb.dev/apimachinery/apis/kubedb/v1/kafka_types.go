@@ -22,6 +22,7 @@ import (
 	kmapi "kmodules.xyz/client-go/api/v1"
 	mona "kmodules.xyz/monitoring-agent-api/api/v1"
 	ofstv2 "kmodules.xyz/offshoot-api/api/v2"
+	storageapi "kubestash.dev/apimachinery/apis/storage/v1alpha1"
 )
 
 const (
@@ -69,6 +70,10 @@ type KafkaSpec struct {
 	// +optional
 	Topology *KafkaClusterTopology `json:"topology,omitempty"`
 
+	// TieredStorage defines the tiered storage specification for Kafka
+	// +optional
+	TieredStorage *KafkaTieredStorage `json:"tieredStorage,omitempty"`
+
 	// StorageType can be durable (default) or ephemeral
 	StorageType StorageType `json:"storageType,omitempty"`
 
@@ -94,6 +99,9 @@ type KafkaSpec struct {
 	// If specified, this file will be used as configuration file otherwise default configuration file will be used.
 	// +optional
 	ConfigSecret *core.LocalObjectReference `json:"configSecret,omitempty"`
+
+	// +optional
+	Configuration *ConfigurationSpec `json:"configuration,omitempty"`
 
 	// Keystore encryption secret
 	// +optional
@@ -178,10 +186,25 @@ type KafkaStatus struct {
 	Conditions []kmapi.Condition `json:"conditions,omitempty"`
 }
 
-type KafkaCruiseControl struct {
-	// Configuration for cruise-control
+type KafkaTieredStorage struct {
+	// Backend is the storage backend to be used for tiered storage
 	// +optional
-	ConfigSecret *SecretReference `json:"configSecret,omitempty"`
+	*storageapi.Backend `json:",omitempty"`
+
+	// StorageManagerClassName is defined as the class name of the storage manager to be used for tiered storage
+	// It can be used your own custom storage manager class name
+	// +optional
+	StorageManagerClassName string `json:"storageManagerClassName,omitempty"`
+
+	// StorageManagerClassPath is defined as the class path of the storage manager to be used for tiered storage
+	// If you use your own custom storage manager class, you can specify the class path here
+	// +optional
+	StorageManagerClassPath string `json:"storageManagerClassPath,omitempty"`
+}
+
+type KafkaCruiseControl struct {
+	// +optional
+	Configuration *ConfigurationSpec `json:"configuration,omitempty"`
 
 	// Replicas represents number of replica for this specific type of node
 	// +optional
@@ -190,10 +213,6 @@ type KafkaCruiseControl struct {
 	// Suffix to append with node name
 	// +optional
 	Suffix string `json:"suffix,omitempty"`
-
-	// Compute Resources required by the sidecar container.
-	// +optional
-	Resources core.ResourceRequirements `json:"resources,omitempty"`
 
 	// PodTemplate is an optional configuration for pods used to expose database
 	// +optional
@@ -246,4 +265,22 @@ type KafkaList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Kafka `json:"items"`
+}
+
+var _ Accessor = &Kafka{}
+
+func (k *Kafka) GetObjectMeta() metav1.ObjectMeta {
+	return k.ObjectMeta
+}
+
+func (k *Kafka) GetConditions() []kmapi.Condition {
+	return k.Status.Conditions
+}
+
+func (k *Kafka) SetCondition(cond kmapi.Condition) {
+	k.Status.Conditions = setCondition(k.Status.Conditions, cond)
+}
+
+func (k *Kafka) RemoveCondition(typ string) {
+	k.Status.Conditions = removeCondition(k.Status.Conditions, typ)
 }

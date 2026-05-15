@@ -3,10 +3,13 @@ kind: PostgresVersion
 metadata:
   name: "11.2"
 spec:
+  coordinator:
+    image: ghcr.io/kubedb/pg-coordinator:v0.48.0
   db:
     image: ghcr.io/kubedb/postgres:11.2
   deprecated: true
   distribution: Official
+  endOfLife: true
   exporter:
     image: ghcr.io/kubedb/postgres_exporter:v0.4.7
   podSecurityPolicies:
@@ -28,10 +31,13 @@ kind: PostgresVersion
 metadata:
   name: 11.2-v1
 spec:
+  coordinator:
+    image: ghcr.io/kubedb/pg-coordinator:v0.48.0
   db:
     image: ghcr.io/kubedb/postgres:11.2-v1
   deprecated: true
   distribution: Official
+  endOfLife: true
   exporter:
     image: ghcr.io/kubedb/postgres_exporter:v0.4.7
   podSecurityPolicies:

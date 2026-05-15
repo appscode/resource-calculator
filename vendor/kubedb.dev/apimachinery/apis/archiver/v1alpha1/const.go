@@ -81,3 +81,16 @@ const (
 	WALG_FILE_PREFIX                   = "WALG_FILE_PREFIX"
 	OPLOG_PUSH_WAIT_FOR_BECOME_PRIMARY = "OPLOG_PUSH_WAIT_FOR_BECOME_PRIMARY"
 )
+
+// Sidekick's ExtraArgs keys
+const (
+	ExtraArgsKeyStorage      string = "Storage"
+	ExtraArgsKeyLogBackupOpt string = "LogBackupOpt"
+)
+
+const (
+	// TypeInitialBackupSucceeded indicates whether the initial backup session has succeeded or not.
+	TypeInitialBackupSucceeded                      = "InitialBackupSucceeded"
+	ReasonSuccessfullyCompletedInitialBackupSession = "SuccessfullyCompletedInitialBackup"
+	ReasonFailedToCompleteInitialBackupSession      = "FailedToCompleteInitialBackup"
+)

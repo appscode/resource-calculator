@@ -101,6 +101,9 @@ type MongoDBSpec struct {
 	// If specified, this file will be used as configuration file otherwise default configuration file will be used.
 	ConfigSecret *core.LocalObjectReference `json:"configSecret,omitempty"`
 
+	// +optional
+	Configuration *ConfigurationSpec `json:"configuration,omitempty"`
+
 	// PodTemplate is an optional configuration for pods used to expose database
 	// +optional
 	PodTemplate *ofstv2.PodTemplateSpec `json:"podTemplate,omitempty"`
@@ -290,6 +293,9 @@ type MongoArbiterNode struct {
 	// If specified, this file will be used as configuration file otherwise default configuration file will be used.
 	ConfigSecret *core.LocalObjectReference `json:"configSecret,omitempty"`
 
+	// +optional
+	Configuration *ConfigurationSpec `json:"configuration,omitempty"`
+
 	// PodTemplate is an optional configuration for pods used to expose database
 	// +optional
 	PodTemplate *ofstv2.PodTemplateSpec `json:"podTemplate,omitempty"`
@@ -299,6 +305,9 @@ type MongoHiddenNode struct {
 	// ConfigSecret is an optional field to provide custom configuration file for database (i.e mongod.cnf).
 	// If specified, this file will be used as configuration file otherwise default configuration file will be used.
 	ConfigSecret *core.LocalObjectReference `json:"configSecret,omitempty"`
+
+	// +optional
+	Configuration *ConfigurationSpec `json:"configuration,omitempty"`
 
 	// PodTemplate is an optional configuration for pods used to expose database
 	// +optional
@@ -323,6 +332,9 @@ type MongoDBNode struct {
 	// ConfigSecret is an optional field to provide custom configuration file for database (i.e mongod.cnf).
 	// If specified, this file will be used as configuration file otherwise default configuration file will be used.
 	ConfigSecret *core.LocalObjectReference `json:"configSecret,omitempty"`
+
+	// +optional
+	Configuration *ConfigurationSpec `json:"configuration,omitempty"`
 
 	// PodTemplate is an optional configuration for pods used to expose database
 	// +optional
@@ -351,4 +363,22 @@ type MongoDBList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	// Items is a list of MongoDB TPR objects
 	Items []MongoDB `json:"items,omitempty"`
+}
+
+var _ Accessor = &MongoDB{}
+
+func (m *MongoDB) GetObjectMeta() metav1.ObjectMeta {
+	return m.ObjectMeta
+}
+
+func (m *MongoDB) GetConditions() []kmapi.Condition {
+	return m.Status.Conditions
+}
+
+func (m *MongoDB) SetCondition(cond kmapi.Condition) {
+	m.Status.Conditions = setCondition(m.Status.Conditions, cond)
+}
+
+func (m *MongoDB) RemoveCondition(typ string) {
+	m.Status.Conditions = removeCondition(m.Status.Conditions, typ)
 }

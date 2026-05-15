@@ -122,6 +122,10 @@ func (m MySQL) offshootLabels(selector, override map[string]string) map[string]s
 	return meta_util.FilterKeys(kubedb.GroupName, selector, meta_util.OverwriteKeys(nil, m.Labels, override))
 }
 
+func (m MySQL) AddKeyPrefix(key string) string {
+	return meta_util.NameWithPrefix(kubedb.InlineConfigKeyPrefixZZ, key)
+}
+
 func (m MySQL) ResourceFQN() string {
 	return fmt.Sprintf("%s.%s", ResourcePluralMySQL, kubedb.GroupName)
 }
@@ -234,7 +238,8 @@ func (m mysqlStatsService) Path() string {
 }
 
 func (m mysqlStatsService) Scheme() string {
-	return ""
+	sc := promapi.SchemeHTTP
+	return sc.String()
 }
 
 func (m mysqlStatsService) TLSConfig() *promapi.TLSConfig {
@@ -353,7 +358,7 @@ func (m *MySQL) SetDefaults(myVersion *v1alpha1.MySQLVersion) error {
 	if m.Spec.PodTemplate.Spec.ServiceAccountName == "" {
 		m.Spec.PodTemplate.Spec.ServiceAccountName = m.OffshootName()
 	}
-
+	m.Spec.Configuration = copyConfigurationField(m.Spec.Configuration, &m.Spec.ConfigSecret)
 	m.setDefaultContainerResourceLimits(&m.Spec.PodTemplate)
 	m.SetTLSDefaults()
 	m.SetHealthCheckerDefaults()
@@ -407,14 +412,18 @@ func (m *MySQL) SetHealthCheckerDefaults() {
 	}
 }
 
-func (m *MySQLSpec) GetPersistentSecrets() []string {
+func (m *MySQL) GetPersistentSecrets() []string {
 	if m == nil {
 		return nil
 	}
 
 	var secrets []string
-	if m.AuthSecret != nil {
-		secrets = append(secrets, m.AuthSecret.Name)
+	if m.Spec.AuthSecret != nil {
+		secrets = append(secrets, m.Spec.AuthSecret.Name)
+	}
+	if m.Spec.Monitor != nil && m.Spec.TLS != nil {
+		name := meta_util.NameWithSuffix(m.Name, kubedb.MySQLMetricsExporterConfigSecretSuffix)
+		secrets = append(secrets, name)
 	}
 	return secrets
 }
@@ -568,7 +577,7 @@ func (m *MySQL) assignDefaultContainerSecurityContext(myVersion *v1alpha1.MySQLV
 
 func (m *MySQL) setDefaultContainerResourceLimits(podTemplate *ofstv2.PodTemplateSpec) {
 	dbContainer := core_util.GetContainerByName(podTemplate.Spec.Containers, kubedb.MySQLContainerName)
-	if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+	if dbContainer != nil {
 		apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResources)
 	}
 
@@ -583,4 +592,9 @@ func (m *MySQL) setDefaultContainerResourceLimits(podTemplate *ofstv2.PodTemplat
 			apis.SetDefaultResourceLimits(&coordinatorContainer.Resources, kubedb.CoordinatorDefaultResources)
 		}
 	}
+}
+
+func (m *MySQL) ConfigSecretName() string {
+	uid := string(m.UID)
+	return meta_util.NameWithSuffix(m.OffshootName(), uid[len(uid)-6:])
 }

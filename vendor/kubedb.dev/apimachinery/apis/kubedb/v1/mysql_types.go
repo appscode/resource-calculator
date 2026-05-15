@@ -107,6 +107,9 @@ type MySQLSpec struct {
 	// If specified, this file will be used as configuration file otherwise default configuration file will be used.
 	ConfigSecret *core.LocalObjectReference `json:"configSecret,omitempty"`
 
+	// +optional
+	Configuration *ConfigurationSpec `json:"configuration,omitempty"`
+
 	// PodTemplate is an optional configuration for pods used to expose database
 	// +optional
 	PodTemplate ofstv2.PodTemplateSpec `json:"podTemplate,omitempty"`
@@ -269,4 +272,22 @@ type MySQLList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	// Items is a list of MySQL TPR objects
 	Items []MySQL `json:"items,omitempty"`
+}
+
+var _ Accessor = &MySQL{}
+
+func (m *MySQL) GetObjectMeta() metav1.ObjectMeta {
+	return m.ObjectMeta
+}
+
+func (m *MySQL) GetConditions() []kmapi.Condition {
+	return m.Status.Conditions
+}
+
+func (m *MySQL) SetCondition(cond kmapi.Condition) {
+	m.Status.Conditions = setCondition(m.Status.Conditions, cond)
+}
+
+func (m *MySQL) RemoveCondition(typ string) {
+	m.Status.Conditions = removeCondition(m.Status.Conditions, typ)
 }

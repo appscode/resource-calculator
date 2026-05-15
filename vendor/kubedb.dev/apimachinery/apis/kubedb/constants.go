@@ -41,31 +41,15 @@ const (
 	PrometheusTokenFile       = "/var/prometheus-data/token.txt"
 	MonitoringAgentAnnotation = GroupName + "/monitoring-agent"
 
-	// distributed const
-	DistributedDatabaseLabel                   = GroupName + "/distributed"
-	DistributedCustomConfigSecretNameSuffix    = "custom-config"
-	DistributedRBACNameSuffix                  = "rbac"
-	DistributedServiceExportNameSuffix         = "serviceexports"
-	DistributedTLSSecretNameSuffix             = "tls-secrets"
-	DistributedGRPCSecretNameSuffix            = "grpc-secrets"
-	DistributedAuthSecretNameSuffix            = "auth"
-	DistributedPromethuesSecretNameSuffix      = "prometheus-data"
-	DistributedPromethuesSecretVolumeName      = "prometheus-data"
-	DistributedPromethuesSecretVolumeMountPath = "/var/prometheus-data"
-	DistributedMonitoringAgentENV              = "MONITORING_AGENT"
-	DistributedMonitoringAgentPrometheus       = "prometheus"
-	DistributedDBReplicaENV                    = "DB_REPLICAS"
-	DistributedMaxVolumeUsed                   = "max_used"
-	DistributedVolumeCapacity                  = "capacity"
-
-	KubeSliceNSMIPKey         = "kubeslice.io/nsmIP"
-	KubeSlicePodIPVolumeName  = "podip"
-	KubeSlicePodIPFileName    = "podip"
-	KubeSliceNSMContainerName = "cmd-nsc"
+	InlinePropertiesKey     = "inline.properties"
+	InlineConfigKey         = "inline.conf"
+	InlineConfigKeyPrefix   = "inline"
+	InlineConfigKeyPrefixZZ = "zz-inline"
 
 	ReplicationModeDetectorContainerName = "replication-mode-detector"
 	DatabasePodPrimary                   = "primary"
 	DatabasePodStandby                   = "standby"
+	DatabasePodSecondary                 = "secondary"
 
 	ComponentDatabase         = "database"
 	ComponentConnectionPooler = "connection-pooler"
@@ -145,6 +129,10 @@ const (
 	ElasticsearchVolumeCustomConfig              = "custom-config"
 	ElasticsearchVolumeData                      = "data"
 	ElasticsearchVolumeTemp                      = "temp"
+	ElasticsearchConfigFileName                  = "elasticsearch.yml"
+	ElasticsearchScriptFileName                  = "startup.sh"
+	ElasticsearchVolumeScriptFileName            = "startup-script"
+	ElasticsearchVolumeScriptDir                 = "/script"
 
 	// Ref:
 	//	- https://www.elastic.co/guide/en/elasticsearch/reference/7.6/heap-size.html#heap-size
@@ -391,11 +379,16 @@ const (
 	DatabasePodMasterComponent  = "Master"
 	DatabasePodSlaveComponent   = "Slave"
 
-	MariaDBDistributedUpgradeCommand           = "mariadb-upgrade"
-	MariaDBDistributedPodMetricGetCommand      = "get-pod-metrics"
-	MariaDBDistributedPodGetCommand            = "get-pod"
-	MariaDBDistributedVolumeUsageGetCommand    = "get-volume-usage"
-	MariaDBDistributedVolumeCapacityGetCommand = "get-volume-capacity"
+	MariaDBArchiverPVCRestorerSuffix           = "pvc-restorer"
+	MariaDBBinlogRestoreSidekickSuffix         = "binlog-restorer"
+	MariaDBBinlogRestoreServiceSuffix          = "binlog-restore"
+	MariaDBXtraBackupInfoFile                  = "/var/lib/mysql/mariadb_backup_binlog_info"
+	MariaDBBackupInfoFile                      = "/var/lib/mysql/xtrabackup_binlog_info"
+	MariaDBArchiverRestoreRecoveryFileName     = "/tmp/recovery.done"
+	MariaDBArchiverBackupJobSelector           = GroupName + "/archiver-job-name"
+	MariaDBSidekickNameLabelKey                = GroupName + "/sidekick-name"
+	MariaDBArchiverBaseBackupRestic            = "Restic"
+	MariaDBArchiverBaseBackupVolumeSnapshooter = "VolumeSnapshotter"
 
 	// Maxscale
 	MaxscaleCommonName            = "mx"
@@ -523,6 +516,7 @@ const (
 	PostgresDatabasePort              = 5432
 	PostgresPodPrimary                = "primary"
 	PostgresPodStandby                = "standby"
+	PostgresPodReadReplica            = "read-replica"
 	EnvPostgresUser                   = "POSTGRES_USER"
 	EnvPostgresPassword               = "POSTGRES_PASSWORD"
 	PostgresRootUser                  = "postgres"
@@ -556,11 +550,11 @@ const (
 	PostgresSharedTlsVolumeName      = "certs"
 	PostgresSharedTlsVolumeMountPath = "/tls/certs"
 	PostgresCustomConfigFile         = "user.conf"
-
-	PostgresKeyFileSecretSuffix = "key"
-	PostgresPEMSecretSuffix     = "pem"
-	PostgresDefaultUsername     = "postgres"
-	PostgresPgCoordinatorStatus = "Coordinator/Status"
+	PostgresTuningConfigFile         = "pgtune.conf"
+	PostgresKeyFileSecretSuffix      = "key"
+	PostgresPEMSecretSuffix          = "pem"
+	PostgresDefaultUsername          = "postgres"
+	PostgresPgCoordinatorStatus      = "Coordinator/Status"
 	// to pause the failover for postgres. this is helpful for ops request
 	PostgresPgCoordinatorStatusPause = "Pause"
 	// to resume the failover for postgres. this is helpful for ops request
@@ -579,8 +573,10 @@ const (
 	SYS_RESOURCE              = "SYS_RESOURCE"
 	DropCapabilityALL         = "ALL"
 
-	PostgresGRPCIssuerName           = "grpc-issuer"
-	PostgresGRPCSelfSignedIssuerName = "grpc-selfsigned"
+	PostgresGRPCIssuerName              = "grpc-issuer"
+	PostgresGRPCSelfSignedIssuerName    = "grpc-selfsigned"
+	PostgresDatabaseClusterLabelKey     = "postgreses.kubedb.com/database.cluster"
+	PostgresDatabaseReadReplicaLabelKey = "postgreses.kubedb.com/database.read-replica"
 
 	// =========================== ProxySQL Constants ============================
 	LabelProxySQLName                  = ProxySQLKey + "/name"
@@ -889,15 +885,18 @@ const (
 const (
 	MilvusUsername = "root"
 
-	MilvusGrpcPortName = "grpc"
-	MilvusGrpcPort     = int32(19530)
+	MilvusGrpcPortName    = "grpc"
+	MilvusMetricsPortName = "metrics"
+	MilvusGrpcPort        = int32(19530)
 
 	MilvusVolumeNameData = "data"
-	MilvusDataDir        = "/var/lib/milvus"
 	MilvusConfigVolName  = "milvus-config"
-	MilvusConfigDir      = "/milvus/configs/milvus.yaml"
 	MilvusConfigFileName = "milvus.yaml"
-	MilvusContainerName  = "milvus"
+	MilvusLogFileName    = "glog.conf"
+
+	MilvusDataDir       = "/var/lib/milvus"
+	MilvusConfigVolDir  = "/milvus/configs"
+	MilvusContainerName = "milvus"
 
 	EtcdEndpointsName = "ETCD_ENDPOINTS"
 	EtcdAPIVersion    = "operator.etcd.io/v1alpha1"
@@ -908,9 +907,14 @@ const (
 	MinioAddressName   = "MINIO_ADDRESS"
 	MinioAddressKey    = "address"
 	MinioAccessKeyName = "MINIO_ACCESS_KEY"
-	MinioAccessKey     = "accessKeyId"
+	MinioAccessKey     = "accesskey"
 	MinioSecretKeyName = "MINIO_SECRET_KEY"
-	MinioSecretKey     = "secretAccessKey"
+	MinioSecretKey     = "secretkey"
+
+	MilvusMetricsPort       = 9091
+	MilvusPortDataNode      = 21124
+	MilvusPortQueryNode     = 21123
+	MilvusPortStreamingNode = 22222
 )
 
 const (
@@ -1066,6 +1070,16 @@ const (
 	KafkaAdminTopicConfigProvider = "com.linkedin.kafka.cruisecontrol.config.KafkaAdminTopicConfigProvider"
 	KafkaCCMetricReporter         = "com.linkedin.kafka.cruisecontrol.metricsreporter.CruiseControlMetricsReporter"
 	KafkaJMXMetricReporter        = "org.apache.kafka.common.metrics.JmxReporter"
+
+	// Kafka Tiered Storage Constants
+	KafkaAivenTieredStorageClassName      = "io.aiven.kafka.tieredstorage.RemoteStorageManager"
+	KafkaVolumeTieredStoragePlugins       = "tiered-plugins"
+	KafkaTieredStoragePluginDir           = "/opt/kafka/libs/tiered-plugins"
+	KafkaVolumeTieredStorageChunkCache    = "tiered-chunk-cache"
+	KafkaTieredStorageChunkCacheDir       = "/opt/kafka/tiered-storage/cache"
+	KafkaVolumeTieredStorageGCSCredential = "gcs-credential"
+	KafkaTieredStorageGCSCredentialDir    = "/etc/credentials"
+	KafkaVolumeTieredStorageLocalDir      = "tiered-local"
 
 	// =========================== Solr Constants ============================
 	SolrPortName          = "http"
@@ -1561,6 +1575,66 @@ const (
 	WeaviateConfigVolName   = "config"
 )
 
+// =========================== DocumentDB Constants ============================
+const (
+
+	// envs
+	EnvDocumentDBUser      = "DOCUMENTDB_PG_USER"
+	EnvDocumentDBPassword  = "DOCUMENTDB_PG_PASSWORD"
+	EnvDocumentDBHandler   = "DOCUMENTDB_HANDLER"
+	EnvDocumentDBPgURL     = "DOCUMENTDB_POSTGRESQL_URL"
+	EnvDocumentDBTLSPort   = "DOCUMENTDB_LISTEN_TLS"
+	EnvDocumentDBCAPath    = "DOCUMENTDB_LISTEN_TLS_CA_FILE"
+	EnvDocumentDBCertPath  = "DOCUMENTDB_LISTEN_TLS_CERT_FILE"
+	EnvDocumentDBKeyPath   = "DOCUMENTDB_LISTEN_TLS_KEY_FILE"
+	EnvDocumentDBDebugAddr = "DOCUMENTDB_DEBUG_ADDR"
+
+	DocumentDBDatabaseServiceName = "DocumentDB"
+	DocumentDBSqlNetPortName      = "documentdb-port"
+	DocumentDBSqlNetPort          = 10260
+	DocumentDBDefaultPort         = 10260
+
+	DocumentDBPrimaryRole = "primary"
+	DocumentDBStandbyRole = "standby"
+
+	DocumentDBDatabaseRoleKey      = "documentdb.db/role"
+	DocumentDBDatabaseRoleInstance = "instance"
+
+	DocumentDBDefaultUsername = "default_user"
+	DocumentDBDefaultPassword = "1234"
+
+	DefaultDocumentDBDatabase = "sampledb"
+
+	// volume related constants
+	DocumentDBVolumeScripts = "documentdb-data"
+	DocumentDBDataDir       = "/data"
+
+	DocumentDBVolumeNameInitScript      = "init-scripts"
+	DocumentDBVolumeMountPathInitScript = "/scripts"
+
+	DocumentDBContainerName     = "documentdb"
+	DocumentDBInitContainerName = "documentdb-init"
+	DocumentDBMainImage         = "ghcr.io/documentdb/documentdb"
+	DocumentDBUser              = "postgres"
+	DocumentDBLinkedDBName      = "documentdb"
+
+	DocumentDBServerPath = "/etc/certs/server"
+
+	DocumentDBExternalClientPath = "/etc/certs/ext"
+
+	DocumentDBMetricsPort = 56790
+	DocumentDBTLSPort     = 27018
+
+	DocumentDBMetricsPath     = "/debug/metrics"
+	DocumentDBMetricsPortName = "metrics"
+
+	DocumentDBPrimaryLabelKey = "documentdb.kubedb.com/server.primary"
+
+	DocumentDBBackendInitShellFile = "data.sh"
+	DocumentDBBackendInitSqlFile   = "data.sql"
+	DocumentDBBackendConfigFile    = "user.conf"
+)
+
 // =========================== FerretDB Constants ============================
 const (
 
@@ -1746,19 +1820,19 @@ const (
 	ClickHouseKeeperServerID             = "KEEPERID"
 )
 
-// =========================== Cassandra Constants ============================
+// =========================== Neo4j Constants ============================
 
 const (
-	Neo4jBoltPort       = 7687 // Bolt protocol (binary driver, neo4j:// and bolt://)
-	Neo4jHTTPPort       = 7474 // Neo4j Browser and Cypher HTTP API
-	Neo4jHTTPSPort      = 7473 // Neo4j Browser and Cypher HTTPS API
-	Neo4jBackupPort     = 6362 // Online backup service (internal)
-	Neo4jGraphitePort   = 2003 // Graphite metrics (optional)
-	Neo4jPrometheusPort = 2004 // Prometheus metrics (optional)
-	Neo4jJMXPort        = 3637 // Java Management Extensions (o // ptional)
-	Neo4jRoutingPort    = 7688 // Routing protocol for Causal Clustering
-	Neo4jRaftPort       = 7000 // Raft protocol for Causal Clustering
-	Neo4jClusterTxPort  = 6000 // Cluster transaction protocol for Causal Clustering
+	Neo4jBoltPort      = 7687 // Bolt protocol (binary driver, neo4j:// and bolt://)
+	Neo4jHTTPPort      = 7474 // Neo4j Browser and Cypher HTTP API
+	Neo4jHTTPSPort     = 7473 // Neo4j Browser and Cypher HTTPS API
+	Neo4jBackupPort    = 6362 // Online backup service (internal)
+	Neo4jGraphitePort  = 2003 // Graphite metrics (optional)
+	Neo4jExporterPort  = 2004 // Prometheus metrics (optional)
+	Neo4jJMXPort       = 3637 // Java Management Extensions (o // ptional)
+	Neo4jRoutingPort   = 7688 // Routing protocol for Causal Clustering
+	Neo4jRaftPort      = 7000 // Raft protocol for Causal Clustering
+	Neo4jClusterTxPort = 6000 // Cluster transaction protocol for Causal Clustering
 
 	Neo4jConfigVolName      = "neo4j-conf"
 	Neo4jVolumeCustomConfig = "custom-config"
@@ -1777,6 +1851,7 @@ const (
 
 	Neo4jContainerName     = "neo4j"
 	Neo4jInitContainerName = "neo4j-init"
+	Neo4jConfigFileName    = "neo4j.conf"
 )
 
 // =========================== Cassandra Constants ============================
@@ -2034,13 +2109,13 @@ var (
 	}
 
 	// DefaultResourcesMemoryIntensiveMSSQLServer must be used for Microsoft SQL Server
-	DefaultResourcesMemoryIntensiveMSSQLServer = core.ResourceRequirements{
+	DefaultResourcesMSSQLServer = core.ResourceRequirements{
 		Requests: core.ResourceList{
-			core.ResourceCPU:    resource.MustParse("1"),
-			core.ResourceMemory: resource.MustParse("1.5Gi"),
+			core.ResourceCPU:    resource.MustParse("1.5"),
+			core.ResourceMemory: resource.MustParse("2Gi"),
 		},
 		Limits: core.ResourceList{
-			core.ResourceMemory: resource.MustParse("2Gi"),
+			core.ResourceMemory: resource.MustParse("4Gi"),
 		},
 	}
 
@@ -2113,6 +2188,16 @@ var (
 			core.ResourceMemory: resource.MustParse("10Gi"),
 		},
 	}
+
+	DefaultResourcesNeo4j = core.ResourceRequirements{
+		Requests: core.ResourceList{
+			core.ResourceCPU:    resource.MustParse(".500"),
+			core.ResourceMemory: resource.MustParse("2Gi"),
+		},
+		Limits: core.ResourceList{
+			core.ResourceMemory: resource.MustParse("2Gi"),
+		},
+	}
 )
 
 func DefaultArbiter(computeOnly bool) core.ResourceRequirements {
@@ -2169,6 +2254,8 @@ const (
 	OracleEnvDataDir               = "ORADATA"
 	OracleSharedTlsVolumeName      = "certs"
 	OracleSharedTlsVolumeMountPath = "/tls/certs"
+
+	OracleCustomConfigFileName = "oracle.cnf"
 )
 
 // =========================== DB2 Constants ============================
@@ -2225,11 +2312,25 @@ const (
 	QdrantDataDir       = "/qdrant/storage"
 	QdrantConfigVolName = "qdrant-config"
 	QdrantConfigDir     = "/qdrant/config"
+	QdrantTLSVolName    = "tls"
+	QdrantTLSVolDir     = "/tls"
 
 	QdrantConfigFileName = "config.yaml"
 
 	QdrantAPIKey         = "api-key"
 	QdrantReadOnlyAPIKey = "read-only-api-key"
+
+	QdrantTLSCA   = "ca.crt"
+	QdrantTLSCert = "tls.crt"
+	QdrantTLSKey  = "tls.key"
+
+	QdrantServerCAPath   = "ca.pem"
+	QdrantServerCertPath = "cert.pem"
+	QdrantServerKeyPath  = "key.pem"
+
+	QdrantClientCAPath   = "ca.crt"
+	QdrantClientCertPath = "client.crt"
+	QdrantClientKeyPath  = "client.key"
 )
 
 // =========================== HanaDB Constants ============================
@@ -2245,10 +2346,14 @@ const (
 	// Mount paths
 	HanaDBDataDir         = "/hana/mounts"
 	HanaDBSecretMountPath = "/etc/hana-secrets"
+	HanaDBConfigFileName  = "global.ini"
+	HanaDBConfigDir       = "/hana/mounts/system/config"
+	HanaDBConfigMountPath = "/etc/hanadb-config"
 
 	// Volume names
 	HanaDBDataVolume           = "data"
 	HanaDBVolumePasswordSecret = "password-secret"
+	HanaDBConfigVolumeName     = "hanadb-config"
 
 	// User and Group IDs
 	HanaDBUserID  = 12000 // hxeadm UID
@@ -2267,6 +2372,9 @@ const (
 	HanaDBSystemDBSQLPortName = "systemdb-sql"
 	HanaDBSystemDBSQLPort     = 39017
 
+	// Metrics exporter port
+	HanaDBExporterPort = 9668
+
 	// Nameserver port for internal communication and system replication
 	HanaDBNameServerPortName = "nameserver"
 	HanaDBNameServerPort     = 39001
@@ -2277,11 +2385,56 @@ const (
 
 	HanaDBPrimaryServicePortName = "primary"
 
-	HanaDBCoordinatorPort           = 2380
-	HanaDBCoordinatorClientPort     = 2379
-	HanaDBCoordinatorPortName       = "coordinator"
-	HanaDBCoordinatorClientPortName = "coordinator-client"
+	HanaDBCoordinatorPort       = 2380
+	HanaDBCoordinatorClientPort = 2379
 
 	// TenantDatabaseName is the name of the KubeDB managed tenant database
 	KubeDBTenantDatabaseName = "KUBEDB_HEALTH_CHECK"
+)
+
+// =========================== Distributed Constants ============================
+const (
+	DistributedDatabaseLabel                   = GroupName + "/distributed"
+	DistributedCustomConfigSecretNameSuffix    = "custom-config"
+	DistributedRBACNameSuffix                  = "rbac"
+	DistributedServiceExportNameSuffix         = "serviceexports"
+	DistributedTLSSecretNameSuffix             = "tls-secrets"
+	DistributedGRPCSecretNameSuffix            = "grpc-secrets"
+	DistributedAuthSecretNameSuffix            = "auth"
+	DistributedPromethuesSecretNameSuffix      = "prometheus-data"
+	DistributedPromethuesSecretVolumeName      = "prometheus-data"
+	DistributedPromethuesSecretVolumeMountPath = "/var/prometheus-data"
+	DistributedMonitoringAgentENV              = "MONITORING_AGENT"
+	DistributedMonitoringAgentPrometheus       = "prometheus"
+	DistributedDBReplicaENV                    = "DB_REPLICAS"
+	DistributedMaxVolumeUsed                   = "max_used"
+	DistributedVolumeCapacity                  = "capacity"
+	DistributedPrimaryServiceExportSuffix      = "primary-serviceexport"
+	DistributedPhysicalBackupContainerName     = "physical-backup-1"
+	DistributedPhysicalRestoreContainerName    = "distributed-physical-backup-restore-0"
+	KubesliceContainerExcludeLabel             = "kubeslice.io/exclude"
+	KubeSliceDomainSuffix                      = "slice.local"
+	KubeSliceNSMIPKey                          = "kubeslice.io/nsmIP"
+	KubeSlicePodIPVolumeName                   = "podip"
+	KubeSlicePodIPFileName                     = "podip"
+	KubeSliceNSMContainerName                  = "cmd-nsc-grpc"
+
+	// Archiver
+	DistributedArchiverSnapshotInfoAnnotation = "distributedsnapshotinfo"
+	DistributedArchiverCMKeySnapshots         = "snapshots"
+	DistributedArchiverCMKeyRestoreSession    = "restoresession"
+	DistributedArchiverBackupCMNameSuffix     = "backup"
+	DistributedArchiverRestoreCMNameSuffix    = "restore"
+	DistributedArchiverSnapshotCMNameSuffix   = "snapshots"
+
+	// GRPC commands
+	DistributedCommandDatabasePodGet     = "get_pod"
+	DistributedCommandDatabseUpgrade     = "database-upgrade"
+	DistributedCommandRecoveryFileCreate = "kubedb_create_recovery_done_file"
+	DistributedCommandBackup             = "kubestash_backup"
+	DistributedCommandRestore            = "kubestash_backup_restore"
+	DistributedCommandVolumeSnapshot     = "kubestash_volume_snapshot"
+	DistributedCommandPodMetric          = "kubedb_autoscaler_get_pod_metrics"
+	DistributedCommandVolumeUsage        = "kubedb_autoscaler_volume_usage"
+	DistributedCommandVolumeCapacity     = "kubedb_autoscaler_volume_capacity"
 )

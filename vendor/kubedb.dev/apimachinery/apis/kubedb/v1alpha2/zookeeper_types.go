@@ -86,10 +86,11 @@ type ZooKeeperSpec struct {
 	// +optional
 	AuthSecret *SecretReference `json:"authSecret,omitempty"`
 
-	// ConfigSecret is an optional field to provide custom configuration file for database (i.e config.properties).
+	// Configuration is an optional field to provide custom configuration file for database (i.e config.properties).
 	// If specified, this file will be used as configuration file otherwise default configuration file will be used.
+	// You can provide custom configurations using SecretName or ApplyConfig.
 	// +optional
-	ConfigSecret *core.LocalObjectReference `json:"configSecret,omitempty"`
+	Configuration *ConfigurationSpec `json:"configuration,omitempty"`
 
 	// Keystore encryption secret
 	// +optional
@@ -163,3 +164,21 @@ const (
 	ZooKeeperNodeRoleBroker     ZooKeeperNodeRoleType = "broker"
 	ZooKeeperNodeRoleCombined   ZooKeeperNodeRoleType = "combined"
 )
+
+var _ Accessor = &ZooKeeper{}
+
+func (m *ZooKeeper) GetObjectMeta() metav1.ObjectMeta {
+	return m.ObjectMeta
+}
+
+func (m *ZooKeeper) GetConditions() []kmapi.Condition {
+	return m.Status.Conditions
+}
+
+func (m *ZooKeeper) SetCondition(cond kmapi.Condition) {
+	m.Status.Conditions = setCondition(m.Status.Conditions, cond)
+}
+
+func (m *ZooKeeper) RemoveCondition(typ string) {
+	m.Status.Conditions = removeCondition(m.Status.Conditions, typ)
+}

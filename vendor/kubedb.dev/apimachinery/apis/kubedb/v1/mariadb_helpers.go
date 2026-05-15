@@ -114,6 +114,22 @@ func (m MariaDB) OffshootMaxscaleLabels() map[string]string {
 	return m.offshootLabels(m.OffshootMaxscaleSelectors(), nil)
 }
 
+func (m MariaDB) GetPVCRestoreSessionName(ordinal int) string {
+	return fmt.Sprintf("%s-%s-%v-%s", kubedb.DefaultVolumeClaimTemplateName, m.OffshootName(), ordinal, kubedb.MariaDBArchiverPVCRestorerSuffix)
+}
+
+func (m MariaDB) GetBinlogRestoreSidekickName(ordinal int) string {
+	return fmt.Sprintf("%s-%s-%d", m.OffshootName(), kubedb.MariaDBBinlogRestoreSidekickSuffix, ordinal)
+}
+
+func (m MariaDB) GetBinlogRestoreServiceName(ordinal int) string {
+	return fmt.Sprintf("%s-%s-%d", m.OffshootName(), kubedb.MariaDBBinlogRestoreServiceSuffix, ordinal)
+}
+
+func (m MariaDB) OffshootPrimaryServiceExportName() string {
+	return meta_util.NameWithSuffix(m.Name, kubedb.DistributedPrimaryServiceExportSuffix)
+}
+
 func (m MariaDB) PodLabels() map[string]string {
 	return m.offshootLabels(m.OffshootSelectors(), m.Spec.PodTemplate.Labels)
 }
@@ -141,6 +157,10 @@ func (m MariaDB) SidekickLabels(skName string) map[string]string {
 func (m MariaDB) offshootLabels(selector, override map[string]string) map[string]string {
 	selector[meta_util.ComponentLabelKey] = kubedb.ComponentDatabase
 	return meta_util.FilterKeys(kubedb.GroupName, selector, meta_util.OverwriteKeys(nil, m.Labels, override))
+}
+
+func (m MariaDB) AddKeyPrefix(key string) string {
+	return meta_util.NameWithPrefix(kubedb.InlineConfigKeyPrefixZZ, key)
 }
 
 func (m MariaDB) ServiceLabels(alias ServiceAlias, extraLabels ...map[string]string) map[string]string {
@@ -256,7 +276,8 @@ func (m mariadbStatsService) Path() string {
 }
 
 func (m mariadbStatsService) Scheme() string {
-	return ""
+	sc := promapi.SchemeHTTP
+	return sc.String()
 }
 
 func (m mariadbStatsService) TLSConfig() *promapi.TLSConfig {
@@ -272,7 +293,11 @@ func (m MariaDB) StatsServiceLabels() map[string]string {
 }
 
 func (m MariaDB) PrimaryServiceDNS() string {
-	return fmt.Sprintf("%s.%s.svc", m.ServiceName(), m.Namespace)
+	if m.Spec.Distributed {
+		return fmt.Sprintf("%s.%s.svc.%s", m.ServiceName(), m.Namespace, kubedb.KubeSliceDomainSuffix)
+	} else {
+		return fmt.Sprintf("%s.%s.svc", m.ServiceName(), m.Namespace)
+	}
 }
 
 func (m *MariaDB) SetDefaults(mdVersion *v1alpha1.MariaDBVersion) {
@@ -308,6 +333,7 @@ func (m *MariaDB) SetDefaults(mdVersion *v1alpha1.MariaDBVersion) {
 	if m.Spec.Init != nil && m.Spec.Init.Archiver != nil && m.Spec.Init.Archiver.ReplicationStrategy == nil {
 		m.Spec.Init.Archiver.ReplicationStrategy = ptr.To(ReplicationStrategySync)
 	}
+	m.Spec.Configuration = copyConfigurationField(m.Spec.Configuration, &m.Spec.ConfigSecret)
 	m.setDefaultContainerSecurityContext(mdVersion, &m.Spec.PodTemplate)
 	m.setDefaultContainerResourceLimits(&m.Spec.PodTemplate)
 	m.SetTLSDefaults()
@@ -324,6 +350,7 @@ func (m *MariaDB) SetDefaults(mdVersion *v1alpha1.MariaDBVersion) {
 	}
 	if m.IsCluster() && m.IsMariaDBReplication() {
 		m.SetDefaultsMaxscale(mdVersion, m.Spec.Topology.MaxScale)
+		m.Spec.WsrepSSTMethod = GaleraWsrepSSTMethodMariabackup
 	}
 
 	if m.Spec.Init != nil && m.Spec.Init.Archiver != nil {
@@ -341,7 +368,7 @@ func (m *MariaDB) SetDefaults(mdVersion *v1alpha1.MariaDBVersion) {
 
 func (m *MariaDB) SetDefaultsMaxscale(mdVersion *v1alpha1.MariaDBVersion, maxscale *MaxScaleSpec) {
 	if maxscale == nil {
-		return
+		maxscale = &MaxScaleSpec{}
 	}
 	if maxscale.StorageType == "" {
 		maxscale.StorageType = StorageTypeDurable
@@ -493,7 +520,7 @@ func (m *MariaDB) assignMaxscaleDefaultContainerSecurityContext(mdVersion *v1alp
 
 func (m *MariaDB) setDefaultContainerResourceLimits(podTemplate *ofstv2.PodTemplateSpec) {
 	dbContainer := core_util.GetContainerByName(podTemplate.Spec.Containers, kubedb.MariaDBContainerName)
-	if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+	if dbContainer != nil {
 		apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResources)
 	}
 
@@ -511,7 +538,7 @@ func (m *MariaDB) setDefaultContainerResourceLimits(podTemplate *ofstv2.PodTempl
 
 func (m *MariaDB) setMaxscaleDefaultContainerResourceLimits(podTemplate *ofstv2.PodTemplateSpec) {
 	dbContainer := core_util.GetContainerByName(podTemplate.Spec.Containers, kubedb.MaxscaleContainerName)
-	if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+	if dbContainer != nil {
 		apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultInitContainerResource)
 	}
 
@@ -542,15 +569,21 @@ func (m *MariaDB) SetTLSDefaults() {
 	m.Spec.TLS.Certificates = kmapi.SetMissingSecretNameForCertificate(m.Spec.TLS.Certificates, string(MariaDBExporterCert), m.CertificateName(MariaDBExporterCert))
 }
 
-func (m *MariaDBSpec) GetPersistentSecrets() []string {
+func (m *MariaDB) GetPersistentSecrets() []string {
 	if m == nil {
 		return nil
 	}
 
 	var secrets []string
-	if m.AuthSecret != nil {
-		secrets = append(secrets, m.AuthSecret.Name)
+	if m.Spec.AuthSecret != nil {
+		secrets = append(secrets, m.Spec.AuthSecret.Name)
 	}
+
+	if m.Spec.Monitor != nil && m.Spec.TLS != nil {
+		name := meta_util.NameWithSuffix(m.Name, kubedb.MySQLMetricsExporterConfigSecretSuffix)
+		secrets = append(secrets, name)
+	}
+
 	return secrets
 }
 
@@ -577,8 +610,9 @@ func (m *MariaDB) ReplicasAreReady(lister pslister.PetSetLister) (bool, string, 
 	return checkReplicas(lister.PetSets(m.Namespace), labels.SelectorFromSet(m.OffshootLabels()), expectedItems)
 }
 
-func (m *MariaDB) InlineConfigSecretName() string {
-	return meta_util.NameWithSuffix(m.Name, "inline")
+func (m *MariaDB) ConfigSecretName() string {
+	uid := string(m.UID)
+	return meta_util.NameWithSuffix(m.OffshootName(), uid[len(uid)-6:])
 }
 
 func (m *MariaDB) CertMountPath(alias MariaDBCertificateAlias) string {

@@ -66,7 +66,7 @@ type MSSQLServerOpsRequestSpec struct {
 	// Specifies information necessary for volume expansion
 	VolumeExpansion *MSSQLServerVolumeExpansionSpec `json:"volumeExpansion,omitempty"`
 	// Specifies information necessary for custom configuration of MSSQLServer
-	Configuration *MSSQLServerCustomConfigurationSpec `json:"configuration,omitempty"`
+	Configuration *ReconfigurationSpec `json:"configuration,omitempty"`
 	// Specifies information necessary for configuring TLS
 	TLS *MSSQLServerTLSSpec `json:"tls,omitempty"`
 	// Specifies information necessary for configuring authSecret of the database
@@ -107,6 +107,7 @@ type MSSQLServerVerticalScalingSpec struct {
 	MSSQLServer *PodResources       `json:"mssqlserver,omitempty"`
 	Exporter    *ContainerResources `json:"exporter,omitempty"`
 	Coordinator *ContainerResources `json:"coordinator,omitempty"`
+	Arbiter     *PodResources       `json:"arbiter,omitempty"`
 }
 
 // MSSQLServerVolumeExpansionSpec is the spec for MSSQLServer volume expansion
@@ -114,13 +115,6 @@ type MSSQLServerVolumeExpansionSpec struct {
 	// volume specification for MSSQLServer
 	MSSQLServer *resource.Quantity  `json:"mssqlserver,omitempty"`
 	Mode        VolumeExpansionMode `json:"mode"`
-}
-
-// MSSQLServerCustomConfigurationSpec is the spec for Reconfiguring the MSSQLServer
-type MSSQLServerCustomConfigurationSpec struct {
-	ConfigSecret       *core.LocalObjectReference `json:"configSecret,omitempty"`
-	ApplyConfig        map[string]string          `json:"applyConfig,omitempty"`
-	RemoveCustomConfig bool                       `json:"removeCustomConfig,omitempty"`
 }
 
 type MSSQLServerTLSSpec struct {

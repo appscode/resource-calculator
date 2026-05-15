@@ -81,7 +81,7 @@ type HazelcastSpec struct {
 	DisableSecurity bool `json:"disableSecurity,omitempty"`
 
 	// +optional
-	ConfigSecret *core.LocalObjectReference `json:"configSecret,omitempty"`
+	Configuration *ConfigurationSpec `json:"configuration,omitempty"`
 
 	// +optional
 	AuthSecret *SecretReference `json:"authSecret,omitempty"`
@@ -152,4 +152,22 @@ type HazelcastList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Hazelcast `json:"items"`
+}
+
+var _ Accessor = &Hazelcast{}
+
+func (p *Hazelcast) GetObjectMeta() metav1.ObjectMeta {
+	return p.ObjectMeta
+}
+
+func (p *Hazelcast) GetConditions() []kmapi.Condition {
+	return p.Status.Conditions
+}
+
+func (p *Hazelcast) SetCondition(cond kmapi.Condition) {
+	p.Status.Conditions = setCondition(p.Status.Conditions, cond)
+}
+
+func (p *Hazelcast) RemoveCondition(typ string) {
+	p.Status.Conditions = removeCondition(p.Status.Conditions, typ)
 }

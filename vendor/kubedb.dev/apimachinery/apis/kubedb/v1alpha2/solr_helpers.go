@@ -98,6 +98,11 @@ func (s *Solr) SolrSecretName(suffix string) string {
 	return strings.Join([]string{s.Name, suffix}, "-")
 }
 
+func (s *Solr) SolrConfigSecretName() string {
+	uid := string(s.UID)
+	return meta_util.NameWithSuffix(s.OffshootName(), uid[len(uid)-6:])
+}
+
 func (s *Solr) GetAuthSecretName() string {
 	if s.Spec.AuthSecret != nil && s.Spec.AuthSecret.Name != "" {
 		return s.Spec.AuthSecret.Name
@@ -107,6 +112,10 @@ func (s *Solr) GetAuthSecretName() string {
 
 func (s *Solr) SolrSecretKey() string {
 	return kubedb.SolrSecretKey
+}
+
+func (s *Solr) SolrInlineConfigSecretKey(key string) string {
+	return fmt.Sprintf("%s-%s", kubedb.InlineConfigKeyPrefix, key)
 }
 
 func (s *Solr) Merge(opt map[string]string) map[string]string {
@@ -130,16 +139,16 @@ func (s *Solr) Append(opt map[string]string) string {
 	}
 	sort.Strings(key)
 	fl := 0
-	as := ""
+	var as strings.Builder
 	for _, x := range key {
 		if fl == 1 {
-			as += " "
+			as.WriteString(" ")
 		}
-		as += fmt.Sprintf("%s=%s", x, opt[x])
+		as.WriteString(fmt.Sprintf("%s=%s", x, opt[x]))
 		fl = 1
 
 	}
-	return as
+	return as.String()
 }
 
 func (s *Solr) OffshootName() string {
@@ -230,7 +239,8 @@ func (s solrStatsService) Path() string {
 }
 
 func (s solrStatsService) Scheme() string {
-	return ""
+	sc := promapi.SchemeHTTP
+	return sc.String()
 }
 
 func (s solrStatsService) TLSConfig() *promapi.TLSConfig {
@@ -472,7 +482,7 @@ func (s *Solr) assignDefaultContainerSecurityContext(slVersion *catalog.SolrVers
 
 func (s *Solr) setDefaultContainerResourceLimits(podTemplate *ofst.PodTemplateSpec) {
 	dbContainer := coreutil.GetContainerByName(podTemplate.Spec.Containers, kubedb.SolrContainerName)
-	if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+	if dbContainer != nil {
 		apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResourcesCoreAndMemoryIntensiveSolr)
 	}
 

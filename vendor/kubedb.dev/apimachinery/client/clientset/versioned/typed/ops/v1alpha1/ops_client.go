@@ -43,11 +43,13 @@ type OpsV1alpha1Interface interface {
 	MemcachedOpsRequestsGetter
 	MongoDBOpsRequestsGetter
 	MySQLOpsRequestsGetter
+	Neo4jOpsRequestsGetter
 	PerconaXtraDBOpsRequestsGetter
 	PgBouncerOpsRequestsGetter
 	PgpoolOpsRequestsGetter
 	PostgresOpsRequestsGetter
 	ProxySQLOpsRequestsGetter
+	QdrantOpsRequestsGetter
 	RabbitMQOpsRequestsGetter
 	RedisOpsRequestsGetter
 	RedisSentinelOpsRequestsGetter
@@ -117,6 +119,10 @@ func (c *OpsV1alpha1Client) MySQLOpsRequests(namespace string) MySQLOpsRequestIn
 	return newMySQLOpsRequests(c, namespace)
 }
 
+func (c *OpsV1alpha1Client) Neo4jOpsRequests(namespace string) Neo4jOpsRequestInterface {
+	return newNeo4jOpsRequests(c, namespace)
+}
+
 func (c *OpsV1alpha1Client) PerconaXtraDBOpsRequests(namespace string) PerconaXtraDBOpsRequestInterface {
 	return newPerconaXtraDBOpsRequests(c, namespace)
 }
@@ -135,6 +141,10 @@ func (c *OpsV1alpha1Client) PostgresOpsRequests(namespace string) PostgresOpsReq
 
 func (c *OpsV1alpha1Client) ProxySQLOpsRequests(namespace string) ProxySQLOpsRequestInterface {
 	return newProxySQLOpsRequests(c, namespace)
+}
+
+func (c *OpsV1alpha1Client) QdrantOpsRequests(namespace string) QdrantOpsRequestInterface {
+	return newQdrantOpsRequests(c, namespace)
 }
 
 func (c *OpsV1alpha1Client) RabbitMQOpsRequests(namespace string) RabbitMQOpsRequestInterface {

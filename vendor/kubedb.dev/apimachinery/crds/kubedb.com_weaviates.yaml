@@ -9,7 +9,8 @@ spec:
   group: kubedb.com
   names:
     categories:
-    - vector-db
+    - datastore
+    - vectordb
     - kubedb
     - appscode
     - all
@@ -70,13 +71,15 @@ spec:
                 - name
                 type: object
                 x-kubernetes-map-type: atomic
-              configSecret:
+              configuration:
                 properties:
-                  name:
-                    default: ""
+                  inline:
+                    additionalProperties:
+                      type: string
+                    type: object
+                  secretName:
                     type: string
                 type: object
-                x-kubernetes-map-type: atomic
               deletionPolicy:
                 enum:
                 - Halt

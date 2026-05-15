@@ -57,14 +57,15 @@ const (
 )
 
 const (
-	KubeStashBackupComponent         = "kubestash-backup"
-	KubeStashRestoreComponent        = "kubestash-restore"
-	KubeStashInitializerComponent    = "kubestash-initializer"
-	KubeStashUploaderComponent       = "kubestash-uploader"
-	KubeStashCleanerComponent        = "kubestash-cleaner"
-	KubeStashHookComponent           = "kubestash-hook"
-	KubeStashPopulatorComponent      = "kubestash-populator"
-	KubeStashBackupVerifierComponent = "kubestash-backup-verifier"
+	KubeStashBackupComponent          = "kubestash-backup"
+	KubeStashRestoreComponent         = "kubestash-restore"
+	KubeStashInitializerComponent     = "kubestash-initializer"
+	KubeStashUploaderComponent        = "kubestash-uploader"
+	KubeStashCleanerComponent         = "kubestash-cleaner"
+	KubeStashRetentionPolicyComponent = "kubestash-retention-policy"
+	KubeStashHookComponent            = "kubestash-hook"
+	KubeStashPopulatorComponent       = "kubestash-populator"
+	KubeStashBackupVerifierComponent  = "kubestash-backup-verifier"
 )
 
 // Keys for offshoot labels
@@ -161,6 +162,9 @@ const (
 	OwnerKey              = ".metadata.controller"
 	SnapshotVersionV1     = "v1"
 	DirRepository         = "repository"
+
+	SessionFullBackup     = "full-backup"
+	SessionManifestBackup = "manifest-backup"
 )
 
 // Annotations

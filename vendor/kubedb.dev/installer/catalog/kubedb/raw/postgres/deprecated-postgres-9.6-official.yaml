@@ -3,10 +3,13 @@ kind: PostgresVersion
 metadata:
   name: "9.6"
 spec:
+  coordinator:
+    image: ghcr.io/kubedb/pg-coordinator:v0.48.0
   db:
     image: ghcr.io/kubedb/postgres:9.6
   deprecated: true
   distribution: Official
+  endOfLife: true
   exporter:
     image: ghcr.io/kubedb/operator:0.8.0
   podSecurityPolicies:
@@ -22,10 +25,13 @@ kind: PostgresVersion
 metadata:
   name: 9.6-v1
 spec:
+  coordinator:
+    image: ghcr.io/kubedb/pg-coordinator:v0.48.0
   db:
     image: ghcr.io/kubedb/postgres:9.6-v2
   deprecated: true
   distribution: Official
+  endOfLife: true
   exporter:
     image: ghcr.io/kubedb/postgres_exporter:v0.4.6
   podSecurityPolicies:
@@ -41,10 +47,13 @@ kind: PostgresVersion
 metadata:
   name: 9.6-v2
 spec:
+  coordinator:
+    image: ghcr.io/kubedb/pg-coordinator:v0.48.0
   db:
     image: ghcr.io/kubedb/postgres:9.6-v3
   deprecated: true
   distribution: Official
+  endOfLife: true
   exporter:
     image: ghcr.io/kubedb/postgres_exporter:v0.4.7
   podSecurityPolicies:
@@ -66,10 +75,13 @@ kind: PostgresVersion
 metadata:
   name: 9.6-v3
 spec:
+  coordinator:
+    image: ghcr.io/kubedb/pg-coordinator:v0.48.0
   db:
     image: ghcr.io/kubedb/postgres:9.6-v4
   deprecated: true
   distribution: Official
+  endOfLife: true
   exporter:
     image: ghcr.io/kubedb/postgres_exporter:v0.4.7
   podSecurityPolicies:
@@ -91,10 +103,13 @@ kind: PostgresVersion
 metadata:
   name: 9.6-v4
 spec:
+  coordinator:
+    image: ghcr.io/kubedb/pg-coordinator:v0.48.0
   db:
     image: ghcr.io/kubedb/postgres:9.6-v5
   deprecated: true
   distribution: Official
+  endOfLife: true
   exporter:
     image: ghcr.io/kubedb/postgres_exporter:v0.4.7
   podSecurityPolicies:
@@ -116,10 +131,13 @@ kind: PostgresVersion
 metadata:
   name: 9.6-v5
 spec:
+  coordinator:
+    image: ghcr.io/kubedb/pg-coordinator:v0.48.0
   db:
     image: ghcr.io/kubedb/postgres:9.6-v6
   deprecated: true
   distribution: Official
+  endOfLife: true
   exporter:
     image: ghcr.io/kubedb/postgres_exporter:v0.4.7
   podSecurityPolicies:

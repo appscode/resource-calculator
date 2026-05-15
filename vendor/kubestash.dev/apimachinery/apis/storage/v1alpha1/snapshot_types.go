@@ -215,6 +215,9 @@ type Component struct {
 	VolumeSnapshotterStats []VolumeSnapshotterStats `json:"volumeSnapshotterStats,omitempty"`
 
 	LogStats *LogStats `json:"logStats,omitempty"`
+
+	// ClickHouseStats specifies the ClickHouse Backup specific information
+	ClickHouseStats *ClickHouseStats `json:"clickHouseStats,omitempty"`
 }
 
 type LogStats struct {
@@ -233,6 +236,27 @@ type LogStats struct {
 
 	TotalSucceededCount int64 `json:"totalSucceededCount,omitempty"`
 	LastSucceededStats  []Log `json:"lastSucceededStats,omitempty"`
+
+	LastLogRetentionStats []LogRetentionStatus `json:"lastLogRetentionStats,omitempty"`
+}
+
+type LogRetentionStatus struct {
+	// LastExecutionTime is when the retention cleanup process last ran
+	// (RFC3339 format string).
+	// +optional
+	LastExecutionTime *string `json:"lastExecutionTime,omitempty"`
+
+	// RetentionPeriodApplied is the actual retention period used for this cleanup.
+	// +optional
+	RetentionPeriodApplied string `json:"retentionPeriodApplied,omitempty"`
+
+	// DeletedLogCount indicates how many logs were successfully deleted
+	// +optional
+	DeletedLogCount int64 `json:"deletedLogCount,omitempty"`
+
+	// Error message if this cleanup event failed, empty if succeeded.
+	// +optional
+	Error string `json:"error,omitempty"`
 }
 
 type Log struct {
@@ -355,6 +379,20 @@ type SolrStats struct {
 
 	// Finishing time of the backup
 	UploadedIndexFileMB float64 `json:"uploadedIndexFileMB,omitempty"`
+}
+
+type ClickHouseStats struct {
+	// Id represents the backup id
+	Id string `json:"id,omitempty"`
+
+	// StatusType represents the status of Backup. This can be "IN_PROGRESS","SUCCESS","FAILED" or "UNKNOWN"
+	StatusType string `json:"status,omitempty"`
+
+	// Starting time of the backup
+	StartTime *metav1.Time `json:"startTime,omitempty"`
+
+	// Finishing time of the backup
+	FinishTime *metav1.Time `json:"finishTime,omitempty"`
 }
 
 const (

@@ -29,7 +29,7 @@ import (
 	"kmodules.xyz/client-go/meta"
 )
 
-func (BackupStorage) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
+func (*BackupStorage) CustomResourceDefinition() *apiextensions.CustomResourceDefinition {
 	return crds.MustCustomResourceDefinition(GroupVersion.WithResource(ResourcePluralBackupStorage))
 }
 
@@ -91,4 +91,15 @@ func (b *BackupStorage) LocalNetworkVolume() bool {
 		return true
 	}
 	return false
+}
+
+func (b *BackupStorage) IsCredentialLessModeEnabled() bool {
+	switch b.Spec.Storage.Provider {
+	case ProviderS3:
+		return b.Spec.Storage.S3.SecretName == ""
+		// case ProviderGCS:
+		// case ProviderAzure:
+	default:
+		return false
+	}
 }

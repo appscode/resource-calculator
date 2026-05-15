@@ -3,6 +3,8 @@ kind: MySQLVersion
 metadata:
   name: 8.0.21
 spec:
+  coordinator:
+    image: ghcr.io/kubedb/mysql-coordinator:v0.42.0
   db:
     image: ghcr.io/kubedb/mysql:8.0.21
   deprecated: true
@@ -16,7 +18,7 @@ spec:
   podSecurityPolicies:
     databasePolicyName: mysql-db
   replicationModeDetector:
-    image: ghcr.io/kubedb/replication-mode-detector:v0.47.0-rc.1
+    image: ghcr.io/kubedb/replication-mode-detector:v0.51.0
   securityContext:
     runAsUser: 999
   updateConstraints:
@@ -33,6 +35,8 @@ kind: MySQLVersion
 metadata:
   name: 8.0.21-v1
 spec:
+  coordinator:
+    image: ghcr.io/kubedb/mysql-coordinator:v0.42.0
   db:
     image: ghcr.io/kubedb/mysql:8.0.21-v1
   deprecated: true
@@ -42,11 +46,11 @@ spec:
   gitSyncer:
     image: registry.k8s.io/git-sync/git-sync:v4.4.2
   initContainer:
-    image: tianon/toybox:0.8.11
+    image: docker.io/tianon/toybox:0.8.11
   podSecurityPolicies:
     databasePolicyName: mysql-db
   replicationModeDetector:
-    image: ghcr.io/kubedb/replication-mode-detector:v0.47.0-rc.1
+    image: ghcr.io/kubedb/replication-mode-detector:v0.51.0
   securityContext:
     runAsUser: 999
   stash:
@@ -69,12 +73,14 @@ kind: MySQLVersion
 metadata:
   name: 8.0.21-v2
 spec:
+  coordinator:
+    image: ghcr.io/kubedb/mysql-coordinator:v0.42.0
   db:
-    image: mysql:8.0.21
+    image: docker.io/library/mysql:8.0.21
   deprecated: true
   distribution: Official
   exporter:
-    image: prom/mysqld-exporter:v0.13.0
+    image: docker.io/prom/mysqld-exporter:v0.13.0
   gitSyncer:
     image: registry.k8s.io/git-sync/git-sync:v4.4.2
   initContainer:
@@ -82,7 +88,7 @@ spec:
   podSecurityPolicies:
     databasePolicyName: mysql-db
   replicationModeDetector:
-    image: ghcr.io/kubedb/replication-mode-detector:v0.47.0-rc.1
+    image: ghcr.io/kubedb/replication-mode-detector:v0.51.0
   securityContext:
     runAsUser: 999
   stash:

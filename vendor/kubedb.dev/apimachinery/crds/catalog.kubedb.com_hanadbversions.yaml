@@ -45,6 +45,13 @@ spec:
             type: object
           spec:
             properties:
+              coordinator:
+                properties:
+                  image:
+                    type: string
+                required:
+                - image
+                type: object
               db:
                 properties:
                   image:
@@ -54,8 +61,13 @@ spec:
                 type: object
               deprecated:
                 type: boolean
-              endOfLife:
-                type: boolean
+              exporter:
+                properties:
+                  image:
+                    type: string
+                required:
+                - image
+                type: object
               securityContext:
                 properties:
                   runAsGroup:
@@ -94,7 +106,9 @@ spec:
               version:
                 type: string
             required:
+            - coordinator
             - db
+            - exporter
             - version
             type: object
         type: object

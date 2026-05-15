@@ -32,6 +32,7 @@ type KubedbV1alpha2Interface interface {
 	CassandrasGetter
 	ClickHousesGetter
 	DB2sGetter
+	DocumentDBsGetter
 	DruidsGetter
 	ElasticsearchesGetter
 	EtcdsGetter
@@ -43,7 +44,6 @@ type KubedbV1alpha2Interface interface {
 	MSSQLServersGetter
 	MariaDBsGetter
 	MemcachedsGetter
-	MilvusesGetter
 	MongoDBsGetter
 	MySQLsGetter
 	Neo4jsGetter
@@ -78,6 +78,10 @@ func (c *KubedbV1alpha2Client) ClickHouses(namespace string) ClickHouseInterface
 
 func (c *KubedbV1alpha2Client) DB2s(namespace string) DB2Interface {
 	return newDB2s(c, namespace)
+}
+
+func (c *KubedbV1alpha2Client) DocumentDBs(namespace string) DocumentDBInterface {
+	return newDocumentDBs(c, namespace)
 }
 
 func (c *KubedbV1alpha2Client) Druids(namespace string) DruidInterface {
@@ -122,10 +126,6 @@ func (c *KubedbV1alpha2Client) MariaDBs(namespace string) MariaDBInterface {
 
 func (c *KubedbV1alpha2Client) Memcacheds(namespace string) MemcachedInterface {
 	return newMemcacheds(c, namespace)
-}
-
-func (c *KubedbV1alpha2Client) Milvuses(namespace string) MilvusInterface {
-	return newMilvuses(c, namespace)
 }
 
 func (c *KubedbV1alpha2Client) MongoDBs(namespace string) MongoDBInterface {

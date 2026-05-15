@@ -317,7 +317,7 @@ var (
 
 func (h *Hazelcast) setDefaultContainerResourceLimits(podTemplate *ofst.PodTemplateSpec) {
 	dbContainer := coreutil.GetContainerByName(podTemplate.Spec.Containers, "hazelcast")
-	if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+	if dbContainer != nil {
 		apis.SetDefaultResourceLimits(&dbContainer.Resources, DefaultResourcesMemoryIntensive)
 	}
 
@@ -383,7 +383,8 @@ func (h hazelcastStatsService) Path() string {
 }
 
 func (h hazelcastStatsService) Scheme() string {
-	return ""
+	sc := promapi.SchemeHTTP
+	return sc.String()
 }
 
 func (h hazelcastStatsService) TLSConfig() *promapi.TLSConfig {
@@ -438,6 +439,11 @@ func (h *Hazelcast) CertSecretVolumeMountPath(configDir string, cert string) str
 
 type HazelcastBind struct {
 	*Hazelcast
+}
+
+func (h *Hazelcast) ConfigSecretName() string {
+	uid := string(h.UID)
+	return meta_util.NameWithSuffix(h.OffshootName(), uid[len(uid)-6:])
 }
 
 var _ DBBindInterface = &HazelcastBind{}

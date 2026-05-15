@@ -17,9 +17,7 @@ limitations under the License.
 package v1alpha2
 
 import (
-	core "k8s.io/api/core/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	kmapi "kmodules.xyz/client-go/api/v1"
 	mona "kmodules.xyz/monitoring-agent-api/api/v1"
 	ofst "kmodules.xyz/offshoot-api/api/v2"
@@ -75,9 +73,8 @@ type PgpoolSpec struct {
 	// +optional
 	AuthSecret *SecretReference `json:"authSecret,omitempty"`
 
-	// ConfigSecret is a configuration secret which will be created with default and InitConfiguration
 	// +optional
-	ConfigSecret *core.LocalObjectReference `json:"configSecret,omitempty"`
+	Configuration *PgpoolConfiguration `json:"configuration,omitempty"`
 
 	// Init is used to initialize database
 	// +optional
@@ -86,10 +83,6 @@ type PgpoolSpec struct {
 	// PodTemplate is an optional configuration for pods used to expose Pgpool
 	// +optional
 	PodTemplate *ofst.PodTemplateSpec `json:"podTemplate,omitempty"`
-
-	// InitConfiguration contains information with which the Pgpool will bootstrap
-	// +optional
-	InitConfiguration *PgpoolConfiguration `json:"initConfig,omitempty"`
 
 	// ServiceTemplates is an optional configuration for services used to expose Pgpool
 	// +optional
@@ -138,8 +131,27 @@ type PgpoolStatus struct {
 
 type PgpoolConfiguration struct {
 	// +optional
-	// +kubebuilder:pruning:PreserveUnknownFields
-	PgpoolConfig *runtime.RawExtension `json:"pgpoolConfig,omitempty"`
+	*ConfigurationSpec `json:",inline,omitempty"`
+
+	// Backends are used to specify the load balancing configuration.
+	// Each backend node is represented by a PgpoolLoadBalancingSpec, which includes
+	// the backend’s name, host, port, its corresponding weight, and other
+	// load-balancing parameters.
+	// +optional
+	Backends []PgpoolLoadBalancingSpec `json:"backends,omitempty"`
+}
+
+// PgpoolLoadBalancingSpec defines the load balancing configuration for a backend node in Pgpool.
+type PgpoolLoadBalancingSpec struct {
+	// GroupName should match with read replica group name in the KubeDB controlled postgresql server.
+	// For primary and standby node this should be "PRIMARY" and "STANDBY" respectively.
+	GroupName string `json:"groupName,omitempty"`
+	// HostName is the address of the backend node.
+	HostName string `json:"hostName,omitempty"`
+	Port     *int32 `json:"port,omitempty"`
+	// Flag is used to set Pgpool backend flag (e.g. 'ALLOW_TO_FAILOVER', 'DISALLOW_TO_FAILOVER', 'ALWAYS_PRIMARY')
+	Flag   string `json:"flag,omitempty"`
+	Weight *int32 `json:"weight"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -212,3 +224,21 @@ const (
 	// to Send the client cert and client key certificate for authentication.
 	PgpoolClientAuthModeCert PgpoolClientAuthMode = "cert"
 )
+
+var _ Accessor = &Pgpool{}
+
+func (p *Pgpool) GetObjectMeta() meta.ObjectMeta {
+	return p.ObjectMeta
+}
+
+func (p *Pgpool) GetConditions() []kmapi.Condition {
+	return p.Status.Conditions
+}
+
+func (p *Pgpool) SetCondition(cond kmapi.Condition) {
+	p.Status.Conditions = setCondition(p.Status.Conditions, cond)
+}
+
+func (p *Pgpool) RemoveCondition(typ string) {
+	p.Status.Conditions = removeCondition(p.Status.Conditions, typ)
+}

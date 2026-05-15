@@ -87,6 +87,9 @@ type RabbitMQSpec struct {
 	// +optional
 	ConfigSecret *core.LocalObjectReference `json:"configSecret,omitempty"`
 
+	// +optional
+	Configuration *ConfigurationSpec `json:"configuration,omitempty"`
+
 	// TLS contains tls configurations
 	// +optional
 	TLS *kmapi.TLSConfig `json:"tls,omitempty"`
@@ -163,4 +166,22 @@ type RabbitMQList struct {
 	meta.TypeMeta `json:",inline"`
 	meta.ListMeta `json:"metadata,omitempty"`
 	Items         []RabbitMQ `json:"items"`
+}
+
+var _ Accessor = &RabbitMQ{}
+
+func (m *RabbitMQ) GetObjectMeta() meta.ObjectMeta {
+	return m.ObjectMeta
+}
+
+func (m *RabbitMQ) GetConditions() []kmapi.Condition {
+	return m.Status.Conditions
+}
+
+func (m *RabbitMQ) SetCondition(cond kmapi.Condition) {
+	m.Status.Conditions = setCondition(m.Status.Conditions, cond)
+}
+
+func (m *RabbitMQ) RemoveCondition(typ string) {
+	m.Status.Conditions = removeCondition(m.Status.Conditions, typ)
 }

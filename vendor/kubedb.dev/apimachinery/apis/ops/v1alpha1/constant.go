@@ -122,6 +122,7 @@ const (
 const (
 	Restart              = "Restart"
 	RestartNodes         = "RestartNodes"
+	RestartServers       = "RestartServers"
 	RestartPods          = "RestartPods"
 	RestartKeeperPods    = "RestartKeeperPods"
 	RestartPodsSucceeded = "RestartPodsSucceeded"
@@ -130,6 +131,7 @@ const (
 
 // Reload
 const (
+	ReloadTLS           = "ReloadTLS"
 	ReloadPods          = "ReloadPods"
 	ReloadPodsSucceeded = "ReloadPodsSucceeded"
 	ReloadPodsFailed    = "ReloadPodsFailed"
@@ -213,6 +215,11 @@ const (
 	UpdateBrokerNodePVCs     = "UpdateBrokerNodePVCs"
 	UpdateControllerNodePVCs = "UpdateControllerNodePVCs"
 	UpdateCombinedNodePVCs   = "UpdateCombinedNodePVCs"
+)
+
+// MSSQLServer Constants
+const (
+	PrepareApplyConfig = "PrepareApplyConfig"
 )
 
 // Singlestore Constants
@@ -320,6 +327,11 @@ const (
 	RestartPrimary   = "RestartPrimary"
 	RestartSecondary = "RestartSecondary"
 
+	HorizontallyScaleReadReplica            = "HorizontallyScaleReadReplica"
+	RestartReadReplicas                     = "RestartReadReplicas"
+	UpdateSharedBufferEnvVar                = "UpdateSharedBufferEnvVar"
+	ResumePostgres                          = "ResumePostgres"
+	UpdatePostgresReadReplicaResources      = "UpdatePostgresReadReplicaResources"
 	StartRunScript                          = "StartRunScriptWithRestart"
 	KillRunScript                           = "KillRunScript"
 	StickyLeader                            = "STICKYLEADER" // We want a id(sticky id) to be always leader in raft
@@ -412,4 +424,15 @@ const (
 // Pgpool Constants
 const (
 	UpdateConfigSecret = "UpdateConfigSecret"
+)
+
+// Qdrant Constants
+const (
+	RebalanceShards = "RebalanceShards"
+	RemovePeers     = "RemovePeers"
+)
+
+// Neo4j Constanst
+const (
+	UpdateServerPVCs = "UpdateServerPVCs"
 )

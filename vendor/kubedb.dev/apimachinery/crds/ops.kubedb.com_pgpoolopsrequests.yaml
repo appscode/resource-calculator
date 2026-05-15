@@ -72,6 +72,32 @@ spec:
                     additionalProperties:
                       type: string
                     type: object
+                  backend:
+                    properties:
+                      delete:
+                        items:
+                          type: string
+                        type: array
+                      sync:
+                        items:
+                          properties:
+                            flag:
+                              type: string
+                            groupName:
+                              type: string
+                            hostName:
+                              type: string
+                            port:
+                              format: int32
+                              type: integer
+                            weight:
+                              format: int32
+                              type: integer
+                          required:
+                          - weight
+                          type: object
+                        type: array
+                    type: object
                   configSecret:
                     properties:
                       name:
@@ -81,6 +107,13 @@ spec:
                     x-kubernetes-map-type: atomic
                   removeCustomConfig:
                     type: boolean
+                  restart:
+                    default: auto
+                    enum:
+                    - auto
+                    - "true"
+                    - "false"
+                    type: string
                 type: object
               databaseRef:
                 properties:

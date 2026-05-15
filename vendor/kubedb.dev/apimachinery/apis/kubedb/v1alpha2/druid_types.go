@@ -1,5 +1,5 @@
 /*
-Copyright 2023.
+Copyright AppsCode Inc. and Contributors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -77,10 +77,11 @@ type DruidSpec struct {
 	// +optional
 	Init *InitSpec `json:"init,omitempty"`
 
-	// ConfigSecret is an optional field to provide custom configuration file for database (i.e. config.properties).
+	// Configuration is an optional field to provide custom configuration file for database (i.e. config.properties).
 	// If specified, this file will be used as configuration file otherwise default configuration file will be used.
+	// You can provide custom configurations using Secret or ApplyConfig.
 	// +optional
-	ConfigSecret *core.LocalObjectReference `json:"configSecret,omitempty"`
+	Configuration *ConfigurationSpec `json:"configuration,omitempty"`
 
 	// To enable ssl for http layer
 	EnableSSL bool `json:"enableSSL,omitempty"`
@@ -282,3 +283,21 @@ const (
 	DruidServerCert DruidCertificateAlias = "server"
 	DruidClientCert DruidCertificateAlias = "client"
 )
+
+var _ Accessor = &Druid{}
+
+func (m *Druid) GetObjectMeta() metav1.ObjectMeta {
+	return m.ObjectMeta
+}
+
+func (m *Druid) GetConditions() []kmapi.Condition {
+	return m.Status.Conditions
+}
+
+func (m *Druid) SetCondition(cond kmapi.Condition) {
+	m.Status.Conditions = setCondition(m.Status.Conditions, cond)
+}
+
+func (m *Druid) RemoveCondition(typ string) {
+	m.Status.Conditions = removeCondition(m.Status.Conditions, typ)
+}

@@ -9,6 +9,7 @@ spec:
     image: ghcr.io/appscode-images/kafka-cruise-control:4.0.0
   db:
     image: ghcr.io/appscode-images/kafka:4.0.0
+  endOfLife: true
   initContainer:
     image: ghcr.io/kubedb/kafka-init:4.0-v2
   podSecurityPolicies:
@@ -17,7 +18,7 @@ spec:
     runAsUser: 1001
   ui:
   - name: kafka-ui
-    version: v2024.4.27
+    version: v2026.3.30
   updateConstraints:
     allowlist:
     - '>= 4.0.0'

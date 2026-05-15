@@ -3,8 +3,15 @@ kind: HanaDBVersion
 metadata:
   name: 2.0.82
 spec:
+  coordinator:
+    image: ghcr.io/kubedb/hanadb-coordinator:v0.4.0
   db:
-    image: saplabs/hanaexpress:2.00.082.00.20250528.1
+    image: docker.io/saplabs/hanaexpress:2.00.082.00.20250528.1
+  exporter:
+    image: ghcr.io/kubedb/hanadb-exporter:1.0.0
+  securityContext:
+    runAsGroup: 79
+    runAsUser: 12000
   updateConstraints:
     allowlist:
     - 2.0.82

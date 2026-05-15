@@ -23,6 +23,7 @@ import (
 	core "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	ofstv1 "kmodules.xyz/offshoot-api/api/v1"
 )
 
 const (
@@ -30,6 +31,16 @@ const (
 	ResourceKindPostgresOpsRequest     = "PostgresOpsRequest"
 	ResourceSingularPostgresOpsRequest = "postgresopsrequest"
 	ResourcePluralPostgresOpsRequest   = "postgresopsrequests"
+)
+
+// +kubebuilder:validation:Enum=Durable;Ephemeral
+type StorageType string
+
+const (
+	// default storage type and requires spec.storage to be configured
+	StorageTypeDurable StorageType = "Durable"
+	// Uses emptyDir as storage
+	StorageTypeEphemeral StorageType = "Ephemeral"
 )
 
 // PostgresOpsRequest defines a PostgreSQL DBA operation.
@@ -138,14 +149,58 @@ type PostgresHorizontalScalingSpec struct {
 	// Streaming mode
 	// +kubebuilder:default="Asynchronous"
 	StreamingMode *PostgresStreamingMode `json:"streamingMode,omitempty"`
+
+	// +optional
+	ReadReplicas []ReadReplicaHzScalingSpec `json:"readReplicas,omitempty"`
+}
+
+type ReadReplicaHzScalingSpec struct {
+	// Name specifies the name of the read replica
+	Name string `json:"name"`
+	// Number of instances to deploy for a Postgres database.
+	Replicas *int32 `json:"replicas,omitempty"`
+	// Compute Resources required by the sidecar container.
+	// +optional
+	Resources core.ResourceRequirements `json:"resources,omitempty"`
+	// NodeSelector is a selector which must be true for the pod to fit on a node.
+	// Selector which must match a node's labels for the pod to be scheduled on that node.
+	// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+	// +optional
+	// +mapType=atomic
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+	// If specified, the pod's tolerations.
+	// +optional
+	Tolerations []core.Toleration `json:"tolerations,omitempty"`
+	// StorageType can be durable (default) or ephemeral
+	StorageType StorageType `json:"storageType,omitempty"`
+	// Storage to specify how storage shall be used.
+	Storage *core.PersistentVolumeClaimSpec `json:"storage,omitempty"`
+	// PodPlacementPolicy is the reference of the podPlacementPolicy
+	// +kubebuilder:default={name:"default"}
+	// +optional
+	PodPlacementPolicy *core.LocalObjectReference `json:"podPlacementPolicy,omitempty"`
+	// ServiceTemplate is an optional configuration for services used to expose database
+	// +optional
+	ServiceTemplate *ofstv1.ServiceTemplateSpec `json:"serviceTemplate,omitempty"`
+	// We can use replicas: 0 for removing a read replica group instead of specifying remove: true
+	// However it feels more convenient to have a separate field for removing a read replica group
+	// TODO: in case we go with replicas: 0 for removing, remove the validation webhook that checks for replicas < 1
+	// +optional
+	Remove bool `json:"remove,omitempty"`
 }
 
 // PostgresVerticalScalingSpec is the spec for Postgres vertical scaling
 type PostgresVerticalScalingSpec struct {
-	Postgres    *PodResources       `json:"postgres,omitempty"`
-	Exporter    *ContainerResources `json:"exporter,omitempty"`
-	Coordinator *ContainerResources `json:"coordinator,omitempty"`
-	Arbiter     *PodResources       `json:"arbiter,omitempty"`
+	Postgres     *PodResources          `json:"postgres,omitempty"`
+	Exporter     *ContainerResources    `json:"exporter,omitempty"`
+	Coordinator  *ContainerResources    `json:"coordinator,omitempty"`
+	Arbiter      *PodResources          `json:"arbiter,omitempty"`
+	ReadReplicas []ReadReplicaResources `json:"readReplicas,omitempty"`
+}
+
+type ReadReplicaResources struct {
+	Postgres *PodResources `json:"postgres,omitempty"`
+	Name     string        `json:"name,omitempty"`
 }
 
 type PostgresMigrationSpec struct {
@@ -162,9 +217,8 @@ type PostgresVolumeExpansionSpec struct {
 }
 
 type PostgresCustomConfigurationSpec struct {
-	ConfigSecret       *core.LocalObjectReference `json:"configSecret,omitempty"`
-	ApplyConfig        map[string]string          `json:"applyConfig,omitempty"`
-	RemoveCustomConfig bool                       `json:"removeCustomConfig,omitempty"`
+	Tuning              *PostgresTuningConfig `json:"tuning,omitempty"`
+	ReconfigurationSpec `json:",inline,omitempty"`
 }
 
 type PostgresCustomConfiguration struct {
@@ -186,6 +240,60 @@ type PostgresForceFailOver struct {
 type PostgresSetRaftKeyPair struct {
 	KeyPair map[string]string `json:"keyPair,omitempty"`
 }
+
+// PostgresTuningConfig defines configuration for PostgreSQL performance tuning
+type PostgresTuningConfig struct {
+	// Profile defines a predefined tuning profile for different workload types.
+	// If specified, other tuning parameters will be calculated based on this profile.
+	// +optional
+	Profile *PostgresProfile `json:"profile,omitempty"`
+
+	// MaxConnections defines the maximum number of concurrent connections.
+	// If not specified, it will be calculated based on available memory and tuning profile.
+	// +optional
+	MaxConnections *int32 `json:"maxConnections,omitempty"`
+
+	// StorageType defines the type of storage for tuning purposes.
+	// If not specified, it will be inferred from StorageClass or default to HDD.
+	// +optional
+	StorageType *PostgresStorageType `json:"storageType,omitempty"`
+
+	// DisableAutoTune disables automatic tuning entirely.
+	// If set to true, no tuning will be applied.
+	// +optional
+	DisableAutoTune bool `json:"disableAutoTune,omitempty"`
+}
+
+// PostgresProfile defines predefined tuning profiles
+// +kubebuilder:validation:Enum=web;oltp;dw;mixed;desktop
+type PostgresProfile string
+
+const (
+	// PostgresTuningProfileWeb optimizes for web applications with many simple queries
+	PostgresTuningProfileWeb PostgresProfile = "web"
+
+	// PostgresTuningProfileOLTP optimizes for OLTP workloads with many short transactions
+	PostgresTuningProfileOLTP PostgresProfile = "oltp"
+
+	// PostgresTuningProfileDW optimizes for data warehousing with complex analytical queries
+	PostgresTuningProfileDW PostgresProfile = "dw"
+
+	// PostgresTuningProfileMixed optimizes for mixed workloads
+	PostgresTuningProfileMixed PostgresProfile = "mixed"
+
+	// PostgresTuningProfileDesktop optimizes for desktop or development environments
+	PostgresTuningProfileDesktop PostgresProfile = "desktop"
+)
+
+// PostgresStorageType defines storage types for tuning purposes
+// +kubebuilder:validation:Enum=ssd;hdd;san
+type PostgresStorageType string
+
+const (
+	PostgresStorageTypeSSD PostgresStorageType = "ssd"
+	PostgresStorageTypeHDD PostgresStorageType = "hdd"
+	PostgresStorageTypeSAN PostgresStorageType = "san"
+)
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 

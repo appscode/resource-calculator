@@ -128,6 +128,15 @@ spec:
                         type: string
                     type: object
                     x-kubernetes-map-type: atomic
+                  configuration:
+                    properties:
+                      inline:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      secretName:
+                        type: string
+                    type: object
                   podTemplate:
                     properties:
                       controller:
@@ -3424,6 +3433,15 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              configuration:
+                properties:
+                  inline:
+                    additionalProperties:
+                      type: string
+                    type: object
+                  secretName:
+                    type: string
+                type: object
               deletionPolicy:
                 enum:
                 - Halt
@@ -3475,6 +3493,15 @@ spec:
                         type: string
                     type: object
                     x-kubernetes-map-type: atomic
+                  configuration:
+                    properties:
+                      inline:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      secretName:
+                        type: string
+                    type: object
                   podTemplate:
                     properties:
                       controller:
@@ -8108,12 +8135,119 @@ spec:
                         type: object
                       serviceMonitor:
                         properties:
+                          endpoints:
+                            items:
+                              properties:
+                                metricRelabelings:
+                                  items:
+                                    properties:
+                                      action:
+                                        default: replace
+                                        enum:
+                                        - replace
+                                        - Replace
+                                        - keep
+                                        - Keep
+                                        - drop
+                                        - Drop
+                                        - hashmod
+                                        - HashMod
+                                        - labelmap
+                                        - LabelMap
+                                        - labeldrop
+                                        - LabelDrop
+                                        - labelkeep
+                                        - LabelKeep
+                                        - lowercase
+                                        - Lowercase
+                                        - uppercase
+                                        - Uppercase
+                                        - keepequal
+                                        - KeepEqual
+                                        - dropequal
+                                        - DropEqual
+                                        type: string
+                                      modulus:
+                                        format: int64
+                                        type: integer
+                                      regex:
+                                        type: string
+                                      replacement:
+                                        type: string
+                                      separator:
+                                        type: string
+                                      sourceLabels:
+                                        items:
+                                          type: string
+                                        type: array
+                                      targetLabel:
+                                        type: string
+                                    type: object
+                                  type: array
+                                port:
+                                  type: string
+                                relabelings:
+                                  items:
+                                    properties:
+                                      action:
+                                        default: replace
+                                        enum:
+                                        - replace
+                                        - Replace
+                                        - keep
+                                        - Keep
+                                        - drop
+                                        - Drop
+                                        - hashmod
+                                        - HashMod
+                                        - labelmap
+                                        - LabelMap
+                                        - labeldrop
+                                        - LabelDrop
+                                        - labelkeep
+                                        - LabelKeep
+                                        - lowercase
+                                        - Lowercase
+                                        - uppercase
+                                        - Uppercase
+                                        - keepequal
+                                        - KeepEqual
+                                        - dropequal
+                                        - DropEqual
+                                        type: string
+                                      modulus:
+                                        format: int64
+                                        type: integer
+                                      regex:
+                                        type: string
+                                      replacement:
+                                        type: string
+                                      separator:
+                                        type: string
+                                      sourceLabels:
+                                        items:
+                                          type: string
+                                        type: array
+                                      targetLabel:
+                                        type: string
+                                    type: object
+                                  type: array
+                              type: object
+                            type: array
                           interval:
                             type: string
                           labels:
                             additionalProperties:
                               type: string
                             type: object
+                          podTargetLabels:
+                            items:
+                              type: string
+                            type: array
+                          targetLabels:
+                            items:
+                              type: string
+                            type: array
                         type: object
                     type: object
                 type: object
@@ -11455,6 +11589,15 @@ spec:
                             type: string
                         type: object
                         x-kubernetes-map-type: atomic
+                      configuration:
+                        properties:
+                          inline:
+                            additionalProperties:
+                              type: string
+                            type: object
+                          secretName:
+                            type: string
+                        type: object
                       ephemeralStorage:
                         properties:
                           medium:
@@ -14807,6 +14950,15 @@ spec:
                             type: string
                         type: object
                         x-kubernetes-map-type: atomic
+                      configuration:
+                        properties:
+                          inline:
+                            additionalProperties:
+                              type: string
+                            type: object
+                          secretName:
+                            type: string
+                        type: object
                       podTemplate:
                         properties:
                           controller:
@@ -18060,6 +18212,15 @@ spec:
                             type: string
                         type: object
                         x-kubernetes-map-type: atomic
+                      configuration:
+                        properties:
+                          inline:
+                            additionalProperties:
+                              type: string
+                            type: object
+                          secretName:
+                            type: string
+                        type: object
                       ephemeralStorage:
                         properties:
                           medium:
@@ -28849,12 +29010,119 @@ spec:
                         type: object
                       serviceMonitor:
                         properties:
+                          endpoints:
+                            items:
+                              properties:
+                                metricRelabelings:
+                                  items:
+                                    properties:
+                                      action:
+                                        default: replace
+                                        enum:
+                                        - replace
+                                        - Replace
+                                        - keep
+                                        - Keep
+                                        - drop
+                                        - Drop
+                                        - hashmod
+                                        - HashMod
+                                        - labelmap
+                                        - LabelMap
+                                        - labeldrop
+                                        - LabelDrop
+                                        - labelkeep
+                                        - LabelKeep
+                                        - lowercase
+                                        - Lowercase
+                                        - uppercase
+                                        - Uppercase
+                                        - keepequal
+                                        - KeepEqual
+                                        - dropequal
+                                        - DropEqual
+                                        type: string
+                                      modulus:
+                                        format: int64
+                                        type: integer
+                                      regex:
+                                        type: string
+                                      replacement:
+                                        type: string
+                                      separator:
+                                        type: string
+                                      sourceLabels:
+                                        items:
+                                          type: string
+                                        type: array
+                                      targetLabel:
+                                        type: string
+                                    type: object
+                                  type: array
+                                port:
+                                  type: string
+                                relabelings:
+                                  items:
+                                    properties:
+                                      action:
+                                        default: replace
+                                        enum:
+                                        - replace
+                                        - Replace
+                                        - keep
+                                        - Keep
+                                        - drop
+                                        - Drop
+                                        - hashmod
+                                        - HashMod
+                                        - labelmap
+                                        - LabelMap
+                                        - labeldrop
+                                        - LabelDrop
+                                        - labelkeep
+                                        - LabelKeep
+                                        - lowercase
+                                        - Lowercase
+                                        - uppercase
+                                        - Uppercase
+                                        - keepequal
+                                        - KeepEqual
+                                        - dropequal
+                                        - DropEqual
+                                        type: string
+                                      modulus:
+                                        format: int64
+                                        type: integer
+                                      regex:
+                                        type: string
+                                      replacement:
+                                        type: string
+                                      separator:
+                                        type: string
+                                      sourceLabels:
+                                        items:
+                                          type: string
+                                        type: array
+                                      targetLabel:
+                                        type: string
+                                    type: object
+                                  type: array
+                              type: object
+                            type: array
                           interval:
                             type: string
                           labels:
                             additionalProperties:
                               type: string
                             type: object
+                          podTargetLabels:
+                            items:
+                              type: string
+                            type: array
+                          targetLabels:
+                            items:
+                              type: string
+                            type: array
                         type: object
                     type: object
                 type: object

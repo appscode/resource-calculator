@@ -173,7 +173,8 @@ func (ks DruidStatsService) Path() string {
 }
 
 func (ks DruidStatsService) Scheme() string {
-	return ""
+	sc := promapi.SchemeHTTP
+	return sc.String()
 }
 
 func (d *Druid) StatsService() mona.StatsAccessor {
@@ -185,7 +186,8 @@ func (d *Druid) StatsServiceLabels() map[string]string {
 }
 
 func (d *Druid) ConfigSecretName() string {
-	return meta_util.NameWithSuffix(d.OffShootName(), "config")
+	uid := string(d.UID)
+	return meta_util.NameWithSuffix(d.OffShootName(), uid[len(uid)-6:])
 }
 
 func (d *Druid) PetSetName(nodeRole DruidNodeRoleType) string {
@@ -725,7 +727,7 @@ func (d *Druid) assignDefaultContainerSecurityContext(druidVersion *catalog.Drui
 
 func (d *Druid) setDefaultContainerResourceLimits(podTemplate *ofst.PodTemplateSpec, nodeRole DruidNodeRoleType) {
 	dbContainer := coreutil.GetContainerByName(podTemplate.Spec.Containers, kubedb.DruidContainerName)
-	if dbContainer != nil && (dbContainer.Resources.Requests == nil && dbContainer.Resources.Limits == nil) {
+	if dbContainer != nil {
 		if nodeRole == DruidNodeRoleMiddleManagers {
 			apis.SetDefaultResourceLimits(&dbContainer.Resources, kubedb.DefaultResourcesMemoryIntensiveDruid)
 		} else {
