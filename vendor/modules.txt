@@ -1062,7 +1062,7 @@ kmodules.xyz/resource-metadata/apis/node
 kmodules.xyz/resource-metadata/apis/node/v1alpha1
 kmodules.xyz/resource-metadata/apis/shared
 kmodules.xyz/resource-metadata/crds
-# kmodules.xyz/resource-metrics v0.34.2
+# kmodules.xyz/resource-metrics v0.34.3-0.20260605022022-00425669707f
 ## explicit; go 1.24.0
 kmodules.xyz/resource-metrics
 kmodules.xyz/resource-metrics/api
@@ -1123,7 +1123,7 @@ kubedb.dev/apimachinery/crds
 kubedb.dev/apimachinery/pkg/double_optin
 kubedb.dev/apimachinery/pkg/utils
 kubedb.dev/apimachinery/pkg/utils/raft
-# kubedb.dev/installer v0.17.2-0.20260515103054-40e2440985ab
+# kubedb.dev/installer v0.17.2-0.20260604185309-f2ac49c86059
 ## explicit; go 1.25.5
 kubedb.dev/installer/catalog/kubedb
 # kubeops.dev/operator-shard-manager v0.0.6-0.20260418091213-65daf7da824d
