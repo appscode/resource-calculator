@@ -48,8 +48,15 @@ credentials). It covers the parts that carry the logic:
   serverless exclusion), `parseAWSElastiCacheReplicationGroups`,
   `parseAzureFlex`, `parseGCPCloudSQL`, `parseOCIMySQL`, `parseAtlasClusters`,
   `parseElasticDeployment`, `parseClickHouseServices`.
+- Operator extractors (`compare operators`): `TestOperatorExtract*` run each
+  operator descriptor's extractor on a sample CR (CloudNativePG, Strimzi's
+  kafka+zookeeper components, Percona replsets, and the unknown-memory note).
+- Image classifier: `TestClassifyDBImage` maps Bitnami / Chainguard / Docker
+  Hardened Image references to (vendor, engine) and rejects `*-exporter`
+  sidecars and untargeted (operator / upstream) images.
 
-When you add a provider or a sizing entry, add a parser test and a catalog test
+When you add a cloud provider or sizing entry, add a parser test and a catalog
+test. When you add an operator or image vendor, add an extractor/classifier test
 in the same file.
 
 ## Testing `compare` offline (file mode)
@@ -96,6 +103,29 @@ Without credentials the SDK and REST paths surface a clear per-service warning
 and produce an empty report rather than crashing; that is the expected
 "unconfigured" behavior. Required credentials and scope flags per provider are
 in `docs/compare.md`.
+
+## Testing `compare operators` (cluster scan)
+
+The operator and image-detection logic is unit-tested offline (the operator
+extractors and image classifier above). The live scan needs a cluster:
+
+```bash
+resource-calculator compare operators --prod --kubedb-rate-prod=8
+resource-calculator compare operators -n team-a -o json   # scope to one namespace
+```
+
+To exercise it end to end, point your kubeconfig at a throwaway cluster (for
+example kind), install an operator or a Bitnami/Chainguard chart, and run the
+command. Operators whose CRDs are absent are skipped; CRs and workloads without
+a memory limit/request are listed with a warning and zero memory; with no
+reachable cluster the command returns the client/config error.
+
+Single-test runs for the offline logic:
+
+```bash
+go test -mod=vendor ./pkg/compare/ -run TestOperatorExtract
+go test -mod=vendor ./pkg/compare/ -run TestClassifyDBImage
+```
 
 ## Linting notes
 

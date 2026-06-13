@@ -129,6 +129,24 @@ Each provider's SDK discoverer lives in its own `*_sdk.go` file and reuses the
 same sizing (`catalog.go`) and pricing helpers as the CLI/REST/file paths, so
 all sources produce identical `ManagedDatabase` records.
 
+### Self-hosted operators (`compare operators`)
+
+`compare operators` is a separate, cluster-scoped discovery path (not a cloud
+`Source`). It uses the controller-runtime client with unstructured objects to
+detect alternative database operators by their CRD group/version/kind and to
+read each CR's pod memory limit (or request) and replica/size field,
+normalizing to the same `ManagedDatabase`. The operator catalog and per-CR
+extractors live in `operators.go`; the scan (`DiscoverOperators`) lives in
+`kubernetes.go`. A second scan (`DiscoverImageWorkloads`, also in
+`kubernetes.go`) inspects StatefulSet and Deployment container images and
+counts databases shipped as Bitnami, Chainguard or Docker Hardened Images; the
+image-to-engine catalog is in `images.go`. Only those three image families are
+matched, so operator and upstream images are not double counted. The resulting `Report` is marked `SelfHosted`, so it renders a
+per-operator breakdown and the KubeDB cost to manage the estate, with no
+managed-spend or savings line (the alternatives are mostly open source). No
+project is added to `go.mod`: detection and reading go entirely through
+unstructured objects, and controller-runtime is already a dependency.
+
 ### The collector pattern
 
 Hyperscaler discoverers (AWS, Azure, GCP, OCI) share a `collector`:
@@ -233,7 +251,10 @@ pkg/compare/
   elastic.go            Elastic Cloud REST/file discoverer + parser
   elastic_sdk.go        Elastic official-SDK discoverer (cloud-sdk-go)
   clickhouse.go         ClickHouse Cloud REST/file discoverer + parser (no official SDK)
-  compare_test.go       catalog, pricing, savings and parser tests
+  operators.go          alternative-operator catalog (GVK + unstructured extractors)
+  images.go             Bitnami/Chainguard/Docker Hardened Image classifier
+  kubernetes.go         compare operators: controller-runtime cluster scan (CRDs + images)
+  compare_test.go       catalog, pricing, savings, parser and operator-extractor tests
 ```
 
 ## 11. Key design decisions

@@ -180,8 +180,13 @@ func (p KubeDBPricing) MonthlyCost(totalGiB float64) float64 {
 type Report struct {
 	GeneratedAt time.Time `json:"generatedAt"`
 	// Scope is the provider name, or "all" for an aggregated report.
-	Scope     string            `json:"scope"`
-	Databases []ManagedDatabase `json:"databases"`
+	Scope string `json:"scope"`
+	// SelfHosted marks a report for in-cluster operator-managed databases, where
+	// there is no managed-service spend to compare against (the alternatives are
+	// mostly open source); the report instead shows the KubeDB license cost to
+	// manage the discovered estate.
+	SelfHosted bool              `json:"selfHosted,omitempty"`
+	Databases  []ManagedDatabase `json:"databases"`
 
 	DatabaseCount int     `json:"databaseCount"`
 	NodeCount     int     `json:"nodeCount"`

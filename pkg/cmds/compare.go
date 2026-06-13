@@ -25,6 +25,7 @@ import (
 	"kubeops.dev/resource-calculator/pkg/compare"
 
 	"github.com/spf13/cobra"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
 
 // compareFlags holds the flags shared by every `compare` subcommand plus the
@@ -77,8 +78,8 @@ func (f *compareFlags) pricing() compare.KubeDBPricing {
 }
 
 // NewCmdCompare builds the `compare` command tree: one subcommand per supported
-// managed-database provider plus `all`.
-func NewCmdCompare() *cobra.Command {
+// managed-database provider, `all`, and `operators` (in-cluster scan).
+func NewCmdCompare(clientGetter genericclioptions.RESTClientGetter) *cobra.Command {
 	f := &compareFlags{
 		source:       string(compare.SourceAuto),
 		output:       "text",
@@ -122,7 +123,50 @@ picks file when --from-file is set, otherwise the SDK (REST for ClickHouse).`,
 		cmd.AddCommand(newCompareProviderCmd(p, f))
 	}
 	cmd.AddCommand(newCompareAllCmd(f))
+	cmd.AddCommand(newCompareOperatorsCmd(clientGetter, f))
 	return cmd
+}
+
+// newCompareOperatorsCmd scans the current cluster for databases managed by
+// alternative (non-KubeDB) operators and reports the KubeDB cost to manage them.
+func newCompareOperatorsCmd(clientGetter genericclioptions.RESTClientGetter, f *compareFlags) *cobra.Command {
+	return &cobra.Command{
+		Use:   "operators",
+		Short: "Discover databases run by alternative Kubernetes operators and compare against KubeDB",
+		Long: `Scan the current cluster for self-hosted databases and report the KubeDB cost
+to manage them. Two sources are detected, purely via the controller-runtime
+client and unstructured objects (no dependency on any of these projects):
+
+  - databases managed by alternative operators (CloudNativePG, Zalando, Percona,
+    Strimzi, ECK, Altinity, and more), detected by their CRDs; and
+  - databases deployed from Bitnami, Chainguard or Docker Hardened Images,
+    detected by the container image on StatefulSets and Deployments.
+
+Respects -n/--namespace; defaults to all namespaces.`,
+		DisableAutoGenTag: true,
+		Args:              cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := clientGetter.ToRESTConfig()
+			if err != nil {
+				return err
+			}
+			namespace, _ := cmd.Flags().GetString("namespace")
+			dbs, warnings, err := compare.DiscoverOperators(cmd.Context(), cfg, namespace)
+			if err != nil {
+				return err
+			}
+			imgDBs, imgWarnings, err := compare.DiscoverImageWorkloads(cmd.Context(), cfg, namespace)
+			if err != nil {
+				return err
+			}
+			dbs = append(dbs, imgDBs...)
+			warnings = append(warnings, imgWarnings...)
+
+			report := compare.BuildReport("operators", dbs, f.pricing(), warnings)
+			report.SelfHosted = true
+			return compare.Render(os.Stdout, report, f.output)
+		},
+	}
 }
 
 func newCompareProviderCmd(p compare.Provider, f *compareFlags) *cobra.Command {

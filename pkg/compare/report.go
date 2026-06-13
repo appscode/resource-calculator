@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"text/tabwriter"
 
@@ -88,6 +89,12 @@ func renderText(w io.Writer, r *Report) error {
 			int(DefaultMinProdGiB), trimFloat(r.BillableMemoryGiB))
 	}
 
+	if r.SelfHosted {
+		renderSelfHosted(w, r)
+		renderWarnings(w, r)
+		return nil
+	}
+
 	if r.CostKnown {
 		fprintf(w, "Estimated current managed spend: %s/mo  (%s/yr)\n",
 			money(r.CurrentMonthlyUSD), money(r.CurrentMonthlyUSD*12))
@@ -133,6 +140,57 @@ func renderWarnings(w io.Writer, r *Report) {
 	for _, msg := range r.Warnings {
 		fprintf(w, "  - %s\n", msg)
 	}
+}
+
+// renderSelfHosted prints the operator breakdown and the KubeDB cost to manage
+// the discovered in-cluster estate (there is no managed-service spend to
+// compare against, so no savings line).
+func renderSelfHosted(w io.Writer, r *Report) {
+	type opAgg struct {
+		dbs, nodes int
+		mem        float64
+	}
+	aggs := map[string]*opAgg{}
+	var order []string
+	for _, d := range r.Databases {
+		a := aggs[d.Service]
+		if a == nil {
+			a = &opAgg{}
+			aggs[d.Service] = a
+			order = append(order, d.Service)
+		}
+		a.dbs++
+		a.nodes += d.NodeCount
+		a.mem += d.TotalMemoryGiB()
+	}
+	sort.SliceStable(order, func(i, j int) bool { return aggs[order[i]].mem > aggs[order[j]].mem })
+
+	fprintln(w)
+	fprintln(w, "Discovered operators (self-hosted, in-cluster):")
+	const padding = 3
+	tw := tabwriter.NewWriter(w, 0, 0, padding, ' ', tabwriter.TabIndent)
+	fprintln(tw, "OPERATOR\tDATABASES\tNODES\tTOTAL MEM\tLICENSING\t")
+	for _, op := range order {
+		a := aggs[op]
+		fprintf(tw, "%s\t%d\t%d\t%s\t%s\t\n", op, a.dbs, a.nodes, gib(a.mem), dash(operatorLicensing(op)))
+	}
+	_ = tw.Flush()
+
+	fprintln(w)
+	if r.RateConfigured {
+		mode := "non-production"
+		if r.Prod {
+			mode = "production"
+		}
+		fprintf(w, "KubeDB cost to manage this estate (%s @ $%s/GiB/mo): %s/mo  (%s/yr)\n",
+			mode, trimFloat(r.KubeDBRateUSD), money(r.KubeDBMonthlyUSD), money(r.KubeDBMonthlyUSD*12))
+	} else {
+		fprintln(w, "Set --kubedb-rate-prod / --kubedb-rate-nonprod (USD per GiB per month) to")
+		fprintln(w, "compute the KubeDB cost to manage this estate.")
+	}
+	fprintln(w)
+	fprintln(w, "Note: these operators are mostly open source (no license fee). The cost above is")
+	fprintln(w, "what KubeDB would charge to manage the same database-server memory.")
 }
 
 func dash(s string) string {

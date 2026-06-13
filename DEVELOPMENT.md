@@ -93,6 +93,22 @@ To add a provider:
    cases. Reuse the same sizing/pricing helpers so all sources match.
 5. Add a parser test and a catalog test (see `TEST.md`).
 
+The `compare operators` command (in-cluster scan) is separate from the cloud
+providers. It detects databases two ways, both through the controller-runtime
+client and unstructured objects, with no dependency on the scanned projects:
+
+- Operator-managed CRs: add a descriptor (GVK plus an extractor that reads
+  replicas and memory from the CR) to `operators.go`. The scan is
+  `DiscoverOperators` in `kubernetes.go`.
+- Vendor images (Bitnami / Chainguard / Docker Hardened Images): add the image
+  base name to `dbImageNames` in `images.go` (and, for a new vendor, the
+  registry match in `classifyDBImage` plus an `imageVendorLicensing` entry). The
+  scan is `DiscoverImageWorkloads` in `kubernetes.go`.
+
+Do not add a go.mod dependency on any operator or image project; detect and read
+everything through unstructured objects. Add an extractor or classifier test
+(see `TEST.md`).
+
 Notes:
 
 - ClickHouse Cloud has no official Go control-plane SDK; it stays on REST and

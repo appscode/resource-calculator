@@ -11,7 +11,9 @@ managed database is reduced to `memory per node x node count`, summed across the
 whole estate, and the KubeDB cost is derived from that one number.
 
 Supported providers: `aws`, `azure`, `gcp`, `oci`, `atlas` (MongoDB Atlas),
-`elastic` (Elastic Cloud), `clickhouse` (ClickHouse Cloud), plus `all`.
+`elastic` (Elastic Cloud), `clickhouse` (ClickHouse Cloud), plus `all`. The
+`operators` subcommand instead scans the current cluster for databases run by
+alternative (non-KubeDB) operators (see "Comparing self-hosted operators").
 
 ## Quick start
 
@@ -183,6 +185,56 @@ parsers (for example AWS `db.*`/`cache.*` map to the underlying EC2 family
 memory, GCP `db-custom-CPU-MEMMB` encodes memory in the name, Atlas M-tiers map
 to published RAM). Unknown classes are reported with a warning and excluded from
 the memory total rather than guessed.
+
+## Comparing self-hosted operators (`compare operators`)
+
+`compare operators` scans the current cluster (your kubeconfig context) for
+databases managed by alternative, non-KubeDB operators and reports the KubeDB
+cost to manage the same memory. It detects each operator purely by the presence
+of its CRD (group/version/kind), using the controller-runtime client with
+unstructured objects, so the binary takes no build dependency on any of these
+projects. Operators whose CRDs are absent are skipped.
+
+It also detects databases deployed from vendor images rather than an operator,
+by inspecting the container images on StatefulSets and Deployments: Bitnami
+(`docker.io/bitnami/*`, legacy `bitnamilegacy/*`), Chainguard (`cgr.dev/.../*`)
+and Docker Hardened Images (`dhi.io/*`). Only these three image families are
+matched, so operator-managed and upstream-official images are not double
+counted, and metrics sidecars (`*-exporter`) are ignored.
+
+```bash
+resource-calculator compare operators --prod --kubedb-rate-prod=8
+resource-calculator compare operators -n team-a -o json   # scope to one namespace
+```
+
+It reads the pod memory limit (falling back to the request) and the
+replica/size field from each CR, multiplies them (the same metric KubeDB bills
+on), and groups the result by operator. Because these operators are mostly open
+source (no license fee), the report shows the discovered memory footprint and
+the KubeDB license cost to manage it, rather than a savings number.
+
+Detected operators include:
+
+- PostgreSQL: CloudNativePG, Zalando, StackGres, Percona
+- MySQL / MariaDB: Percona XtraDB, Oracle MySQL Operator, MOCO, Bitpoke, mariadb-operator
+- MongoDB: Percona Server for MongoDB, MongoDB Community Operator
+- Redis: Spotahome, OpsTree, DragonflyDB, Redis Enterprise
+- Search: Elastic ECK, OpenSearch Operator, Apache Solr Operator
+- Streaming: Strimzi (Kafka), RabbitMQ Cluster Operator
+- Analytics: Altinity ClickHouse
+- Cassandra: cass-operator (K8ssandra), Scylla
+- Other: Hazelcast
+- Image-deployed (matched by container image): Bitnami, Bitnami (legacy),
+  Chainguard, Docker Hardened Images
+
+Notes:
+
+- Memory comes from the CR's pod resource limit/request. A CR without resource
+  limits is listed with a warning and zero memory (it cannot be sized).
+- `--namespace`/`-n` scopes the scan; the default is all namespaces.
+- To add an operator, add a descriptor (GVK + extractor) to
+  `pkg/compare/operators.go`. No new module dependency is required because
+  detection and reading are done through unstructured objects.
 
 ## Implementation notes
 

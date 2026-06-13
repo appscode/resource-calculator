@@ -98,6 +98,22 @@ resource-calculator compare aws --source=file --from-file=aws-bundle.json \
 ClickHouse). Credentials per provider and the `--from-file` bundle formats are
 documented in [docs/compare.md](docs/compare.md).
 
+### Self-hosted operators
+
+`compare operators` scans the current cluster for self-hosted databases and
+reports the KubeDB cost to manage them. It finds databases run by alternative
+(non-KubeDB) operators (CloudNativePG, Zalando, Percona, Strimzi, ECK, Altinity,
+and more), detected by their CRDs, and databases deployed from Bitnami,
+Chainguard or Docker Hardened Images, detected by container image. Both use the
+controller-runtime client and unstructured objects, with no dependency on those
+projects:
+
+```bash
+resource-calculator compare operators --prod --kubedb-rate-prod=8
+```
+
+See [docs/compare.md](docs/compare.md) for the full operator list and behavior.
+
 ### Pricing and savings
 
 The headline is `current managed spend - KubeDB license cost`.

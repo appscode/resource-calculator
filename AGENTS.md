@@ -49,6 +49,8 @@ flags -> Options + KubeDBPricing  ->  DiscovererFor(p).Discover  ->  []ManagedDa
 
 Providers: `aws`, `azure`, `gcp`, `oci` (hyperscalers: SDK + CLI + file); `atlas`, `elastic` (DBaaS: SDK + REST + file); `clickhouse` (REST + file, no official Go SDK). The CLI/file paths share parsers via `collector`; a `--from-file` bundle is a JSON object keyed by collector (formats in `docs/compare.md`). The managed-cost numbers are memory-normalized list-price anchors flagged `CostEstimated`; the KubeDB rate is a required flag (the public rate is quote-based, so there is no default).
 
+`compare operators` is a separate, cluster-scoped path (not a cloud `Source`). It detects alternative database operators (CloudNativePG, Zalando, Percona, Strimzi, ECK, Altinity, cass-operator, and more) by CRD group/version/kind using the controller-runtime client with unstructured objects, reads memory-limit x replicas from each CR, and reports the KubeDB cost to manage the self-hosted estate (`Report.SelfHosted`, no savings line since the alternatives are mostly open source). The operator catalog and per-CR extractors are in `operators.go`; the scan (`DiscoverOperators`) is in `kubernetes.go`. It also detects databases shipped as Bitnami/Chainguard/Docker Hardened Images by inspecting StatefulSet/Deployment container images (`DiscoverImageWorkloads` in `kubernetes.go`, image catalog in `images.go`). No project is added to `go.mod` for any of this; detection and reading are entirely through unstructured objects (controller-runtime is already a dependency).
+
 ## Things to know before changing code
 
 - `pkg/cmds/calculate.go` `Convert_kubedb_v1alpha1_To_v1alpha2` and the `registeredKubeDBTypes` list in `check_deprecated.go` must stay in sync -- adding a new KubeDB kind to one without the other will silently skip it.
@@ -64,6 +66,7 @@ Specific to `compare` and its cloud SDKs:
 - `go get` can silently downgrade the `kubedb.dev/*` and `kubestash.dev/*` pseudo-version pins (they share the transitive `github.com/Azure/azure-sdk-for-go` umbrella graph). After any `go get`, re-pin them to the versions in `go.mod` and confirm `git diff go.mod` shows only intended changes.
 - ClickHouse Cloud has no official Go control-plane SDK; it stays on REST (`--source=sdk` is rejected for it).
 - `errSDKNotBuiltIn` is only used by ClickHouse now; the other six providers have real SDK discoverers.
+- Adding an operator to `compare operators`: add a descriptor (GVK + an unstructured extractor for replicas and memory) to `operators.go`. Do NOT add a go.mod dependency on the operator's project; detect and read via unstructured objects only.
 
 ## Related docs
 
