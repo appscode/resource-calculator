@@ -22,7 +22,7 @@ import (
 	"os"
 	"time"
 
-	"kubeops.dev/resource-calculator/pkg/compare"
+	"kubeops.dev/resource-calculator/pkg/inspect"
 
 	"github.com/spf13/cobra"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
@@ -42,14 +42,14 @@ type inspectFlags struct {
 	includeNonData bool
 	timeout        time.Duration
 
-	atlas      compare.AtlasCreds
-	elastic    compare.ElasticCreds
-	clickhouse compare.ClickHouseCreds
+	atlas      inspect.AtlasCreds
+	elastic    inspect.ElasticCreds
+	clickhouse inspect.ClickHouseCreds
 }
 
-func (f *inspectFlags) options() compare.Options {
-	return compare.Options{
-		Source:         compare.Source(f.source),
+func (f *inspectFlags) options() inspect.Options {
+	return inspect.Options{
+		Source:         inspect.Source(f.source),
 		FromFile:       f.fromFile,
 		Account:        f.account,
 		Regions:        f.regions,
@@ -65,11 +65,13 @@ func (f *inspectFlags) options() compare.Options {
 }
 
 // NewCmdInspect builds the `inspect` command tree: one subcommand per supported
-// managed-database provider, `all`, and `operators` (in-cluster scan). Each
-// lists the discovered databases with their allocated CPU and memory and totals.
+// managed-database provider, `all`, `operators` (in-cluster self-hosted scan),
+// and `kubedb` (per-object listing of KubeDB-managed resources in the cluster).
+// Each lists the discovered databases with their allocated CPU and memory and
+// totals (per-object memory limits for `kubedb`).
 func NewCmdInspect(clientGetter genericclioptions.RESTClientGetter) *cobra.Command {
 	f := &inspectFlags{
-		source:       string(compare.SourceAuto),
+		source:       string(inspect.SourceAuto),
 		output:       "text",
 		countStandby: true,
 		timeout:      60 * time.Second,
@@ -81,9 +83,10 @@ func NewCmdInspect(clientGetter genericclioptions.RESTClientGetter) *cobra.Comma
 		Long: `Discover databases and list each one's allocated CPU and memory, with totals.
 
 Targets: a cloud provider or DBaaS (inspect aws|azure|gcp|oci|atlas|elastic|
-clickhouse), all of them (inspect all), or the current cluster's self-hosted
+clickhouse), all of them (inspect all), the current cluster's self-hosted
 databases run by alternative operators and Bitnami/Chainguard/Docker Hardened
-Images (inspect operators).
+Images (inspect operators), or KubeDB-managed resources in the current cluster
+listed one row per object (inspect kubedb).
 
 Discovery is layered (--source): sdk uses the provider's official SDK, cli/rest
 call its live API, and file parses previously exported JSON (--from-file). auto
@@ -106,11 +109,12 @@ picks file when --from-file is set, otherwise the SDK (REST for ClickHouse).`,
 	pf.BoolVar(&f.includeNonData, "include-non-data", f.includeNonData, "Include non-data nodes (e.g. dedicated masters) in the totals")
 	pf.DurationVar(&f.timeout, "timeout", f.timeout, "Timeout for each external call")
 
-	for _, p := range compare.AllProviders {
+	for _, p := range inspect.AllProviders {
 		cmd.AddCommand(newInspectProviderCmd(p, f))
 	}
 	cmd.AddCommand(newInspectAllCmd(f))
 	cmd.AddCommand(newInspectOperatorsCmd(clientGetter, f))
+	cmd.AddCommand(newInspectKubeDBCmd(clientGetter, f))
 	return cmd
 }
 
@@ -138,32 +142,32 @@ Respects -n/--namespace; defaults to all namespaces.`,
 				return err
 			}
 			namespace, _ := cmd.Flags().GetString("namespace")
-			dbs, warnings, err := compare.DiscoverOperators(cmd.Context(), cfg, namespace)
+			dbs, warnings, err := inspect.DiscoverOperators(cmd.Context(), cfg, namespace)
 			if err != nil {
 				return err
 			}
-			imgDBs, imgWarnings, err := compare.DiscoverImageWorkloads(cmd.Context(), cfg, namespace)
+			imgDBs, imgWarnings, err := inspect.DiscoverImageWorkloads(cmd.Context(), cfg, namespace)
 			if err != nil {
 				return err
 			}
 			dbs = append(dbs, imgDBs...)
 			warnings = append(warnings, imgWarnings...)
 
-			report := compare.BuildReport("operators", dbs, warnings)
+			report := inspect.BuildReport("operators", dbs, warnings)
 			report.SelfHosted = true
-			return compare.Render(os.Stdout, report, f.output)
+			return inspect.Render(os.Stdout, report, f.output)
 		},
 	}
 }
 
-func newInspectProviderCmd(p compare.Provider, f *inspectFlags) *cobra.Command {
+func newInspectProviderCmd(p inspect.Provider, f *inspectFlags) *cobra.Command {
 	sub := &cobra.Command{
 		Use:               string(p),
 		Short:             "Inspect " + p.DisplayName() + " managed databases (CPU, memory, totals)",
 		DisableAutoGenTag: true,
 		Args:              cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runInspect(cmd.Context(), []compare.Provider{p}, string(p), f)
+			return runInspect(cmd.Context(), []inspect.Provider{p}, string(p), f)
 		},
 	}
 	addProviderCredFlags(sub, p, f)
@@ -178,26 +182,26 @@ func newInspectAllCmd(f *inspectFlags) *cobra.Command {
 		DisableAutoGenTag: true,
 		Args:              cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runInspect(cmd.Context(), compare.AllProviders, "all", f)
+			return runInspect(cmd.Context(), inspect.AllProviders, "all", f)
 		},
 	}
-	for _, p := range compare.AllProviders {
+	for _, p := range inspect.AllProviders {
 		addProviderCredFlags(sub, p, f)
 	}
 	return sub
 }
 
-func addProviderCredFlags(cmd *cobra.Command, p compare.Provider, f *inspectFlags) {
+func addProviderCredFlags(cmd *cobra.Command, p inspect.Provider, f *inspectFlags) {
 	switch p {
-	case compare.ProviderAtlas:
+	case inspect.ProviderAtlas:
 		cmd.Flags().StringVar(&f.atlas.ClientID, "atlas-client-id", "", "MongoDB Atlas service-account client id")
 		cmd.Flags().StringVar(&f.atlas.ClientSecret, "atlas-client-secret", "", "MongoDB Atlas service-account client secret")
 		cmd.Flags().StringVar(&f.atlas.OrgID, "atlas-org-id", "", "MongoDB Atlas organization id (optional)")
 		cmd.Flags().StringVar(&f.atlas.BaseURL, "atlas-base-url", "", "MongoDB Atlas API base URL (optional)")
-	case compare.ProviderElastic:
+	case inspect.ProviderElastic:
 		cmd.Flags().StringVar(&f.elastic.APIKey, "elastic-api-key", "", "Elastic Cloud API key")
 		cmd.Flags().StringVar(&f.elastic.BaseURL, "elastic-base-url", "", "Elastic Cloud API base URL (optional)")
-	case compare.ProviderClickHouse:
+	case inspect.ProviderClickHouse:
 		cmd.Flags().StringVar(&f.clickhouse.KeyID, "clickhouse-key-id", "", "ClickHouse Cloud API key id")
 		cmd.Flags().StringVar(&f.clickhouse.KeySecret, "clickhouse-key-secret", "", "ClickHouse Cloud API key secret")
 		cmd.Flags().StringVar(&f.clickhouse.OrgID, "clickhouse-org-id", "", "ClickHouse Cloud organization id (optional)")
@@ -205,18 +209,18 @@ func addProviderCredFlags(cmd *cobra.Command, p compare.Provider, f *inspectFlag
 	}
 }
 
-func runInspect(ctx context.Context, providers []compare.Provider, scope string, f *inspectFlags) error {
+func runInspect(ctx context.Context, providers []inspect.Provider, scope string, f *inspectFlags) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	var (
-		all      []compare.ManagedDatabase
+		all      []inspect.ManagedDatabase
 		warnings []string
 		hardErr  error
 	)
 	single := len(providers) == 1
 	for _, p := range providers {
-		d, err := compare.DiscovererFor(p)
+		d, err := inspect.DiscovererFor(p)
 		if err != nil {
 			return err
 		}
@@ -236,6 +240,6 @@ func runInspect(ctx context.Context, providers []compare.Provider, scope string,
 		return hardErr
 	}
 
-	report := compare.BuildReport(scope, all, warnings)
-	return compare.Render(os.Stdout, report, f.output)
+	report := inspect.BuildReport(scope, all, warnings)
+	return inspect.Render(os.Stdout, report, f.output)
 }

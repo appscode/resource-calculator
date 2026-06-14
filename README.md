@@ -24,8 +24,10 @@ The binary runs standalone or as a `kubectl` plugin: put it on your `PATH` named
 - `calculate`: sum CPU, memory and storage of workloads in a Kubernetes cluster.
 - `convert`: convert KubeDB `v1alpha1` resources to `v1alpha2`.
 - `check-deprecated`: list installed KubeDB resources on deprecated versions.
-- `inspect`: list managed cloud databases with their allocated CPU and memory
-  (see the user guide below).
+- `inspect`: list managed cloud databases with their allocated CPU and memory,
+  plus `inspect kubedb` (per-object listing of KubeDB-managed cluster resources
+  with memory limits) and `inspect operators` (self-hosted scan) -- see the
+  user guide below.
 
 Architecture and design notes live in [DESIGN.md](DESIGN.md).
 
@@ -38,12 +40,22 @@ sweep every context):
 # sum CPU / memory / storage by kind (-o text | json | yaml)
 resource-calculator calculate -o text
 
+# list each KubeDB-managed cluster resource with its memory limit, one row per object
+resource-calculator inspect kubedb -o text
+
 # list KubeDB resources still on the v1alpha1 API
 resource-calculator check-deprecated
 
 # convert KubeDB v1alpha1 resources to v1alpha2 YAML on disk
 resource-calculator convert --dir ./converted
 ```
+
+`inspect kubedb` walks the same set of GVKs as `calculate` (every kind
+registered in `kmodules.xyz/resource-metrics`, picking the highest available API
+version per `GroupKind`) and prints one row per object with its group/kind,
+namespace, name, UID, age and memory limit. Filter by API group with
+`--apiGroups`, sweep every kubeconfig context with `--all`, and switch to JSON
+or YAML with the inherited `-o/--output` flag.
 
 ## inspect: list managed databases with allocated CPU and memory
 

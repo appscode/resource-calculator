@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package compare
+package inspect
 
 import (
 	"testing"
@@ -295,10 +295,14 @@ func TestOperatorExtractCNPG(t *testing.T) {
 
 func TestOperatorExtractStrimzi(t *testing.T) {
 	obj := map[string]any{"spec": map[string]any{
-		"kafka": map[string]any{"replicas": int64(3),
-			"resources": map[string]any{"limits": map[string]any{"memory": "16Gi"}}},
-		"zookeeper": map[string]any{"replicas": int64(3),
-			"resources": map[string]any{"requests": map[string]any{"memory": "4Gi"}}},
+		"kafka": map[string]any{
+			"replicas":  int64(3),
+			"resources": map[string]any{"limits": map[string]any{"memory": "16Gi"}},
+		},
+		"zookeeper": map[string]any{
+			"replicas":  int64(3),
+			"resources": map[string]any{"requests": map[string]any{"memory": "4Gi"}},
+		},
 	}}
 	cs := descByKind(t, "Strimzi", "Kafka").Extract(obj)
 	if len(cs) != 2 {
