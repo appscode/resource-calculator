@@ -45,6 +45,7 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.AddCommand(NewCmdConvert(matchVersionKubeConfigFlags))
 	rootCmd.AddCommand(NewCmdCheckDeprecated(matchVersionKubeConfigFlags))
 	rootCmd.AddCommand(NewCmdList(matchVersionKubeConfigFlags))
+	rootCmd.AddCommand(NewCmdInspect(matchVersionKubeConfigFlags))
 	rootCmd.AddCommand(NewCmdCompletion())
 	rootCmd.AddCommand(v.NewCmdVersion())
 	return rootCmd
