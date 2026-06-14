@@ -77,6 +77,7 @@ func DiscoverOperators(ctx context.Context, cfg *rest.Config, namespace string) 
 					Name:             name,
 					Account:          item.GetNamespace(),
 					Region:           item.GetNamespace(),
+					VCPUPerNode:      c.CPU,
 					MemoryGiBPerNode: c.MemGiB,
 					NodeCount:        c.Replicas,
 					Notes:            c.Note,
@@ -139,7 +140,7 @@ func DiscoverImageWorkloads(ctx context.Context, cfg *rest.Config, namespace str
 				if !ok {
 					continue
 				}
-				mem, memOK := memAt(cm, "resources")
+				cpuV, mem, memOK := specAt(cm, "resources")
 				db := ManagedDatabase{
 					Provider:         ProviderKubernetes,
 					Service:          vendor,
@@ -148,6 +149,7 @@ func DiscoverImageWorkloads(ctx context.Context, cfg *rest.Config, namespace str
 					Account:          item.GetNamespace(),
 					Region:           item.GetNamespace(),
 					NodeType:         imageBase(strAt(cm, "image")),
+					VCPUPerNode:      cpuV,
 					MemoryGiBPerNode: mem,
 					NodeCount:        replicas,
 				}

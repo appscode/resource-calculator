@@ -1,19 +1,19 @@
-# resource-calculator compare
+# resource-calculator inspect
 
-`compare` inventories the managed database services running on a public cloud
-account (or a DBaaS organization), sums the memory allocated to their database
-servers, and estimates how much could be saved by migrating them to KubeDB.
+`inspect` lists the managed database services running on a public cloud account
+(or a DBaaS organization), shows the CPU and memory allocated to each database
+server, and prints the estate totals.
 
-KubeDB is licensed on a single metric: the memory allocated to database
-containers, counted as `replicas x memory per replica`. A 3 replica PostgreSQL
-with 8 GiB per replica counts as 24 GiB. `compare` mirrors that model: every
-managed database is reduced to `memory per node x node count`, summed across the
-whole estate, and the KubeDB cost is derived from that one number.
+Every managed database is reduced to its allocated CPU and memory per node times
+its node count (counted as `replicas x size per replica`). A 3 replica
+PostgreSQL with 8 GiB per replica counts as 24 GiB. `inspect` lists each
+discovered database with that allocation and sums the whole estate.
 
 Supported providers: `aws`, `azure`, `gcp`, `oci`, `atlas` (MongoDB Atlas),
 `elastic` (Elastic Cloud), `clickhouse` (ClickHouse Cloud), plus `all`. The
-`operators` subcommand instead scans the current cluster for databases run by
-alternative (non-KubeDB) operators (see "Comparing self-hosted operators").
+`operators` subcommand instead scans the current cluster for self-hosted
+databases run by alternative operators or deployed from vendor images (see
+"Inspecting self-hosted operators").
 
 ## Quick start
 
@@ -22,22 +22,20 @@ Offline, from exported JSON (no credentials needed):
 ```bash
 aws rds describe-db-instances --output json > rds.json
 # wrap the outputs into a bundle (see "File bundles" below), then:
-resource-calculator compare aws --source=file --from-file=aws-bundle.json \
-  --prod --kubedb-rate-prod=8
+resource-calculator inspect aws --source=file --from-file=aws-bundle.json
 ```
 
 Live, using your already-configured cloud CLI:
 
 ```bash
-resource-calculator compare aws --all-regions --prod --kubedb-rate-prod=8
+resource-calculator inspect aws --all-regions
 ```
 
 Live DBaaS (REST):
 
 ```bash
-resource-calculator compare atlas \
-  --atlas-client-id=$ATLAS_CLIENT_ID --atlas-client-secret=$ATLAS_CLIENT_SECRET \
-  --kubedb-rate-nonprod=6
+resource-calculator inspect atlas \
+  --atlas-client-id=$ATLAS_CLIENT_ID --atlas-client-secret=$ATLAS_CLIENT_SECRET
 ```
 
 ## Discovery sources (`--source`)
@@ -69,35 +67,37 @@ Discovery is layered. The priority order is sdk, cli, rest, file:
 | Elastic Cloud | API key | `--elastic-api-key` |
 | ClickHouse Cloud | REST (HTTP Basic), no SDK | `--clickhouse-key-id`, `--clickhouse-key-secret` |
 
-## Pricing and the savings model
+## Output
 
-The savings headline is `current managed spend - KubeDB license cost`.
+The default text output is a table with one row per discovered database. The
+columns are: PROVIDER, SERVICE, ENGINE, NAME, REGION, NODE TYPE, CPU/NODE,
+MEM/NODE, NODES, TOTAL CPU, TOTAL MEM, EST. $/MO. It ends with a totals line:
 
-- KubeDB cost = `billable memory (GiB) x rate`. Provide the rate with
-  `--kubedb-rate-prod` and `--kubedb-rate-nonprod` (USD per GiB per month, from
-  your AppsCode contract). `--prod` selects the production rate and applies the
-  100 GiB production minimum. When no rate is given, the report still shows the
-  discovered memory footprint and current spend.
-- Current managed spend is estimated from bundled, memory-normalized list-price
-  anchors (us region, on-demand). These are approximations meant for an
-  order-of-magnitude comparison, not a bill. Treat the savings figure as an
-  estimate.
+```
+Total: N databases, M nodes, X vCPU, Y GiB memory allocated
+```
+
+TOTAL CPU and TOTAL MEM are the per-database allocation (`per node x node
+count`); the totals line sums them across the estate. For cloud providers the
+EST. $/MO column shows an estimated managed monthly cost as an informational
+figure: a memory-normalized list-price estimate (us region, on-demand), flagged
+as estimated, useful for an order-of-magnitude reference, not a bill.
+
+Use `-o json` or `-o yaml` for the full report (the same database list and
+totals) in a form suitable for piping into other tooling.
 
 Flags:
 
 | flag | meaning |
 | --- | --- |
-| `--kubedb-rate-prod` | KubeDB production rate, USD per GiB per month |
-| `--kubedb-rate-nonprod` | KubeDB non-production rate, USD per GiB per month |
-| `--prod` | use the prod rate and the 100 GiB production minimum |
-| `--count-standby` | count HA standbys / Multi-AZ mirrors as billable nodes (default true) |
+| `--count-standby` | count HA standbys / Multi-AZ mirrors as nodes (default true) |
 | `--include-non-data` | include non-data nodes (for example OpenSearch dedicated masters) |
 | `-o, --output` | `text` (default), `json`, or `yaml` |
 
 ## Node counting
 
-`compare` counts every billable node so the memory total matches what KubeDB
-would bill after migration:
+`inspect` counts every node so the CPU and memory totals reflect the full
+allocation of the estate:
 
 - AWS RDS: each instance is one node; a Multi-AZ standby adds one (with
   `--count-standby`). Aurora and DocumentDB cluster members are each counted.
@@ -116,7 +116,7 @@ would bill after migration:
   skipped.
 
 Throughput or serverless services that have no meaningful "memory allocated to
-database servers" figure are excluded from the memory total (Aurora Serverless,
+database servers" figure are excluded from the totals (Aurora Serverless,
 Cosmos DB RU, Spanner, Bigtable, DynamoDB, OCI NoSQL, and similar).
 
 ## File bundles (`--source=file`)
@@ -184,13 +184,13 @@ Instance class, SKU and tier sizes are resolved from bundled lookup tables and
 parsers (for example AWS `db.*`/`cache.*` map to the underlying EC2 family
 memory, GCP `db-custom-CPU-MEMMB` encodes memory in the name, Atlas M-tiers map
 to published RAM). Unknown classes are reported with a warning and excluded from
-the memory total rather than guessed.
+the totals rather than guessed.
 
-## Comparing self-hosted operators (`compare operators`)
+## Inspecting self-hosted operators (`inspect operators`)
 
-`compare operators` scans the current cluster (your kubeconfig context) for
-databases managed by alternative, non-KubeDB operators and reports the KubeDB
-cost to manage the same memory. It detects each operator purely by the presence
+`inspect operators` scans the current cluster (your kubeconfig context) for
+self-hosted databases managed by alternative (non-KubeDB) operators and reports
+their allocated CPU and memory. It detects each operator purely by the presence
 of its CRD (group/version/kind), using the controller-runtime client with
 unstructured objects, so the binary takes no build dependency on any of these
 projects. Operators whose CRDs are absent are skipped.
@@ -203,15 +203,15 @@ matched, so operator-managed and upstream-official images are not double
 counted, and metrics sidecars (`*-exporter`) are ignored.
 
 ```bash
-resource-calculator compare operators --prod --kubedb-rate-prod=8
-resource-calculator compare operators -n team-a -o json   # scope to one namespace
+resource-calculator inspect operators
+resource-calculator inspect operators -n team-a -o json   # scope to one namespace
 ```
 
-It reads the pod memory limit (falling back to the request) and the
-replica/size field from each CR, multiplies them (the same metric KubeDB bills
-on), and groups the result by operator. Because these operators are mostly open
-source (no license fee), the report shows the discovered memory footprint and
-the KubeDB license cost to manage it, rather than a savings number.
+It reads the pod CPU and memory limit (falling back to the request) and the
+replica/size field from each CR, multiplies them, and groups the result by
+operator (or vendor for image-deployed databases). The text output is a
+per-operator/vendor breakdown with the columns: OPERATOR / VENDOR, DATABASES,
+NODES, TOTAL CPU, TOTAL MEM, LICENSING.
 
 Detected operators include:
 
@@ -229,8 +229,9 @@ Detected operators include:
 
 Notes:
 
-- Memory comes from the CR's pod resource limit/request. A CR without resource
-  limits is listed with a warning and zero memory (it cannot be sized).
+- CPU and memory come from the CR's pod resource limit/request. A CR without
+  resource limits is listed with a warning and zero allocation (it cannot be
+  sized).
 - `--namespace`/`-n` scopes the scan; the default is all namespaces.
 - To add an operator, add a descriptor (GVK + extractor) to
   `pkg/compare/operators.go`. No new module dependency is required because
@@ -239,8 +240,8 @@ Notes:
 ## Implementation notes
 
 Each provider's official SDK discoverer lives in
-`pkg/compare/<provider>_sdk.go` and reuses the same sizing and pricing helpers
-as the CLI, REST and file paths, so every source yields identical results.
+`pkg/compare/<provider>_sdk.go` and reuses the same sizing helpers as the CLI,
+REST and file paths, so every source yields identical results.
 `google.golang.org/api` is pinned to a release compatible with the repo's Go
 version. ClickHouse Cloud has no official Go control-plane SDK and uses REST.
 See [DESIGN.md](../DESIGN.md) for the full architecture.

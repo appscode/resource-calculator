@@ -127,7 +127,7 @@ func DiscovererFor(p Provider) (Discoverer, error) {
 // errSDKNotBuiltIn is returned when SourceSDK is requested. It points the user
 // at the supported live sources.
 func errSDKNotBuiltIn(p Provider) error {
-	return fmt.Errorf("provider %s: --source=sdk is not built into this binary; use --source=cli, --source=rest, or --source=file (see docs/compare.md)", p)
+	return fmt.Errorf("provider %s: --source=sdk is not built into this binary; use --source=cli, --source=rest, or --source=file (see docs/inspect.md)", p)
 }
 
 // collector pairs a logical key with the CLI arguments that produce its JSON
@@ -179,7 +179,7 @@ func loadBundle(path string) (map[string]json.RawMessage, error) {
 	}
 	var bundle map[string]json.RawMessage
 	if err := json.Unmarshal(data, &bundle); err != nil {
-		return nil, fmt.Errorf("parse %s: %w (expected a JSON object keyed by collector, see docs/compare.md)", path, err)
+		return nil, fmt.Errorf("parse %s: %w (expected a JSON object keyed by collector, see docs/inspect.md)", path, err)
 	}
 	return bundle, nil
 }

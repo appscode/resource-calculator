@@ -28,9 +28,9 @@ import (
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
 
-// compareFlags holds the flags shared by every `compare` subcommand plus the
+// inspectFlags holds the flags shared by every `inspect` subcommand plus the
 // per-vendor credentials used by the DBaaS providers.
-type compareFlags struct {
+type inspectFlags struct {
 	source         string
 	fromFile       string
 	output         string
@@ -42,16 +42,12 @@ type compareFlags struct {
 	includeNonData bool
 	timeout        time.Duration
 
-	rateProd    float64
-	rateNonProd float64
-	prod        bool
-
 	atlas      compare.AtlasCreds
 	elastic    compare.ElasticCreds
 	clickhouse compare.ClickHouseCreds
 }
 
-func (f *compareFlags) options() compare.Options {
+func (f *inspectFlags) options() compare.Options {
 	return compare.Options{
 		Source:         compare.Source(f.source),
 		FromFile:       f.fromFile,
@@ -68,19 +64,11 @@ func (f *compareFlags) options() compare.Options {
 	}
 }
 
-func (f *compareFlags) pricing() compare.KubeDBPricing {
-	return compare.KubeDBPricing{
-		ProdRateUSDPerGiBMonth:    f.rateProd,
-		NonProdRateUSDPerGiBMonth: f.rateNonProd,
-		Prod:                      f.prod,
-		MinProdGiB:                compare.DefaultMinProdGiB,
-	}
-}
-
-// NewCmdCompare builds the `compare` command tree: one subcommand per supported
-// managed-database provider, `all`, and `operators` (in-cluster scan).
-func NewCmdCompare(clientGetter genericclioptions.RESTClientGetter) *cobra.Command {
-	f := &compareFlags{
+// NewCmdInspect builds the `inspect` command tree: one subcommand per supported
+// managed-database provider, `all`, and `operators` (in-cluster scan). Each
+// lists the discovered databases with their allocated CPU and memory and totals.
+func NewCmdInspect(clientGetter genericclioptions.RESTClientGetter) *cobra.Command {
+	f := &inspectFlags{
 		source:       string(compare.SourceAuto),
 		output:       "text",
 		countStandby: true,
@@ -88,12 +76,14 @@ func NewCmdCompare(clientGetter genericclioptions.RESTClientGetter) *cobra.Comma
 	}
 
 	cmd := &cobra.Command{
-		Use:   "compare",
-		Short: "Estimate KubeDB migration savings for managed databases on public clouds and DBaaS",
-		Long: `Inventory managed databases on a cloud account or DBaaS organization,
-sum the memory allocated to their database servers (replicas x memory per
-replica, the metric KubeDB is licensed on), and estimate how much could be
-saved by migrating them to KubeDB.
+		Use:   "inspect",
+		Short: "Inspect databases on clouds, DBaaS or the cluster and list their CPU and memory",
+		Long: `Discover databases and list each one's allocated CPU and memory, with totals.
+
+Targets: a cloud provider or DBaaS (inspect aws|azure|gcp|oci|atlas|elastic|
+clickhouse), all of them (inspect all), or the current cluster's self-hosted
+databases run by alternative operators and Bitnami/Chainguard/Docker Hardened
+Images (inspect operators).
 
 Discovery is layered (--source): sdk uses the provider's official SDK, cli/rest
 call its live API, and file parses previously exported JSON (--from-file). auto
@@ -112,30 +102,27 @@ picks file when --from-file is set, otherwise the SDK (REST for ClickHouse).`,
 	pf.StringSliceVar(&f.regions, "regions", f.regions, "Limit discovery to these cloud regions")
 	pf.BoolVar(&f.allRegions, "all-regions", f.allRegions, "Scan every enabled region (AWS)")
 	pf.BoolVar(&f.org, "org", f.org, "Scan the whole organization / all accounts where supported")
-	pf.BoolVar(&f.countStandby, "count-standby", f.countStandby, "Count HA standbys / Multi-AZ mirrors as billable nodes")
-	pf.BoolVar(&f.includeNonData, "include-non-data", f.includeNonData, "Include non-data nodes (e.g. dedicated masters) in the memory total")
+	pf.BoolVar(&f.countStandby, "count-standby", f.countStandby, "Count HA standbys / Multi-AZ mirrors as separate nodes")
+	pf.BoolVar(&f.includeNonData, "include-non-data", f.includeNonData, "Include non-data nodes (e.g. dedicated masters) in the totals")
 	pf.DurationVar(&f.timeout, "timeout", f.timeout, "Timeout for each external call")
-	pf.Float64Var(&f.rateProd, "kubedb-rate-prod", f.rateProd, "KubeDB production rate in USD per GiB per month (from your AppsCode contract)")
-	pf.Float64Var(&f.rateNonProd, "kubedb-rate-nonprod", f.rateNonProd, "KubeDB non-production rate in USD per GiB per month")
-	pf.BoolVar(&f.prod, "prod", f.prod, "Treat the estate as production (uses the prod rate and the 100 GiB minimum)")
 
 	for _, p := range compare.AllProviders {
-		cmd.AddCommand(newCompareProviderCmd(p, f))
+		cmd.AddCommand(newInspectProviderCmd(p, f))
 	}
-	cmd.AddCommand(newCompareAllCmd(f))
-	cmd.AddCommand(newCompareOperatorsCmd(clientGetter, f))
+	cmd.AddCommand(newInspectAllCmd(f))
+	cmd.AddCommand(newInspectOperatorsCmd(clientGetter, f))
 	return cmd
 }
 
-// newCompareOperatorsCmd scans the current cluster for databases managed by
-// alternative (non-KubeDB) operators and reports the KubeDB cost to manage them.
-func newCompareOperatorsCmd(clientGetter genericclioptions.RESTClientGetter, f *compareFlags) *cobra.Command {
+// newInspectOperatorsCmd scans the current cluster for self-hosted databases and
+// lists their allocated CPU and memory.
+func newInspectOperatorsCmd(clientGetter genericclioptions.RESTClientGetter, f *inspectFlags) *cobra.Command {
 	return &cobra.Command{
 		Use:   "operators",
-		Short: "Discover databases run by alternative Kubernetes operators and compare against KubeDB",
-		Long: `Scan the current cluster for self-hosted databases and report the KubeDB cost
-to manage them. Two sources are detected, purely via the controller-runtime
-client and unstructured objects (no dependency on any of these projects):
+		Short: "Inspect self-hosted databases (alternative operators + Bitnami/Chainguard/Docker Hardened Images)",
+		Long: `Scan the current cluster for self-hosted databases and list their allocated CPU
+and memory. Two sources are detected, purely via the controller-runtime client
+and unstructured objects (no dependency on any of these projects):
 
   - databases managed by alternative operators (CloudNativePG, Zalando, Percona,
     Strimzi, ECK, Altinity, and more), detected by their CRDs; and
@@ -162,36 +149,36 @@ Respects -n/--namespace; defaults to all namespaces.`,
 			dbs = append(dbs, imgDBs...)
 			warnings = append(warnings, imgWarnings...)
 
-			report := compare.BuildReport("operators", dbs, f.pricing(), warnings)
+			report := compare.BuildReport("operators", dbs, warnings)
 			report.SelfHosted = true
 			return compare.Render(os.Stdout, report, f.output)
 		},
 	}
 }
 
-func newCompareProviderCmd(p compare.Provider, f *compareFlags) *cobra.Command {
+func newInspectProviderCmd(p compare.Provider, f *inspectFlags) *cobra.Command {
 	sub := &cobra.Command{
 		Use:               string(p),
-		Short:             "Compare " + p.DisplayName() + " managed databases against KubeDB",
+		Short:             "Inspect " + p.DisplayName() + " managed databases (CPU, memory, totals)",
 		DisableAutoGenTag: true,
 		Args:              cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runCompare(cmd.Context(), []compare.Provider{p}, string(p), f)
+			return runInspect(cmd.Context(), []compare.Provider{p}, string(p), f)
 		},
 	}
 	addProviderCredFlags(sub, p, f)
 	return sub
 }
 
-func newCompareAllCmd(f *compareFlags) *cobra.Command {
+func newInspectAllCmd(f *inspectFlags) *cobra.Command {
 	sub := &cobra.Command{
 		Use:               "all",
-		Short:             "Compare databases across every configured provider and aggregate",
+		Short:             "Inspect databases across every configured provider and aggregate",
 		Long:              "Runs live discovery for every provider and aggregates the results. Providers that are not configured or reachable are reported as warnings rather than errors.",
 		DisableAutoGenTag: true,
 		Args:              cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runCompare(cmd.Context(), compare.AllProviders, "all", f)
+			return runInspect(cmd.Context(), compare.AllProviders, "all", f)
 		},
 	}
 	for _, p := range compare.AllProviders {
@@ -200,7 +187,7 @@ func newCompareAllCmd(f *compareFlags) *cobra.Command {
 	return sub
 }
 
-func addProviderCredFlags(cmd *cobra.Command, p compare.Provider, f *compareFlags) {
+func addProviderCredFlags(cmd *cobra.Command, p compare.Provider, f *inspectFlags) {
 	switch p {
 	case compare.ProviderAtlas:
 		cmd.Flags().StringVar(&f.atlas.ClientID, "atlas-client-id", "", "MongoDB Atlas service-account client id")
@@ -218,7 +205,7 @@ func addProviderCredFlags(cmd *cobra.Command, p compare.Provider, f *compareFlag
 	}
 }
 
-func runCompare(ctx context.Context, providers []compare.Provider, scope string, f *compareFlags) error {
+func runInspect(ctx context.Context, providers []compare.Provider, scope string, f *inspectFlags) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -249,6 +236,6 @@ func runCompare(ctx context.Context, providers []compare.Provider, scope string,
 		return hardErr
 	}
 
-	report := compare.BuildReport(scope, all, f.pricing(), warnings)
+	report := compare.BuildReport(scope, all, warnings)
 	return compare.Render(os.Stdout, report, f.output)
 }

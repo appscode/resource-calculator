@@ -1,9 +1,9 @@
 # resource-calculator design
 
 This document describes the architecture of the `resource-calculator` CLI, with
-a focus on the `compare` command (cloud database to KubeDB savings estimator).
+a focus on the `inspect` command (managed database CPU and memory inventory).
 For end-user instructions see [README.md](README.md) and
-[docs/compare.md](docs/compare.md).
+[docs/inspect.md](docs/inspect.md).
 
 ## 1. Goals
 
@@ -12,16 +12,16 @@ For end-user instructions see [README.md](README.md) and
 
 1. Measure resource usage of databases already running on Kubernetes
    (`calculate`, `convert`, `check-deprecated`).
-2. Measure databases running on managed clouds and DBaaS vendors and estimate
-   the savings of moving them to KubeDB (`compare`).
+2. Inventory databases running on managed clouds and DBaaS vendors, listing the
+   CPU and memory allocated to each (`inspect`).
 
-The `compare` command is designed around three principles:
+The `inspect` command is designed around three principles:
 
-- One metric. KubeDB is licensed on memory allocated to database servers
-  (replicas times memory per replica). Everything reduces to that single number
-  so the model is simple and matches the bill after migration.
+- One inventory. Every managed database reduces to its allocated CPU and memory
+  per node times node count (replicas times size per replica), so the totals are
+  a simple, consistent view of the estate.
 - Pluggable discovery. Where databases live and how they are read is decoupled
-  from how they are sized, priced and reported.
+  from how they are sized and reported.
 - Official SDKs by default, with fallbacks. Live discovery uses each vendor's
   official Go SDK; the CLI, REST, and file-import sources remain available for
   environments where the SDK is not wanted.
@@ -33,29 +33,30 @@ resource-calculator
   calculate          sum CPU/memory/storage of cluster workloads
   convert            KubeDB v1alpha1 -> v1alpha2
   check-deprecated   list KubeDB resources on deprecated versions
-  compare            estimate KubeDB migration savings
+  inspect            list managed databases with allocated CPU and memory
     aws | azure | gcp | oci | atlas | elastic | clickhouse | all
   completion
   version
 ```
 
-`pkg/cmds/` holds the Cobra wiring. `compare` lives in `pkg/cmds/compare.go` and
-delegates all logic to the `pkg/compare` package.
+`pkg/cmds/` holds the Cobra wiring. `inspect` lives in `pkg/cmds/compare.go`
+(the Go package is still named `pkg/compare`) and delegates all logic to the
+`pkg/compare` package. The exported entrypoint is `NewCmdInspect`.
 
 ## 3. Pipeline
 
-Every `compare` subcommand runs the same four-stage pipeline. Stages 2, 3 and 4
+Every `inspect` subcommand runs the same four-stage pipeline. Stages 2, 3 and 4
 are provider agnostic, so adding or changing a provider only touches stage 1.
 
 ```mermaid
 flowchart LR
   subgraph cmd["pkg/cmds/compare.go"]
-    F[flags -> Options + KubeDBPricing]
+    F[flags -> Options]
   end
   subgraph pkg["pkg/compare"]
     D["1. Discover\n(per provider)"]
     S["2. Size\n(catalog lookup)"]
-    P["3. Price + savings\n(BuildReport)"]
+    P["3. Aggregate\n(BuildReport)"]
     R["4. Render\n(text/json/yaml)"]
   end
   F --> D --> S --> P --> R
@@ -65,8 +66,8 @@ flowchart LR
    `[]ManagedDatabase` plus non-fatal warnings.
 2. Size: each discoverer fills in `MemoryGiBPerNode`, `VCPUPerNode` and
    `NodeCount` using the sizing catalogs (`catalog.go`).
-3. Price and savings: `BuildReport` aggregates memory, applies the KubeDB rate
-   and computes savings against current managed spend.
+3. Aggregate: `BuildReport` sorts the databases and sums the CPU and memory
+   totals across the estate.
 4. Render: `Render` prints text, JSON or YAML.
 
 ## 4. Data model (`compare.go`)
@@ -82,24 +83,22 @@ type ManagedDatabase struct {
     VCPUPerNode      float64
     MemoryGiBPerNode float64
     NodeCount        int      // replicas x shards x HA standbys
-    MonthlyCostUSD   float64  // estimated current managed cost
+    MonthlyCostUSD   float64  // estimated current managed cost (informational)
     CostEstimated    bool
     Notes            string   // per-db warning (unknown type, serverless, ...)
 }
 ```
 
-`ManagedDatabase.TotalMemoryGiB() = MemoryGiBPerNode * NodeCount` is the KubeDB
-billable memory for one database. The estate total is the sum over all of them.
-
-`KubeDBPricing` encodes the license model: a flat USD per GiB per month rate,
-separate for production and non-production, with a production memory floor
-(`DefaultMinProdGiB = 100`). Rates default to zero (the public rate is
-quote-based) and are supplied by the caller.
+`ManagedDatabase.TotalMemoryGiB() = MemoryGiBPerNode * NodeCount` is the memory
+allocated to one database (and the matching vCPU total is `VCPUPerNode *
+NodeCount`). The estate total is the sum over all of them.
 
 `Report` is the aggregated result: the database list (sorted by memory footprint
-descending), totals, current spend, KubeDB cost, and savings (monthly, annual,
-percent). `BuildReport(scope, dbs, pricing, warnings)` produces it. The savings
-model is current managed spend minus KubeDB cost.
+descending) and the estate totals (database count, node count, total vCPU, total
+memory). `BuildReport(scope, dbs, warnings)` produces it. For cloud providers
+each `ManagedDatabase` also carries an informational estimated managed monthly
+cost (`MonthlyCostUSD`, flagged `CostEstimated`); it is a memory-normalized
+list-price estimate, not part of the inventory totals.
 
 ## 5. Discovery layer (`discover.go`)
 
@@ -126,26 +125,26 @@ official Go control-plane SDK, so it uses REST for both `sdk`-less `auto` and
 explicit `rest`, and returns `errSDKNotBuiltIn` only for an explicit `--source=sdk`.
 
 Each provider's SDK discoverer lives in its own `*_sdk.go` file and reuses the
-same sizing (`catalog.go`) and pricing helpers as the CLI/REST/file paths, so
-all sources produce identical `ManagedDatabase` records.
+same sizing (`catalog.go`) and cost-estimate helpers as the CLI/REST/file paths,
+so all sources produce identical `ManagedDatabase` records.
 
-### Self-hosted operators (`compare operators`)
+### Self-hosted operators (`inspect operators`)
 
-`compare operators` is a separate, cluster-scoped discovery path (not a cloud
+`inspect operators` is a separate, cluster-scoped discovery path (not a cloud
 `Source`). It uses the controller-runtime client with unstructured objects to
 detect alternative database operators by their CRD group/version/kind and to
-read each CR's pod memory limit (or request) and replica/size field,
+read each CR's pod CPU and memory limit (or request) and replica/size field,
 normalizing to the same `ManagedDatabase`. The operator catalog and per-CR
 extractors live in `operators.go`; the scan (`DiscoverOperators`) lives in
 `kubernetes.go`. A second scan (`DiscoverImageWorkloads`, also in
 `kubernetes.go`) inspects StatefulSet and Deployment container images and
 counts databases shipped as Bitnami, Chainguard or Docker Hardened Images; the
 image-to-engine catalog is in `images.go`. Only those three image families are
-matched, so operator and upstream images are not double counted. The resulting `Report` is marked `SelfHosted`, so it renders a
-per-operator breakdown and the KubeDB cost to manage the estate, with no
-managed-spend or savings line (the alternatives are mostly open source). No
-project is added to `go.mod`: detection and reading go entirely through
-unstructured objects, and controller-runtime is already a dependency.
+matched, so operator and upstream images are not double counted. The resulting
+`Report` is marked `SelfHosted`, so it renders a per-operator (and per-vendor
+for image-deployed databases) breakdown of allocated CPU and memory. No project
+is added to `go.mod`: detection and reading go entirely through unstructured
+objects, and controller-runtime is already a dependency.
 
 ### The collector pattern
 
@@ -197,8 +196,8 @@ rather than guessed.
 
 ## 7. Node counting
 
-`NodeCount` is the count of billable nodes, so the memory total reflects what
-KubeDB would bill. Highlights: AWS Multi-AZ adds a standby (with
+`NodeCount` is the count of nodes, so the CPU and memory totals reflect the full
+allocation of the estate. Highlights: AWS Multi-AZ adds a standby (with
 `--count-standby`); Aurora and DocumentDB members are each counted; ElastiCache
 counts all shard and replica nodes; Azure and GCP HA add a standby and read
 replicas are separate resources; OCI MySQL HA is 3 nodes; Atlas counts
@@ -208,33 +207,30 @@ memory per replica times replica count. Serverless and throughput-billed
 services (Aurora Serverless, Cosmos RU, Spanner, Bigtable, DynamoDB, OCI NoSQL)
 have no fixed server memory and are excluded.
 
-## 8. Pricing and the savings engine
+## 8. Managed-cost estimate (informational)
 
-Current managed spend uses memory-normalized list-price anchors per provider and
+For cloud providers each database carries an informational estimated managed
+monthly cost, derived from memory-normalized list-price anchors per provider and
 service (USD per GiB-hour, from us-region on-demand rates), turned into a monthly
 figure with a 730-hour month. These are deliberately approximations, flagged
-with `CostEstimated`, suitable for an order-of-magnitude comparison and easy to
-override with a real bill. A memory-normalized rate is chosen so the comparison
-aligns with the memory metric KubeDB bills on.
-
-KubeDB cost is `BillableGiB(total) x rate`, where `BillableGiB` applies the
-production floor. Savings is the difference, reported monthly, annually and as a
-percentage. When no rate is configured, the report omits cost and savings and
-still shows the discovered footprint.
+with `CostEstimated`, suitable for an order-of-magnitude reference and easy to
+override with a real bill. It is rendered as an informational column (EST. $/MO)
+and is not part of the CPU and memory inventory totals.
 
 ## 9. Output (`report.go`)
 
-`Render` supports `text` (a tabwriter table sorted by footprint, with totals and
-a savings summary), `json` and `yaml` (the full `Report` struct, suitable for
+`Render` supports `text` (a tabwriter table sorted by footprint, ending with a
+totals line that reports the database and node counts and the total vCPU and
+memory allocated), `json` and `yaml` (the full `Report` struct, suitable for
 piping into other tooling). The JSON and YAML shapes match the existing
 `calculate` command's conventions.
 
 ## 10. Package layout
 
 ```
-pkg/cmds/compare.go     Cobra command tree, flag binding, run loop
+pkg/cmds/compare.go     Cobra command tree (NewCmdInspect), flag binding, run loop
 pkg/compare/
-  compare.go            core types, KubeDBPricing, BuildReport, savings math
+  compare.go            core types, BuildReport, CPU/memory aggregation
   discover.go           Discoverer interface, Source, Options, CLI/HTTP helpers
   catalog.go            InstanceSpec and all sizing lookups/parsers
   report.go             text/json/yaml rendering
@@ -253,8 +249,8 @@ pkg/compare/
   clickhouse.go         ClickHouse Cloud REST/file discoverer + parser (no official SDK)
   operators.go          alternative-operator catalog (GVK + unstructured extractors)
   images.go             Bitnami/Chainguard/Docker Hardened Image classifier
-  kubernetes.go         compare operators: controller-runtime cluster scan (CRDs + images)
-  compare_test.go       catalog, pricing, savings, parser and operator-extractor tests
+  kubernetes.go         inspect operators: controller-runtime cluster scan (CRDs + images)
+  compare_test.go       catalog, totals, parser and operator-extractor tests
 ```
 
 ## 11. Key design decisions
@@ -270,14 +266,15 @@ pkg/compare/
   file sources remain available so the tool still runs without cloud
   credentials, in CI, or against exported inventories.
 - One normalized model. Reducing every vendor to `ManagedDatabase` keeps sizing,
-  pricing and reporting provider agnostic and makes the providers independent and
-  individually testable.
+  aggregation and reporting provider agnostic and makes the providers
+  independent and individually testable.
 - CLI and file share parsers. The collector pattern means the offline
   `--from-file` path exercises the same code as live CLI discovery, so the parser
   logic is fully unit-testable from fixtures without cloud access.
-- Estimates are labelled, not hidden. Sizing falls back to warnings for unknown
-  types; managed prices are marked estimated; the KubeDB rate is an explicit
-  input rather than a fabricated default.
+- Report the allocation, label the estimates. The tool reports the discovered
+  CPU and memory allocation as the inventory totals. Sizing falls back to
+  warnings for unknown types, and the managed-cost estimate is kept as an
+  informational column, marked estimated rather than presented as a bill.
 
 ## 12. Extending
 

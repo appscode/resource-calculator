@@ -17,7 +17,6 @@ limitations under the License.
 package compare
 
 import (
-	"math"
 	"testing"
 )
 
@@ -118,30 +117,18 @@ func TestOCIMySQLSpec(t *testing.T) {
 	}
 }
 
-func TestKubeDBPricingProdFloor(t *testing.T) {
-	p := KubeDBPricing{ProdRateUSDPerGiBMonth: 10, NonProdRateUSDPerGiBMonth: 5, Prod: true, MinProdGiB: 100}
-	if got := p.MonthlyCost(50); got != 1000 { // floored to 100 GiB * 10
-		t.Errorf("prod floor: got %g want 1000", got)
-	}
-	if got := p.MonthlyCost(150); got != 1500 {
-		t.Errorf("prod above floor: got %g want 1500", got)
-	}
-	p.Prod = false
-	if got := p.MonthlyCost(50); got != 250 { // 50 * 5, no floor
-		t.Errorf("nonprod: got %g want 250", got)
-	}
-}
-
-func TestBuildReportSavings(t *testing.T) {
+func TestBuildReport(t *testing.T) {
 	dbs := []ManagedDatabase{
-		{Provider: ProviderAWS, Service: "RDS", Name: "a", MemoryGiBPerNode: 16, NodeCount: 2, MonthlyCostUSD: 400},
-		{Provider: ProviderAWS, Service: "RDS", Name: "b", MemoryGiBPerNode: 8, NodeCount: 1, MonthlyCostUSD: 100},
+		{Provider: ProviderAWS, Service: "RDS", Name: "a", VCPUPerNode: 4, MemoryGiBPerNode: 16, NodeCount: 2, MonthlyCostUSD: 400},
+		{Provider: ProviderAWS, Service: "RDS", Name: "b", VCPUPerNode: 2, MemoryGiBPerNode: 8, NodeCount: 1, MonthlyCostUSD: 100},
 	}
-	p := KubeDBPricing{ProdRateUSDPerGiBMonth: 8, NonProdRateUSDPerGiBMonth: 4, Prod: false}
-	r := BuildReport("aws", dbs, p, nil)
+	r := BuildReport("aws", dbs, nil)
 
 	if r.TotalMemoryGiB != 40 { // 16*2 + 8*1
 		t.Errorf("total mem = %g want 40", r.TotalMemoryGiB)
+	}
+	if r.TotalVCPU != 10 { // 4*2 + 2*1
+		t.Errorf("total vCPU = %g want 10", r.TotalVCPU)
 	}
 	if r.NodeCount != 3 {
 		t.Errorf("nodes = %d want 3", r.NodeCount)
@@ -149,14 +136,8 @@ func TestBuildReportSavings(t *testing.T) {
 	if r.CurrentMonthlyUSD != 500 {
 		t.Errorf("current = %g want 500", r.CurrentMonthlyUSD)
 	}
-	if r.KubeDBMonthlyUSD != 160 { // 40 * 4 (nonprod)
-		t.Errorf("kubedb = %g want 160", r.KubeDBMonthlyUSD)
-	}
-	if r.MonthlySavingsUSD != 340 {
-		t.Errorf("savings = %g want 340", r.MonthlySavingsUSD)
-	}
-	if math.Abs(r.SavingsPercent-68) > 1e-9 {
-		t.Errorf("savings%% = %g want 68", r.SavingsPercent)
+	if !r.CostKnown {
+		t.Errorf("CostKnown should be true")
 	}
 	// largest footprint should sort first
 	if r.Databases[0].Name != "a" {

@@ -57,37 +57,34 @@ func fprintln(w io.Writer, a ...any) { _, _ = fmt.Fprintln(w, a...) }
 
 func renderText(w io.Writer, r *Report) error {
 	fprintln(w)
-	fprintf(w, "KubeDB migration savings estimate: %s\n", r.Scope)
+	fprintf(w, "Database inventory: %s\n", r.Scope)
 	fprintf(w, "Generated: %s\n", r.GeneratedAt.Format("2006-01-02 15:04:05 MST"))
 	fprintln(w)
 
 	if len(r.Databases) == 0 {
-		fprintln(w, "No managed databases discovered.")
+		fprintln(w, "No databases discovered.")
 		renderWarnings(w, r)
 		return nil
 	}
 
 	const padding = 3
 	tw := tabwriter.NewWriter(w, 0, 0, padding, ' ', tabwriter.TabIndent)
-	fprintln(tw, "PROVIDER\tSERVICE\tENGINE\tNAME\tREGION\tNODE TYPE\tMEM/NODE\tNODES\tTOTAL MEM\tEST. $/MO\t")
+	fprintln(tw, "PROVIDER\tSERVICE\tENGINE\tNAME\tREGION\tNODE TYPE\tCPU/NODE\tMEM/NODE\tNODES\tTOTAL CPU\tTOTAL MEM\tEST. $/MO\t")
 	for _, d := range r.Databases {
-		fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%s\t%s\t\n",
+		fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%s\t%s\t%s\t\n",
 			d.Provider, d.Service, dash(d.Engine), d.Name, dash(d.Region), dash(d.NodeType),
-			gib(d.MemoryGiBPerNode), d.NodeCount, gib(d.TotalMemoryGiB()), money(d.MonthlyCostUSD))
+			vcpu(d.VCPUPerNode), gib(d.MemoryGiBPerNode), d.NodeCount,
+			vcpu(d.TotalVCPU()), gib(d.TotalMemoryGiB()), money(d.MonthlyCostUSD))
 	}
-	fprintf(tw, "TOTAL\t%d dbs\t\t\t\t\t\t%d\t%s\t%s\t\n",
-		r.DatabaseCount, r.NodeCount, gib(r.TotalMemoryGiB), money(r.CurrentMonthlyUSD))
+	fprintf(tw, "TOTAL\t%d dbs\t\t\t\t\t\t\t%d\t%s\t%s\t%s\t\n",
+		r.DatabaseCount, r.NodeCount, vcpu(r.TotalVCPU), gib(r.TotalMemoryGiB), money(r.CurrentMonthlyUSD))
 	if err := tw.Flush(); err != nil {
 		return err
 	}
 
 	fprintln(w)
-	fprintf(w, "Total database-server memory: %s GiB across %d databases / %d nodes\n",
-		trimFloat(r.TotalMemoryGiB), r.DatabaseCount, r.NodeCount)
-	if r.Prod && r.BillableMemoryGiB != r.TotalMemoryGiB {
-		fprintf(w, "Billable memory (production %d GiB minimum applied): %s GiB\n",
-			int(DefaultMinProdGiB), trimFloat(r.BillableMemoryGiB))
-	}
+	fprintf(w, "Total: %d databases, %d nodes, %s vCPU, %s GiB memory allocated\n",
+		r.DatabaseCount, r.NodeCount, trimFloat(r.TotalVCPU), trimFloat(r.TotalMemoryGiB))
 
 	if r.SelfHosted {
 		renderSelfHosted(w, r)
@@ -96,35 +93,11 @@ func renderText(w io.Writer, r *Report) error {
 	}
 
 	if r.CostKnown {
-		fprintf(w, "Estimated current managed spend: %s/mo  (%s/yr)\n",
+		fprintf(w, "Estimated managed spend: %s/mo  (%s/yr)\n",
 			money(r.CurrentMonthlyUSD), money(r.CurrentMonthlyUSD*12))
 		if r.CostPartial {
 			fprintln(w, "  note: some databases had no price and are excluded from the spend total")
 		}
-	} else {
-		fprintln(w, "Estimated current managed spend: unknown (no pricing available for discovered services)")
-	}
-
-	if r.RateConfigured {
-		mode := "non-production"
-		if r.Prod {
-			mode = "production"
-		}
-		fprintf(w, "KubeDB cost (%s @ $%s/GiB/mo): %s/mo  (%s/yr)\n",
-			mode, trimFloat(r.KubeDBRateUSD), money(r.KubeDBMonthlyUSD), money(r.KubeDBMonthlyUSD*12))
-		if r.CostKnown {
-			fprintln(w)
-			fprintf(w, "Estimated savings with KubeDB: %s/mo  (%s/yr)",
-				money(r.MonthlySavingsUSD), money(r.AnnualSavingsUSD))
-			if r.CurrentMonthlyUSD > 0 {
-				fprintf(w, " / %.0f%% lower", r.SavingsPercent)
-			}
-			fprintln(w)
-		}
-	} else {
-		fprintln(w)
-		fprintln(w, "Set --kubedb-rate-prod / --kubedb-rate-nonprod (USD per GiB per month, from your")
-		fprintln(w, "AppsCode contract) to compute the KubeDB cost and savings.")
 	}
 
 	renderWarnings(w, r)
@@ -142,13 +115,12 @@ func renderWarnings(w io.Writer, r *Report) {
 	}
 }
 
-// renderSelfHosted prints the operator breakdown and the KubeDB cost to manage
-// the discovered in-cluster estate (there is no managed-service spend to
-// compare against, so no savings line).
+// renderSelfHosted prints the per-operator / per-vendor breakdown for an
+// in-cluster inventory.
 func renderSelfHosted(w io.Writer, r *Report) {
 	type opAgg struct {
 		dbs, nodes int
-		mem        float64
+		cpu, mem   float64
 	}
 	aggs := map[string]*opAgg{}
 	var order []string
@@ -161,36 +133,21 @@ func renderSelfHosted(w io.Writer, r *Report) {
 		}
 		a.dbs++
 		a.nodes += d.NodeCount
+		a.cpu += d.TotalVCPU()
 		a.mem += d.TotalMemoryGiB()
 	}
 	sort.SliceStable(order, func(i, j int) bool { return aggs[order[i]].mem > aggs[order[j]].mem })
 
 	fprintln(w)
-	fprintln(w, "Discovered operators (self-hosted, in-cluster):")
+	fprintln(w, "By operator / image vendor:")
 	const padding = 3
 	tw := tabwriter.NewWriter(w, 0, 0, padding, ' ', tabwriter.TabIndent)
-	fprintln(tw, "OPERATOR\tDATABASES\tNODES\tTOTAL MEM\tLICENSING\t")
+	fprintln(tw, "OPERATOR / VENDOR\tDATABASES\tNODES\tTOTAL CPU\tTOTAL MEM\tLICENSING\t")
 	for _, op := range order {
 		a := aggs[op]
-		fprintf(tw, "%s\t%d\t%d\t%s\t%s\t\n", op, a.dbs, a.nodes, gib(a.mem), dash(operatorLicensing(op)))
+		fprintf(tw, "%s\t%d\t%d\t%s\t%s\t%s\t\n", op, a.dbs, a.nodes, vcpu(a.cpu), gib(a.mem), dash(operatorLicensing(op)))
 	}
 	_ = tw.Flush()
-
-	fprintln(w)
-	if r.RateConfigured {
-		mode := "non-production"
-		if r.Prod {
-			mode = "production"
-		}
-		fprintf(w, "KubeDB cost to manage this estate (%s @ $%s/GiB/mo): %s/mo  (%s/yr)\n",
-			mode, trimFloat(r.KubeDBRateUSD), money(r.KubeDBMonthlyUSD), money(r.KubeDBMonthlyUSD*12))
-	} else {
-		fprintln(w, "Set --kubedb-rate-prod / --kubedb-rate-nonprod (USD per GiB per month) to")
-		fprintln(w, "compute the KubeDB cost to manage this estate.")
-	}
-	fprintln(w)
-	fprintln(w, "Note: these operators are mostly open source (no license fee). The cost above is")
-	fprintln(w, "what KubeDB would charge to manage the same database-server memory.")
 }
 
 func dash(s string) string {
@@ -205,6 +162,13 @@ func gib(v float64) string {
 		return "-"
 	}
 	return trimFloat(v) + " GiB"
+}
+
+func vcpu(v float64) string {
+	if v <= 0 {
+		return "-"
+	}
+	return trimFloat(v)
 }
 
 func money(v float64) string {

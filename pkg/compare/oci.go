@@ -78,7 +78,7 @@ func (d ociDiscoverer) discoverViaCLI(ctx context.Context, opts Options) ([]Mana
 		out = append(out, dbs...)
 		warnings = append(warnings, warns...)
 	}
-	warnings = append(warnings, "oci: scan covers compartment "+opts.Account+" only; use the compartment tree / search service for tenancy-wide scans (see docs/compare.md)")
+	warnings = append(warnings, "oci: scan covers compartment "+opts.Account+" only; use the compartment tree / search service for tenancy-wide scans (see docs/inspect.md)")
 	return out, warnings, nil
 }
 
