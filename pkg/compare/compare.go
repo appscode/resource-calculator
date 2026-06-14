@@ -125,104 +125,44 @@ func (d ManagedDatabase) TotalVCPU() float64 {
 	return d.VCPUPerNode * float64(d.NodeCount)
 }
 
-// KubeDBPricing captures the KubeDB licensing model: a flat USD rate per GiB of
-// database-server memory per month, with separate production and
-// non-production rates and a production memory floor.
-//
-// The public rate is quote-based (see https://kubedb.com/pricing), so the rates
-// here default to zero and must be supplied by the caller (typically from an
-// AppsCode contract). When the rate is zero the savings columns are omitted and
-// the report still shows the discovered memory footprint and current spend.
-type KubeDBPricing struct {
-	// ProdRateUSDPerGiBMonth is the USD/GiB/month rate for production clusters.
-	ProdRateUSDPerGiBMonth float64
-	// NonProdRateUSDPerGiBMonth is the USD/GiB/month rate for non-production.
-	NonProdRateUSDPerGiBMonth float64
-	// Prod selects the production rate and applies MinProdGiB.
-	Prod bool
-	// MinProdGiB is the minimum billed memory for production (KubeDB lists a
-	// 100 GiB production minimum).
-	MinProdGiB float64
-}
-
-// DefaultMinProdGiB is the production memory floor published by KubeDB pricing.
-const DefaultMinProdGiB = 100
-
-// Rate returns the applicable USD/GiB/month rate.
-func (p KubeDBPricing) Rate() float64 {
-	if p.Prod {
-		return p.ProdRateUSDPerGiBMonth
-	}
-	return p.NonProdRateUSDPerGiBMonth
-}
-
-// HasRate reports whether a usable (non-zero) rate is configured.
-func (p KubeDBPricing) HasRate() bool {
-	return p.Rate() > 0
-}
-
-// BillableGiB applies the production minimum to the discovered memory.
-func (p KubeDBPricing) BillableGiB(totalGiB float64) float64 {
-	if p.Prod && totalGiB < p.MinProdGiB {
-		return p.MinProdGiB
-	}
-	return totalGiB
-}
-
-// MonthlyCost returns the estimated KubeDB monthly license cost for the given
-// total database-server memory.
-func (p KubeDBPricing) MonthlyCost(totalGiB float64) float64 {
-	return p.BillableGiB(totalGiB) * p.Rate()
-}
-
-// Report is the full result of a comparison: the discovered databases plus the
-// aggregated memory, current spend, KubeDB cost and savings.
+// Report is the full result of an inspection: the discovered databases plus the
+// aggregated CPU and memory totals.
 type Report struct {
 	GeneratedAt time.Time `json:"generatedAt"`
 	// Scope is the provider name, or "all" for an aggregated report.
-	Scope     string            `json:"scope"`
-	Databases []ManagedDatabase `json:"databases"`
+	Scope string `json:"scope"`
+	// SelfHosted marks a report for in-cluster, self-hosted databases (operators
+	// and Bitnami/Chainguard/Docker Hardened Images); it adds a per-operator
+	// breakdown to the text output.
+	SelfHosted bool              `json:"selfHosted,omitempty"`
+	Databases  []ManagedDatabase `json:"databases"`
 
-	DatabaseCount int     `json:"databaseCount"`
-	NodeCount     int     `json:"nodeCount"`
-	TotalVCPU     float64 `json:"totalVCPU"`
-	// TotalMemoryGiB is the raw discovered database-server memory.
+	DatabaseCount  int     `json:"databaseCount"`
+	NodeCount      int     `json:"nodeCount"`
+	TotalVCPU      float64 `json:"totalVCPU"`
 	TotalMemoryGiB float64 `json:"totalMemoryGiB"`
-	// BillableMemoryGiB is TotalMemoryGiB after applying the production floor.
-	BillableMemoryGiB float64 `json:"billableMemoryGiB"`
 
-	// CurrentMonthlyUSD is the sum of estimated managed-service costs. It is
-	// only meaningful when CostKnown is true.
+	// CurrentMonthlyUSD is the sum of estimated managed-service costs (cloud
+	// providers only). It is only meaningful when CostKnown is true.
 	CurrentMonthlyUSD float64 `json:"currentMonthlyUSD,omitempty"`
 	CostKnown         bool    `json:"costKnown"`
 	// CostPartial is true when some databases had no price and were excluded
 	// from CurrentMonthlyUSD.
 	CostPartial bool `json:"costPartial,omitempty"`
 
-	// KubeDBMonthlyUSD and savings are only set when the rate is configured.
-	RateConfigured    bool    `json:"rateConfigured"`
-	Prod              bool    `json:"prod"`
-	KubeDBRateUSD     float64 `json:"kubeDBRateUSDPerGiBMonth,omitempty"`
-	KubeDBMonthlyUSD  float64 `json:"kubeDBMonthlyUSD,omitempty"`
-	MonthlySavingsUSD float64 `json:"monthlySavingsUSD,omitempty"`
-	AnnualSavingsUSD  float64 `json:"annualSavingsUSD,omitempty"`
-	SavingsPercent    float64 `json:"savingsPercent,omitempty"`
-
 	Warnings []string `json:"warnings,omitempty"`
 }
 
-// BuildReport aggregates a set of discovered databases into a Report using the
-// supplied KubeDB pricing. The savings model is "current managed spend minus
-// KubeDB license cost" (the headline figure requested for the tool).
-func BuildReport(scope string, dbs []ManagedDatabase, pricing KubeDBPricing, warnings []string) *Report {
+// BuildReport aggregates discovered databases into a Report: the per-database CPU
+// and memory plus the totals. Cloud-provider databases also carry an estimated
+// managed monthly cost.
+func BuildReport(scope string, dbs []ManagedDatabase, warnings []string) *Report {
 	r := &Report{
-		GeneratedAt:    time.Now().UTC(),
-		Scope:          scope,
-		Databases:      dbs,
-		DatabaseCount:  len(dbs),
-		Prod:           pricing.Prod,
-		RateConfigured: pricing.HasRate(),
-		Warnings:       append([]string(nil), warnings...),
+		GeneratedAt:   time.Now().UTC(),
+		Scope:         scope,
+		Databases:     dbs,
+		DatabaseCount: len(dbs),
+		Warnings:      append([]string(nil), warnings...),
 	}
 
 	var pricedCount int
@@ -235,22 +175,8 @@ func BuildReport(scope string, dbs []ManagedDatabase, pricing KubeDBPricing, war
 			pricedCount++
 		}
 	}
-
-	r.BillableMemoryGiB = pricing.BillableGiB(r.TotalMemoryGiB)
 	r.CostKnown = pricedCount > 0
 	r.CostPartial = pricedCount > 0 && pricedCount < len(dbs)
-
-	if pricing.HasRate() {
-		r.KubeDBRateUSD = pricing.Rate()
-		r.KubeDBMonthlyUSD = pricing.MonthlyCost(r.TotalMemoryGiB)
-		if r.CostKnown {
-			r.MonthlySavingsUSD = r.CurrentMonthlyUSD - r.KubeDBMonthlyUSD
-			r.AnnualSavingsUSD = r.MonthlySavingsUSD * 12
-			if r.CurrentMonthlyUSD > 0 {
-				r.SavingsPercent = r.MonthlySavingsUSD / r.CurrentMonthlyUSD * 100
-			}
-		}
-	}
 
 	sortDatabases(r.Databases)
 	return r

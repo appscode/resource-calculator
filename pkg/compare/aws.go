@@ -100,7 +100,7 @@ func (d awsDiscoverer) discoverViaCLI(ctx context.Context, opts Options) ([]Mana
 		warnings = append(warnings, warns...)
 	}
 	if opts.Org {
-		warnings = append(warnings, "aws: --org organization-wide scan requires per-account role assumption; scan each member account with --account=<profile> (see docs/compare.md)")
+		warnings = append(warnings, "aws: --org organization-wide scan requires per-account role assumption; scan each member account with --account=<profile> (see docs/inspect.md)")
 	}
 	return out, warnings, nil
 }

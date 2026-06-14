@@ -17,7 +17,6 @@ limitations under the License.
 package compare
 
 import (
-	"math"
 	"testing"
 )
 
@@ -118,30 +117,18 @@ func TestOCIMySQLSpec(t *testing.T) {
 	}
 }
 
-func TestKubeDBPricingProdFloor(t *testing.T) {
-	p := KubeDBPricing{ProdRateUSDPerGiBMonth: 10, NonProdRateUSDPerGiBMonth: 5, Prod: true, MinProdGiB: 100}
-	if got := p.MonthlyCost(50); got != 1000 { // floored to 100 GiB * 10
-		t.Errorf("prod floor: got %g want 1000", got)
-	}
-	if got := p.MonthlyCost(150); got != 1500 {
-		t.Errorf("prod above floor: got %g want 1500", got)
-	}
-	p.Prod = false
-	if got := p.MonthlyCost(50); got != 250 { // 50 * 5, no floor
-		t.Errorf("nonprod: got %g want 250", got)
-	}
-}
-
-func TestBuildReportSavings(t *testing.T) {
+func TestBuildReport(t *testing.T) {
 	dbs := []ManagedDatabase{
-		{Provider: ProviderAWS, Service: "RDS", Name: "a", MemoryGiBPerNode: 16, NodeCount: 2, MonthlyCostUSD: 400},
-		{Provider: ProviderAWS, Service: "RDS", Name: "b", MemoryGiBPerNode: 8, NodeCount: 1, MonthlyCostUSD: 100},
+		{Provider: ProviderAWS, Service: "RDS", Name: "a", VCPUPerNode: 4, MemoryGiBPerNode: 16, NodeCount: 2, MonthlyCostUSD: 400},
+		{Provider: ProviderAWS, Service: "RDS", Name: "b", VCPUPerNode: 2, MemoryGiBPerNode: 8, NodeCount: 1, MonthlyCostUSD: 100},
 	}
-	p := KubeDBPricing{ProdRateUSDPerGiBMonth: 8, NonProdRateUSDPerGiBMonth: 4, Prod: false}
-	r := BuildReport("aws", dbs, p, nil)
+	r := BuildReport("aws", dbs, nil)
 
 	if r.TotalMemoryGiB != 40 { // 16*2 + 8*1
 		t.Errorf("total mem = %g want 40", r.TotalMemoryGiB)
+	}
+	if r.TotalVCPU != 10 { // 4*2 + 2*1
+		t.Errorf("total vCPU = %g want 10", r.TotalVCPU)
 	}
 	if r.NodeCount != 3 {
 		t.Errorf("nodes = %d want 3", r.NodeCount)
@@ -149,14 +136,8 @@ func TestBuildReportSavings(t *testing.T) {
 	if r.CurrentMonthlyUSD != 500 {
 		t.Errorf("current = %g want 500", r.CurrentMonthlyUSD)
 	}
-	if r.KubeDBMonthlyUSD != 160 { // 40 * 4 (nonprod)
-		t.Errorf("kubedb = %g want 160", r.KubeDBMonthlyUSD)
-	}
-	if r.MonthlySavingsUSD != 340 {
-		t.Errorf("savings = %g want 340", r.MonthlySavingsUSD)
-	}
-	if math.Abs(r.SavingsPercent-68) > 1e-9 {
-		t.Errorf("savings%% = %g want 68", r.SavingsPercent)
+	if !r.CostKnown {
+		t.Errorf("CostKnown should be true")
 	}
 	// largest footprint should sort first
 	if r.Databases[0].Name != "a" {
@@ -287,5 +268,97 @@ func TestParseClickHouseServices(t *testing.T) {
 	}
 	if dbs[0].NodeCount != 3 || dbs[0].TotalMemoryGiB() != 48 { // 16 * 3
 		t.Errorf("clickhouse: %+v want 3 nodes / 48 GiB", dbs[0])
+	}
+}
+
+func descByKind(t *testing.T, operator, kind string) operatorDescriptor {
+	t.Helper()
+	for _, d := range operatorDescriptors() {
+		if d.Operator == operator && d.Kind == kind {
+			return d
+		}
+	}
+	t.Fatalf("descriptor not found: %s/%s", operator, kind)
+	return operatorDescriptor{}
+}
+
+func TestOperatorExtractCNPG(t *testing.T) {
+	obj := map[string]any{"spec": map[string]any{
+		"instances": int64(3),
+		"resources": map[string]any{"limits": map[string]any{"memory": "8Gi"}},
+	}}
+	cs := descByKind(t, "CloudNativePG", "Cluster").Extract(obj)
+	if len(cs) != 1 || cs[0].Replicas != 3 || cs[0].MemGiB != 8 {
+		t.Errorf("cnpg: %+v want 1 comp 3x8GiB", cs)
+	}
+}
+
+func TestOperatorExtractStrimzi(t *testing.T) {
+	obj := map[string]any{"spec": map[string]any{
+		"kafka": map[string]any{"replicas": int64(3),
+			"resources": map[string]any{"limits": map[string]any{"memory": "16Gi"}}},
+		"zookeeper": map[string]any{"replicas": int64(3),
+			"resources": map[string]any{"requests": map[string]any{"memory": "4Gi"}}},
+	}}
+	cs := descByKind(t, "Strimzi", "Kafka").Extract(obj)
+	if len(cs) != 2 {
+		t.Fatalf("strimzi: got %d comps want 2: %+v", len(cs), cs)
+	}
+	byComp := map[string]componentSpec{}
+	for _, c := range cs {
+		byComp[c.Component] = c
+	}
+	if k := byComp["kafka"]; k.Replicas != 3 || k.MemGiB != 16 {
+		t.Errorf("strimzi kafka: %+v want 3x16", k)
+	}
+	if z := byComp["zookeeper"]; z.Replicas != 3 || z.MemGiB != 4 { // falls back to requests
+		t.Errorf("strimzi zookeeper: %+v want 3x4", z)
+	}
+}
+
+func TestOperatorExtractPSMDB(t *testing.T) {
+	obj := map[string]any{"spec": map[string]any{
+		"replsets": []any{map[string]any{
+			"name": "rs0", "size": int64(3),
+			"resources": map[string]any{"limits": map[string]any{"memory": "8Gi"}},
+		}},
+	}}
+	cs := descByKind(t, "Percona Server for MongoDB Operator", "PerconaServerMongoDB").Extract(obj)
+	if len(cs) != 1 || cs[0].Component != "rs0" || cs[0].Replicas != 3 || cs[0].MemGiB != 8 {
+		t.Errorf("psmdb: %+v want rs0 3x8", cs)
+	}
+}
+
+func TestOperatorExtractUnknownMemory(t *testing.T) {
+	// CR with no resources set -> replica counted, memory unknown with a note.
+	obj := map[string]any{"spec": map[string]any{"instances": int64(2)}}
+	cs := descByKind(t, "CloudNativePG", "Cluster").Extract(obj)
+	if len(cs) != 1 || cs[0].Replicas != 2 || cs[0].MemGiB != 0 || cs[0].Note == "" {
+		t.Errorf("cnpg no-resources: %+v want 2 nodes, 0 mem, note", cs)
+	}
+}
+
+func TestClassifyDBImage(t *testing.T) {
+	cases := []struct {
+		image, vendor, engine string
+		ok                    bool
+	}{
+		{"docker.io/bitnami/postgresql:15.4.0", "Bitnami", "postgres", true},
+		{"bitnami/redis:7.2", "Bitnami", "redis", true},
+		{"bitnami/mariadb-galera:11", "Bitnami", "mariadb", true},
+		{"bitnamilegacy/mongodb:6.0", "Bitnami (legacy)", "mongodb", true},
+		{"cgr.dev/chainguard/postgres:latest", "Chainguard", "postgres", true},
+		{"cgr.dev/acme.example/redis:7", "Chainguard", "redis", true},
+		{"dhi.io/mysql:8.4-debian13", "Docker Hardened Image", "mysql", true},
+		{"docker.io/library/postgres:16", "", "", false},        // upstream official, not targeted
+		{"quay.io/cloudnative-pg/postgresql:16", "", "", false}, // operator image, not targeted
+		{"bitnami/redis-exporter:1.50.0", "", "", false},        // metrics sidecar excluded
+		{"bitnami/os-shell:12", "", "", false},                  // not a database image
+	}
+	for _, c := range cases {
+		v, e, ok := classifyDBImage(c.image)
+		if ok != c.ok || (ok && (v != c.vendor || e != c.engine)) {
+			t.Errorf("classifyDBImage(%q) = %q,%q,%v want %q,%q,%v", c.image, v, e, ok, c.vendor, c.engine, c.ok)
+		}
 	}
 }

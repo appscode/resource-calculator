@@ -16,10 +16,10 @@ agent-oriented summary see `AGENTS.md`.
 
 ```
 main.go            entrypoint -> pkg/cmds.NewRootCmd
-pkg/cmds/          one file per subcommand (calculate, convert, check-deprecated, compare) + root
-pkg/compare/       the compare feature (provider-agnostic engine + per-provider discoverers)
+pkg/cmds/          one file per subcommand (calculate, convert, check-deprecated, inspect) + root
+pkg/compare/       the inspect feature (provider-agnostic engine + per-provider discoverers)
 hack/              build.sh, test.sh, fmt.sh, license templates
-docs/compare.md    compare reference
+docs/inspect.md    inspect reference
 vendor/            vendored dependencies (mandatory; kept in sync by make verify)
 ```
 
@@ -73,11 +73,11 @@ sync. Adding a KubeDB kind to one but not the other silently skips it.
 Conversion rewrites the local `TerminationPolicyPause` ("Pause") constant to
 `DeletionPolicyHalt`; preserve that mapping.
 
-## Working on `compare`
+## Working on `inspect`
 
 The engine (`compare.go`), sources (`discover.go`), sizing (`catalog.go`),
-pricing/savings, and rendering (`report.go`) are provider agnostic. A provider
-only owns discovery plus its sizing and price anchor.
+CPU/memory aggregation, and rendering (`report.go`) are provider agnostic. A
+provider only owns discovery plus its sizing and managed-cost anchor.
 
 To add a provider:
 
@@ -93,13 +93,28 @@ To add a provider:
    cases. Reuse the same sizing/pricing helpers so all sources match.
 5. Add a parser test and a catalog test (see `TEST.md`).
 
+The `inspect operators` command (in-cluster scan) is separate from the cloud
+providers. It detects databases two ways, both through the controller-runtime
+client and unstructured objects, with no dependency on the scanned projects:
+
+- Operator-managed CRs: add a descriptor (GVK plus an extractor that reads
+  replicas and memory from the CR) to `operators.go`. The scan is
+  `DiscoverOperators` in `kubernetes.go`.
+- Vendor images (Bitnami / Chainguard / Docker Hardened Images): add the image
+  base name to `dbImageNames` in `images.go` (and, for a new vendor, the
+  registry match in `classifyDBImage` plus an `imageVendorLicensing` entry). The
+  scan is `DiscoverImageWorkloads` in `kubernetes.go`.
+
+Do not add a go.mod dependency on any operator or image project; detect and read
+everything through unstructured objects. Add an extractor or classifier test
+(see `TEST.md`).
+
 Notes:
 
 - ClickHouse Cloud has no official Go control-plane SDK; it stays on REST and
   rejects an explicit `--source=sdk` (`errSDKNotBuiltIn`).
-- The KubeDB rate is a required flag (`--kubedb-rate-prod` /
-  `--kubedb-rate-nonprod`); the public rate is quote-based, so there is no
-  default. Managed-cost numbers are memory-normalized list-price estimates,
-  flagged `CostEstimated`.
+- For cloud providers the managed-cost numbers are memory-normalized list-price
+  estimates, flagged `CostEstimated`, and shown only as an informational column.
+  The inventory totals report the discovered CPU and memory allocation.
 - When changing a discoverer, verify both the live path and the file path
   (they share parsers, so a fixture test covers most of it).
