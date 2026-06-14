@@ -1,0 +1,189 @@
+// Copyright (c) 2016, 2018, 2026, Oracle and/or its affiliates.  All rights reserved.
+// This software is dual-licensed to you under the Universal Permissive License (UPL) 1.0 as shown at https://oss.oracle.com/licenses/upl or Apache License 2.0 as shown at http://www.apache.org/licenses/LICENSE-2.0. You may choose either license.
+// Code generated. DO NOT EDIT.
+
+// Database Service API
+//
+// The API for the Database Service. Use this API to manage resources such as databases and DB Systems. For more information, see Overview of the Database Service (https://docs.oracle.com/iaas/Content/Database/Concepts/databaseoverview.htm).
+//
+
+package database
+
+import (
+	"fmt"
+	"github.com/oracle/oci-go-sdk/v65/common"
+	"strings"
+)
+
+// UpdateVmClusterDetails Details for updating the VM cluster. Applies to Exadata Cloud@Customer instances only.
+// For details on updating a cloud VM cluster in an Exadata Cloud Service instance, see UpdateCloudVmClusterDetails
+type UpdateVmClusterDetails struct {
+
+	// The number of CPU cores to enable for the VM cluster.
+	CpuCoreCount *int `mandatory:"false" json:"cpuCoreCount"`
+
+	// The number of OCPU cores to enable for the VM cluster. Only 1 decimal place is allowed for the fractional part.
+	OcpuCount *float32 `mandatory:"false" json:"ocpuCount"`
+
+	// The memory to be allocated in GBs.
+	MemorySizeInGBs *int `mandatory:"false" json:"memorySizeInGBs"`
+
+	// The local node storage to be allocated in GBs.
+	DbNodeStorageSizeInGBs *int `mandatory:"false" json:"dbNodeStorageSizeInGBs"`
+
+	// The data disk group size to be allocated in TBs.
+	DataStorageSizeInTBs *float64 `mandatory:"false" json:"dataStorageSizeInTBs"`
+
+	// The data disk group size to be allocated in GBs.
+	DataStorageSizeInGBs *float64 `mandatory:"false" json:"dataStorageSizeInGBs"`
+
+	// The percentage assigned to DATA storage (user data and database files). See Storage Configuration (https://docs.oracle.com/iaas/Content/Database/Concepts/exaoverview.htm#Exadata) in the Exadata documentation for details on the impact of the configuration settings on storage.
+	DataStoragePercentage *int `mandatory:"false" json:"dataStoragePercentage"`
+
+	// The percentage assigned to RECO storage (database redo logs, archive logs, and recovery manager backups). See Storage Configuration (https://docs.oracle.com/iaas/Content/Database/Concepts/exaoverview.htm#Exadata) in the Exadata documentation for details on the impact of the configuration settings on storage.
+	RecoStoragePercentage *int `mandatory:"false" json:"recoStoragePercentage"`
+
+	// The percentage assigned to SPARSE storage (Exadata snapshots). See Storage Configuration (https://docs.oracle.com/iaas/Content/Database/Concepts/exaoverview.htm#Exadata) in the Exadata documentation for details on the impact of the configuration settings on storage.
+	SparseStoragePercentage *int `mandatory:"false" json:"sparseStoragePercentage"`
+
+	// If true, database backup on local Exadata storage is configured for the VM cluster. If false, database backup on local Exadata storage is not available in the VM cluster.
+	IsLocalBackupEnabled *bool `mandatory:"false" json:"isLocalBackupEnabled"`
+
+	// If true, sparse disk group is configured for the VM cluster. If false, sparse disk group is not created.
+	IsSparseDiskgroupEnabled *bool `mandatory:"false" json:"isSparseDiskgroupEnabled"`
+
+	// The Oracle license model that applies to the VM cluster. The default is BRING_YOUR_OWN_LICENSE.
+	LicenseModel UpdateVmClusterDetailsLicenseModelEnum `mandatory:"false" json:"licenseModel,omitempty"`
+
+	// The public key portion of one or more key pairs used for SSH access to the VM cluster.
+	SshPublicKeys []string `mandatory:"false" json:"sshPublicKeys"`
+
+	Version *PatchDetails `mandatory:"false" json:"version"`
+
+	UpdateDetails *VmClusterUpdateDetails `mandatory:"false" json:"updateDetails"`
+
+	// Free-form tags for this resource. Each tag is a simple key-value pair with no predefined name, type, or namespace.
+	// For more information, see Resource Tags (https://docs.oracle.com/iaas/Content/General/Concepts/resourcetags.htm).
+	// Example: `{"Department": "Finance"}`
+	FreeformTags map[string]string `mandatory:"false" json:"freeformTags"`
+
+	// Defined tags for this resource. Each key is predefined and scoped to a namespace.
+	// For more information, see Resource Tags (https://docs.oracle.com/iaas/Content/General/Concepts/resourcetags.htm).
+	DefinedTags map[string]map[string]interface{} `mandatory:"false" json:"definedTags"`
+
+	DataCollectionOptions *DataCollectionOptions `mandatory:"false" json:"dataCollectionOptions"`
+
+	// Details of the file system configuration of the VM cluster.
+	FileSystemConfigurationDetails []FileSystemConfigurationDetail `mandatory:"false" json:"fileSystemConfigurationDetails"`
+
+	CloudAutomationUpdateDetails *CloudAutomationUpdateDetails `mandatory:"false" json:"cloudAutomationUpdateDetails"`
+
+	// Specifies the type of VM Backups Storage and supported values are LOCAL and EXASCALE. Storage Type can only be changed once from LOCAL to EXASCALE. EXASCALE to LOCAL is not permitted.
+	VmBackupStorageType UpdateVmClusterDetailsVmBackupStorageTypeEnum `mandatory:"false" json:"vmBackupStorageType,omitempty"`
+}
+
+func (m UpdateVmClusterDetails) String() string {
+	return common.PointerString(m)
+}
+
+// ValidateEnumValue returns an error when providing an unsupported enum value
+// This function is being called during constructing API request process
+// Not recommended for calling this function directly
+func (m UpdateVmClusterDetails) ValidateEnumValue() (bool, error) {
+	errMessage := []string{}
+
+	if _, ok := GetMappingUpdateVmClusterDetailsLicenseModelEnum(string(m.LicenseModel)); !ok && m.LicenseModel != "" {
+		errMessage = append(errMessage, fmt.Sprintf("unsupported enum value for LicenseModel: %s. Supported values are: %s.", m.LicenseModel, strings.Join(GetUpdateVmClusterDetailsLicenseModelEnumStringValues(), ",")))
+	}
+	if _, ok := GetMappingUpdateVmClusterDetailsVmBackupStorageTypeEnum(string(m.VmBackupStorageType)); !ok && m.VmBackupStorageType != "" {
+		errMessage = append(errMessage, fmt.Sprintf("unsupported enum value for VmBackupStorageType: %s. Supported values are: %s.", m.VmBackupStorageType, strings.Join(GetUpdateVmClusterDetailsVmBackupStorageTypeEnumStringValues(), ",")))
+	}
+	if len(errMessage) > 0 {
+		return true, fmt.Errorf("%s", strings.Join(errMessage, "\n"))
+	}
+	return false, nil
+}
+
+// UpdateVmClusterDetailsLicenseModelEnum Enum with underlying type: string
+type UpdateVmClusterDetailsLicenseModelEnum string
+
+// Set of constants representing the allowable values for UpdateVmClusterDetailsLicenseModelEnum
+const (
+	UpdateVmClusterDetailsLicenseModelLicenseIncluded     UpdateVmClusterDetailsLicenseModelEnum = "LICENSE_INCLUDED"
+	UpdateVmClusterDetailsLicenseModelBringYourOwnLicense UpdateVmClusterDetailsLicenseModelEnum = "BRING_YOUR_OWN_LICENSE"
+)
+
+var mappingUpdateVmClusterDetailsLicenseModelEnum = map[string]UpdateVmClusterDetailsLicenseModelEnum{
+	"LICENSE_INCLUDED":       UpdateVmClusterDetailsLicenseModelLicenseIncluded,
+	"BRING_YOUR_OWN_LICENSE": UpdateVmClusterDetailsLicenseModelBringYourOwnLicense,
+}
+
+var mappingUpdateVmClusterDetailsLicenseModelEnumLowerCase = map[string]UpdateVmClusterDetailsLicenseModelEnum{
+	"license_included":       UpdateVmClusterDetailsLicenseModelLicenseIncluded,
+	"bring_your_own_license": UpdateVmClusterDetailsLicenseModelBringYourOwnLicense,
+}
+
+// GetUpdateVmClusterDetailsLicenseModelEnumValues Enumerates the set of values for UpdateVmClusterDetailsLicenseModelEnum
+func GetUpdateVmClusterDetailsLicenseModelEnumValues() []UpdateVmClusterDetailsLicenseModelEnum {
+	values := make([]UpdateVmClusterDetailsLicenseModelEnum, 0)
+	for _, v := range mappingUpdateVmClusterDetailsLicenseModelEnum {
+		values = append(values, v)
+	}
+	return values
+}
+
+// GetUpdateVmClusterDetailsLicenseModelEnumStringValues Enumerates the set of values in String for UpdateVmClusterDetailsLicenseModelEnum
+func GetUpdateVmClusterDetailsLicenseModelEnumStringValues() []string {
+	return []string{
+		"LICENSE_INCLUDED",
+		"BRING_YOUR_OWN_LICENSE",
+	}
+}
+
+// GetMappingUpdateVmClusterDetailsLicenseModelEnum performs case Insensitive comparison on enum value and return the desired enum
+func GetMappingUpdateVmClusterDetailsLicenseModelEnum(val string) (UpdateVmClusterDetailsLicenseModelEnum, bool) {
+	enum, ok := mappingUpdateVmClusterDetailsLicenseModelEnumLowerCase[strings.ToLower(val)]
+	return enum, ok
+}
+
+// UpdateVmClusterDetailsVmBackupStorageTypeEnum Enum with underlying type: string
+type UpdateVmClusterDetailsVmBackupStorageTypeEnum string
+
+// Set of constants representing the allowable values for UpdateVmClusterDetailsVmBackupStorageTypeEnum
+const (
+	UpdateVmClusterDetailsVmBackupStorageTypeLocal    UpdateVmClusterDetailsVmBackupStorageTypeEnum = "LOCAL"
+	UpdateVmClusterDetailsVmBackupStorageTypeExascale UpdateVmClusterDetailsVmBackupStorageTypeEnum = "EXASCALE"
+)
+
+var mappingUpdateVmClusterDetailsVmBackupStorageTypeEnum = map[string]UpdateVmClusterDetailsVmBackupStorageTypeEnum{
+	"LOCAL":    UpdateVmClusterDetailsVmBackupStorageTypeLocal,
+	"EXASCALE": UpdateVmClusterDetailsVmBackupStorageTypeExascale,
+}
+
+var mappingUpdateVmClusterDetailsVmBackupStorageTypeEnumLowerCase = map[string]UpdateVmClusterDetailsVmBackupStorageTypeEnum{
+	"local":    UpdateVmClusterDetailsVmBackupStorageTypeLocal,
+	"exascale": UpdateVmClusterDetailsVmBackupStorageTypeExascale,
+}
+
+// GetUpdateVmClusterDetailsVmBackupStorageTypeEnumValues Enumerates the set of values for UpdateVmClusterDetailsVmBackupStorageTypeEnum
+func GetUpdateVmClusterDetailsVmBackupStorageTypeEnumValues() []UpdateVmClusterDetailsVmBackupStorageTypeEnum {
+	values := make([]UpdateVmClusterDetailsVmBackupStorageTypeEnum, 0)
+	for _, v := range mappingUpdateVmClusterDetailsVmBackupStorageTypeEnum {
+		values = append(values, v)
+	}
+	return values
+}
+
+// GetUpdateVmClusterDetailsVmBackupStorageTypeEnumStringValues Enumerates the set of values in String for UpdateVmClusterDetailsVmBackupStorageTypeEnum
+func GetUpdateVmClusterDetailsVmBackupStorageTypeEnumStringValues() []string {
+	return []string{
+		"LOCAL",
+		"EXASCALE",
+	}
+}
+
+// GetMappingUpdateVmClusterDetailsVmBackupStorageTypeEnum performs case Insensitive comparison on enum value and return the desired enum
+func GetMappingUpdateVmClusterDetailsVmBackupStorageTypeEnum(val string) (UpdateVmClusterDetailsVmBackupStorageTypeEnum, bool) {
+	enum, ok := mappingUpdateVmClusterDetailsVmBackupStorageTypeEnumLowerCase[strings.ToLower(val)]
+	return enum, ok
+}
