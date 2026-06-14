@@ -33,6 +33,7 @@ require (
 	kmodules.xyz/resource-metrics v0.34.3-0.20260605022022-00425669707f
 	kubedb.dev/apimachinery v0.65.0-rc.0.0.20260604181114-007ef3ea6adf
 	kubedb.dev/installer v0.17.2-0.20260604185309-f2ac49c86059
+	sigs.k8s.io/controller-runtime v0.22.4
 	sigs.k8s.io/yaml v1.6.0
 )
 
@@ -220,7 +221,6 @@ require (
 	kubestash.dev/apimachinery v0.28.0-rc.0 // indirect
 	open-cluster-management.io/api v1.2.0 // indirect
 	sigs.k8s.io/cli-utils v0.37.2 // indirect
-	sigs.k8s.io/controller-runtime v0.22.4 // indirect
 	sigs.k8s.io/gateway-api v1.4.0 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/kustomize/api v0.20.1 // indirect
