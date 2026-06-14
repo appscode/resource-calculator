@@ -26,9 +26,9 @@ If you have a local Go toolchain matching the `go` directive in `go.mod`
 
 ```bash
 go test -mod=vendor ./pkg/...                          # all packages
-go test -mod=vendor ./pkg/compare/...                  # the inspect engine package
-go test -mod=vendor ./pkg/compare/ -run TestAtlas      # a single test
-go test -mod=vendor -v ./pkg/compare/ -run TestParse   # verbose, by prefix
+go test -mod=vendor ./pkg/inspect/...                  # the inspect engine package
+go test -mod=vendor ./pkg/inspect/ -run TestAtlas      # a single test
+go test -mod=vendor -v ./pkg/inspect/ -run TestParse   # verbose, by prefix
 ```
 
 Note: `make fmt` import-grouping uses `reimport3.py`, which only exists in the
@@ -37,7 +37,7 @@ imports.
 
 ## What the unit tests cover
 
-`pkg/compare/compare_test.go` is pure and offline (no network, no CLI, no cloud
+`pkg/inspect/inspect_test.go` is pure and offline (no network, no CLI, no cloud
 credentials). It covers the parts that carry the logic:
 
 - Sizing catalogs: `awsInstanceSpec`, `azureFlexSpec`, `gcpCloudSQLSpec`,
@@ -59,6 +59,24 @@ credentials). It covers the parts that carry the logic:
 When you add a cloud provider or sizing entry, add a parser test and a catalog
 test. When you add an operator or image vendor, add an extractor/classifier test
 in the same file.
+
+## Testing `inspect kubedb` (cluster scan)
+
+`inspect kubedb` shares its discovery path with `calculate`, so the catalog and
+version selection are exercised by the same code. The command itself needs a
+cluster; point your kubeconfig at a throwaway cluster (for example kind),
+install a couple of workloads (a Deployment or a KubeDB resource), and run:
+
+```bash
+resource-calculator inspect kubedb                                # table
+resource-calculator inspect kubedb --apiGroups=kubedb.com -o json # filter + JSON
+resource-calculator inspect kubedb --all -o yaml                  # every kubeconfig context
+```
+
+Each row reports group/kind, namespace, name, UID, age and memory limit. Kinds
+with no `memory` entry in `AppResourceLimits` print `0` for memory; with no
+reachable cluster the command returns the client/config error. `-o/--output` is
+the persistent flag from `inspect`, so it can sit before or after `kubedb`.
 
 ## Testing `inspect` offline (file mode)
 
@@ -124,8 +142,8 @@ reachable cluster the command returns the client/config error.
 Single-test runs for the offline logic:
 
 ```bash
-go test -mod=vendor ./pkg/compare/ -run TestOperatorExtract
-go test -mod=vendor ./pkg/compare/ -run TestClassifyDBImage
+go test -mod=vendor ./pkg/inspect/ -run TestOperatorExtract
+go test -mod=vendor ./pkg/inspect/ -run TestClassifyDBImage
 ```
 
 ## Linting notes

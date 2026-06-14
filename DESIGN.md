@@ -11,9 +11,10 @@ For end-user instructions see [README.md](README.md) and
 `kubectl` plugin. It has two jobs:
 
 1. Measure resource usage of databases already running on Kubernetes
-   (`calculate`, `convert`, `check-deprecated`).
+   (`calculate`, `convert`, `check-deprecated`, plus `inspect kubedb` for a
+   per-object cluster listing and `inspect operators` for self-hosted scans).
 2. Inventory databases running on managed clouds and DBaaS vendors, listing the
-   CPU and memory allocated to each (`inspect`).
+   CPU and memory allocated to each (`inspect <provider>`).
 
 The `inspect` command is designed around three principles:
 
@@ -35,13 +36,31 @@ resource-calculator
   check-deprecated   list KubeDB resources on deprecated versions
   inspect            list managed databases with allocated CPU and memory
     aws | azure | gcp | oci | atlas | elastic | clickhouse | all
+    operators        in-cluster self-hosted scan (alt operators + Bitnami/Chainguard/Docker Hardened Images)
+    kubedb           in-cluster per-object listing of KubeDB-managed resources with memory limits
   completion
   version
 ```
 
-`pkg/cmds/` holds the Cobra wiring. `inspect` lives in `pkg/cmds/compare.go`
-(the Go package is still named `pkg/compare`) and delegates all logic to the
-`pkg/compare` package. The exported entrypoint is `NewCmdInspect`.
+`pkg/cmds/` holds the Cobra wiring. The `inspect` tree is built in
+`pkg/cmds/inspect.go`, delegating cloud-provider and operator discovery to the
+`pkg/inspect` package; `pkg/cmds/inspect_kubedb.go` carries the `inspect kubedb`
+subcommand (cluster scan via the dynamic client, no cloud SDK touched).
+
+`calculate` and `inspect kubedb` share the same discovery path -- both iterate
+`api.RegisteredTypes()`, pick the highest available API version per `GroupKind`
+via `kmodules.xyz/apiversion`, and read each object's memory via
+`resourcemetrics.AppResourceLimits`. The difference is the projection:
+`calculate` aggregates per kind into totals, while `inspect kubedb` emits one
+row per object (group/kind, namespace, name, UID, age, memory limit), sorted by
+group/kind/namespace/name. Both honor `--apiGroups` filtering, the `--all`
+multi-context sweep, and `text`/`json`/`yaml` output (`inspect kubedb` reads
+the inherited `-o/--output` persistent flag from `inspect`).
+
+The `inspect` command tree lives in `pkg/cmds/inspect.go` and delegates all
+provider and operator logic to the `pkg/inspect` package. The exported
+entrypoint is `NewCmdInspect`; `inspect kubedb` is wired in
+`pkg/cmds/inspect_kubedb.go`.
 
 ## 3. Pipeline
 
@@ -50,10 +69,10 @@ are provider agnostic, so adding or changing a provider only touches stage 1.
 
 ```mermaid
 flowchart LR
-  subgraph cmd["pkg/cmds/compare.go"]
+  subgraph cmd["pkg/cmds/inspect.go"]
     F[flags -> Options]
   end
-  subgraph pkg["pkg/compare"]
+  subgraph pkg["pkg/inspect"]
     D["1. Discover\n(per provider)"]
     S["2. Size\n(catalog lookup)"]
     P["3. Aggregate\n(BuildReport)"]
@@ -70,7 +89,7 @@ flowchart LR
    totals across the estate.
 4. Render: `Render` prints text, JSON or YAML.
 
-## 4. Data model (`compare.go`)
+## 4. Data model (`inspect.go`)
 
 ```go
 type ManagedDatabase struct {
@@ -228,9 +247,10 @@ piping into other tooling). The JSON and YAML shapes match the existing
 ## 10. Package layout
 
 ```
-pkg/cmds/compare.go     Cobra command tree (NewCmdInspect), flag binding, run loop
-pkg/compare/
-  compare.go            core types, BuildReport, CPU/memory aggregation
+pkg/cmds/inspect.go         Cobra command tree (NewCmdInspect), flag binding, run loop
+pkg/cmds/inspect_kubedb.go  `inspect kubedb`: per-object listing of cluster resources (dynamic client)
+pkg/inspect/
+  inspect.go            core types, BuildReport, CPU/memory aggregation
   discover.go           Discoverer interface, Source, Options, CLI/HTTP helpers
   catalog.go            InstanceSpec and all sizing lookups/parsers
   report.go             text/json/yaml rendering
@@ -250,7 +270,7 @@ pkg/compare/
   operators.go          alternative-operator catalog (GVK + unstructured extractors)
   images.go             Bitnami/Chainguard/Docker Hardened Image classifier
   kubernetes.go         inspect operators: controller-runtime cluster scan (CRDs + images)
-  compare_test.go       catalog, totals, parser and operator-extractor tests
+  inspect_test.go       catalog, totals, parser and operator-extractor tests
 ```
 
 ## 11. Key design decisions

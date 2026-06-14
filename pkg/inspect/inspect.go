@@ -14,17 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package compare inventories managed database services running on public
-// clouds and DBaaS vendors, normalizes their compute footprint, and estimates
-// how much could be saved by migrating them to KubeDB.
-//
-// KubeDB is licensed on a single metric: the total memory allocated to
-// database servers. For a clustered database the billable memory is
-// "replicas x memory per replica" (a 3 replica PostgreSQL with 8 GiB per
-// replica counts as 24 GiB). This package mirrors that model: every managed
-// database is reduced to (memory per node x node count), summed across the
-// whole estate, and the KubeDB cost is derived from that single number.
-package compare
+// Package inspect inventories managed database services running on public
+// clouds and DBaaS vendors and reports each one's allocated CPU and memory
+// plus the estate totals. Every managed database is reduced to (CPU and memory
+// per node x node count) -- for a clustered database the allocation is
+// "replicas x size per replica" (a 3 replica PostgreSQL with 8 GiB per replica
+// counts as 24 GiB) -- and summed across the whole estate.
+package inspect
 
 import (
 	"sort"

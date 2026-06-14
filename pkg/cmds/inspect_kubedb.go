@@ -66,17 +66,30 @@ type ClusterResourceList struct {
 	Items     []ResourceItem `json:"items"`
 }
 
-func NewCmdList(clientGetter genericclioptions.RESTClientGetter) *cobra.Command {
+// newInspectKubeDBCmd lists KubeDB-managed (and other registered) resources in
+// the cluster with their memory limits, one row per object. It walks the same
+// GVK set as `calculate` (every kind registered in kmodules.xyz/resource-metrics,
+// highest available API version per GroupKind) and uses the persistent
+// `-o/--output` flag from `inspect` for the format.
+func newInspectKubeDBCmd(clientGetter genericclioptions.RESTClientGetter, f *inspectFlags) *cobra.Command {
 	var (
 		apiGroups   []string
 		allClusters bool
-		format      string
 	)
 	cmd := &cobra.Command{
-		Use:                   "list",
-		Short:                 "List resources with memory limits",
-		DisableFlagsInUseLine: true,
+		Use:   "kubedb",
+		Short: "Inspect KubeDB-managed resources in the cluster (one row per object, with memory limit)",
+		Long: `List resources in the current cluster that are registered in
+kmodules.xyz/resource-metrics (KubeDB databases plus core/apps/batch workloads),
+one row per object, with group/kind, namespace, name, UID, age and memory limit.
+
+Walks the same GVK set as ` + "`calculate`" + ` (highest available API version per
+GroupKind via kmodules.xyz/apiversion) but emits per-object rows instead of
+per-kind totals. Use --apiGroups to filter and --all to sweep every kubeconfig
+context. Output format follows the inherited -o/--output flag.`,
 		DisableAutoGenTag:     true,
+		DisableFlagsInUseLine: true,
+		Args:                  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			groups := sets.New(apiGroups...)
 
@@ -110,7 +123,7 @@ func NewCmdList(clientGetter genericclioptions.RESTClientGetter) *cobra.Command 
 				clusters = append(clusters, out)
 			}
 
-			switch format {
+			switch f.output {
 			case "json":
 				data, err := json.MarshalIndent(clusters, "", "  ")
 				if err != nil {
@@ -131,7 +144,6 @@ func NewCmdList(clientGetter genericclioptions.RESTClientGetter) *cobra.Command 
 	}
 	cmd.Flags().StringSliceVar(&apiGroups, "apiGroups", apiGroups, "api groups for which to list resources")
 	cmd.Flags().BoolVar(&allClusters, "all", allClusters, "If true, lists resources for all contexts in KUBECONFIG")
-	cmd.Flags().StringVarP(&format, "output", "o", format, "Output format. One of: (text, json, yaml)")
 
 	return cmd
 }

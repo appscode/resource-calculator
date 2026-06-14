@@ -9,9 +9,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Subcommands live under `pkg/cmds/`:
 
 - `calculate` -- walks every GVK registered in `kmodules.xyz/resource-metrics` `api.RegisteredTypes()`, lists objects via the dynamic client, sums CPU/memory/storage via `resourcemetrics.AppResourceLimits`, and prints a per-kind table or JSON/YAML. Picks the highest available API version per `GroupKind` using `kmodules.xyz/apiversion`. Supports `--all` to iterate every kubeconfig context.
+- `inspect kubedb` -- shares the same discovery path as `calculate` (same `api.RegisteredTypes()` walk, same highest-version-per-`GroupKind` selection, same `AppResourceLimits` memory read) but emits one row per object instead of per-kind totals. Each row carries group/kind, namespace, name, UID, age and memory limit; results are sorted by group/kind/namespace/name. Honors `--apiGroups`, `--all`, and the inherited `-o/--output` persistent flag from `inspect` (text/json/yaml). Lives in `pkg/cmds/inspect_kubedb.go` (subcommand `newInspectKubeDBCmd`, wired into `inspect` in `pkg/cmds/inspect.go`). Cluster-scoped only -- it does not touch any cloud SDK or `pkg/inspect`.
 - `convert` -- converts KubeDB `kubedb/v1alpha1` resources (Elasticsearch, Etcd, MariaDB, Memcached, MongoDB, MySQL, PerconaXtraDB, Postgres, Redis) to `v1alpha2` using the generated `Convert_v1alpha1_*_To_v1alpha2_*` functions in `kubedb.dev/apimachinery`, then re-applies defaults from a catalog version.
 - `check-deprecated` -- lists installed v1alpha1 KubeDB resources (cluster or local `--dir`) so users can find what needs converting.
-- `inspect` -- inventories managed databases on public clouds and DBaaS vendors and lists each one with its allocated CPU and memory plus the estate totals. All logic is in the `pkg/compare` package (the Go package name is unchanged; only the CLI command is `inspect`, exported as `NewCmdInspect`); the command wiring is `pkg/cmds/compare.go`. See "inspect architecture" below.
+- `inspect` -- inventories managed databases on public clouds and DBaaS vendors and lists each one with its allocated CPU and memory plus the estate totals. All cloud/operator logic is in the `pkg/inspect` package (exported entrypoint `NewCmdInspect`); the command wiring is `pkg/cmds/inspect.go`. The cluster-scoped `inspect kubedb` subcommand lives in `pkg/cmds/inspect_kubedb.go` and does not import `pkg/inspect`. See "inspect architecture" below.
 
 `LoadCatalog` in `calculate.go` is the shared catalog loader for `convert`: it seeds `*Version` objects from the embedded `kubedb.dev/installer/catalog/kubedb` FS, then layers on custom `*Version` CRs from the live cluster (unless `--local`). Defaulters require these catalog entries -- missing entries cause `convert` to fail with `"unknown %v version %s"`.
 
@@ -27,13 +28,13 @@ All targets run inside the `ghcr.io/appscode/golang-dev:1.25` container via the 
 - `make fmt` -- runs `reimport3.py`, `goimports`, `gofmt -s` (note: import grouping is enforced by `reimport3.py`, which only lives in the build image).
 - `make add-license` / `make check-license` -- `ltag` with template in `hack/license/`. Every new Go file needs the Apache 2.0 header from that template.
 
-Single-test run (inside the build container, or locally if you have the toolchain): `go test -mod=vendor ./pkg/compare/ -run TestName`.
+Single-test run (inside the build container, or locally if you have the toolchain): `go test -mod=vendor ./pkg/inspect/ -run TestName`.
 
 See `TEST.md` for the full test process (including how to test `inspect` offline with JSON fixtures) and `DEVELOPMENT.md` for local setup and conventions.
 
-## inspect architecture (pkg/compare)
+## inspect architecture (pkg/inspect)
 
-`inspect` reduces every managed database to its allocated CPU and memory per node times node count (counted as `replicas x size per replica`), sums it across the estate, and reports the totals. The Go package is still named `pkg/compare`; only the CLI command was renamed to `inspect` (exported entrypoint `NewCmdInspect`).
+`inspect` reduces every managed database to its allocated CPU and memory per node times node count (counted as `replicas x size per replica`), sums it across the estate, and reports the totals. All provider/operator logic lives in `pkg/inspect` (exported entrypoint `NewCmdInspect`, command wiring in `pkg/cmds/inspect.go`).
 
 Pipeline (stages after discovery are provider agnostic, so adding or changing a provider only touches discovery and that provider's sizing/cost anchor):
 
@@ -41,7 +42,7 @@ Pipeline (stages after discovery are provider agnostic, so adding or changing a 
 flags -> Options  ->  DiscovererFor(p).Discover  ->  []ManagedDatabase  ->  BuildReport  ->  Render (text/json/yaml)
 ```
 
-- `compare.go` -- core types: `ManagedDatabase` (`TotalMemoryGiB = MemoryGiBPerNode * NodeCount`, with the matching vCPU total `VCPUPerNode * NodeCount`), `Report`, and `BuildReport(scope, dbs, warnings)`, which sorts the databases and sums the estate totals (database count, node count, total vCPU, total memory).
+- `inspect.go` -- core types: `ManagedDatabase` (`TotalMemoryGiB = MemoryGiBPerNode * NodeCount`, with the matching vCPU total `VCPUPerNode * NodeCount`), `Report`, and `BuildReport(scope, dbs, warnings)`, which sorts the databases and sums the estate totals (database count, node count, total vCPU, total memory).
 - `discover.go` -- the `Discoverer` interface, the `Source` enum (`sdk`, `cli`, `rest`, `file`, `auto`), `Options`, `DiscovererFor`, and shared helpers (`runCLIJSON`, `httpJSON`, the `collector` pattern, `discoverViaFile`). `auto` prefers the SDK (REST for ClickHouse).
 - Per provider there are two files: `<provider>.go` holds the CLI/REST discoverer, the JSON parsers, the managed-cost anchors, and calls into sizing; `<provider>_sdk.go` holds the official-SDK discoverer. Both reuse the same sizing and cost-estimate helpers, so every source yields identical `ManagedDatabase` records.
 - `catalog.go` -- sizing: instance class / SKU / tier -> `InstanceSpec{VCPU, MemoryGiB}`. AWS `db.*`/`cache.*`/`*.search` mirror the underlying EC2 family memory; GCP `db-custom-CPU-MEMMB` encodes memory in the name; Atlas M-tiers and others have explicit tables. Unknown types are reported as a warning and excluded from the totals rather than guessed.
@@ -53,6 +54,7 @@ Providers: `aws`, `azure`, `gcp`, `oci` (hyperscalers: SDK + CLI + file); `atlas
 
 ## Things to know before changing code
 
+- `pkg/cmds/calculate.go` and `pkg/cmds/inspect_kubedb.go` both iterate `api.RegisteredTypes()` and resolve the highest available API version per `GroupKind` using `kmodules.xyz/apiversion`. If you change the discovery rule (filtering, version selection, dynamic client setup), change both -- they intentionally mirror each other so `calculate` totals and `inspect kubedb` rows always describe the same object set.
 - `pkg/cmds/calculate.go` `Convert_kubedb_v1alpha1_To_v1alpha2` and the `registeredKubeDBTypes` list in `check_deprecated.go` must stay in sync -- adding a new KubeDB kind to one without the other will silently skip it.
 - `TerminationPolicyPause` is a local constant (`"Pause"`) that doesn't exist in v1alpha2; conversion rewrites it to `DeletionPolicyHalt`. Preserve that mapping when touching conversion code.
 - `replace sigs.k8s.io/controller-runtime => github.com/kmodules/controller-runtime ...` in `go.mod` is intentional -- don't drop it when running `go mod tidy`.
