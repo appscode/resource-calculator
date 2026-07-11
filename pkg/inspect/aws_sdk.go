@@ -64,7 +64,8 @@ func (d awsDiscoverer) discoverViaSDK(ctx context.Context, opts Options) ([]Mana
 			roleArn := fmt.Sprintf("arn:aws:iam::%s:role/OrganizationAccountAccessRole", acct)
 			acctCfg := baseCfg.Copy()
 			acctCfg.Credentials = aws.NewCredentialsCache(
-				stscreds.NewAssumeRoleProvider(stsClient, roleArn))
+				stscreds.NewAssumeRoleProvider(stsClient, roleArn),
+			)
 			dbs, warns := awsScanAccount(ctx, acctCfg, acct, opts)
 			out = append(out, dbs...)
 			warnings = append(warnings, warns...)
