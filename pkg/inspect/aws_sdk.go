@@ -101,10 +101,8 @@ func awsListAccounts(ctx context.Context, cfg aws.Config) ([]string, error) {
 
 func awsScanAccount(ctx context.Context, cfg aws.Config, account string, opts Options) ([]ManagedDatabase, []string) {
 	regions, warns := awsSDKRegions(ctx, cfg, opts)
-	var (
-		out      []ManagedDatabase
-		warnings = warns
-	)
+	out := make([]ManagedDatabase, 0, len(regions))
+	warnings := warns
 	for _, region := range regions {
 		rcfg := cfg.Copy()
 		rcfg.Region = region

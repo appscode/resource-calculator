@@ -42,15 +42,21 @@ func (d atlasDiscoverer) discoverViaSDK(ctx context.Context, opts Options) ([]Ma
 
 	var groups []admin.Group
 	if c.OrgID != "" {
-		resp, _, err := client.OrganizationsApi.GetOrgGroups(ctx, c.OrgID).Execute()
+		resp, hr, err := client.OrganizationsApi.GetOrgGroups(ctx, c.OrgID).Execute()
 		if err != nil {
 			return nil, nil, fmt.Errorf("atlas list org projects: %w", err)
 		}
+		if hr != nil {
+			_ = hr.Body.Close()
+		}
 		groups = resp.GetResults()
 	} else {
-		resp, _, err := client.ProjectsApi.ListGroups(ctx).Execute()
+		resp, hr, err := client.ProjectsApi.ListGroups(ctx).Execute()
 		if err != nil {
 			return nil, nil, fmt.Errorf("atlas list projects: %w", err)
+		}
+		if hr != nil {
+			_ = hr.Body.Close()
 		}
 		groups = resp.GetResults()
 	}
@@ -61,10 +67,13 @@ func (d atlasDiscoverer) discoverViaSDK(ctx context.Context, opts Options) ([]Ma
 	)
 	for i := range groups {
 		gid := groups[i].GetId()
-		resp, _, err := client.ClustersApi.ListClusters(ctx, gid).Execute()
+		resp, hr, err := client.ClustersApi.ListClusters(ctx, gid).Execute()
 		if err != nil {
 			warnings = append(warnings, fmt.Sprintf("atlas project %s: %v", gid, err))
 			continue
+		}
+		if hr != nil {
+			_ = hr.Body.Close()
 		}
 		for _, cl := range resp.GetResults() {
 			db, warns := atlasSDKCluster(cl, c.OrgID, opts)
