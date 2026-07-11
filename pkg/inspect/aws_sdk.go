@@ -64,7 +64,8 @@ func (d awsDiscoverer) discoverViaSDK(ctx context.Context, opts Options) ([]Mana
 			roleArn := fmt.Sprintf("arn:aws:iam::%s:role/OrganizationAccountAccessRole", acct)
 			acctCfg := baseCfg.Copy()
 			acctCfg.Credentials = aws.NewCredentialsCache(
-				stscreds.NewAssumeRoleProvider(stsClient, roleArn))
+				stscreds.NewAssumeRoleProvider(stsClient, roleArn),
+			)
 			dbs, warns := awsScanAccount(ctx, acctCfg, acct, opts)
 			out = append(out, dbs...)
 			warnings = append(warnings, warns...)
@@ -100,10 +101,8 @@ func awsListAccounts(ctx context.Context, cfg aws.Config) ([]string, error) {
 
 func awsScanAccount(ctx context.Context, cfg aws.Config, account string, opts Options) ([]ManagedDatabase, []string) {
 	regions, warns := awsSDKRegions(ctx, cfg, opts)
-	var (
-		out      []ManagedDatabase
-		warnings = warns
-	)
+	out := make([]ManagedDatabase, 0, len(regions))
+	warnings := warns
 	for _, region := range regions {
 		rcfg := cfg.Copy()
 		rcfg.Region = region
